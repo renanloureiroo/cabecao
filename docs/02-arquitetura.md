@@ -1,5 +1,7 @@
 # 02 · Arquitetura
 
+> **Estado (marco 1):** existem o servidor MCP stdio, a CLI (8 comandos), o vault, o indexador incremental, a busca por palavra-chave, o sync por git da branch principal e o scanner de segredos. A busca híbrida com embeddings, a branch `cabecao/index` e o runtime de embeddings são do marco 2; o grafo e os fatos temporais como recurso de uso, do marco 3; o plugin, o `cabecao serve` e os demais comandos, dos marcos 4 a 6. O diagrama mostra o desenho completo.
+
 ## Componentes
 
 ```mermaid
@@ -11,7 +13,7 @@ flowchart TB
       OB[Obsidian]
     end
 
-    subgraph Cabecao["cabecao (um arquivo JS, sem dependências)"]
+    subgraph Cabecao["cabecao (bundle JS, sem dependências de runtime)"]
       MCP[Servidor MCP stdio<br/>duas gerações do protocolo]
       CLI[CLI: init · sync · doctor · undo · ...]
       subgraph Core
@@ -55,8 +57,8 @@ Não existe serviço rodando o tempo todo. Cada processo é autossuficiente:
 | Processo | Quem inicia | O que faz |
 |---|---|---|
 | `cabecao mcp` | O cliente MCP, um por cliente aberto | Atende as tools. Ao subir, **não faz nada com efeito colateral**; a varredura incremental roda na primeira chamada |
-| `cabecao sync` | Hook de fim de sessão, agendador do sistema, você ou a tool `sync` | Sincroniza e sai. Roda como processo filho, separado do servidor |
-| `cabecao serve` | Você, opcionalmente | Expõe o mesmo servidor por HTTP em `127.0.0.1`, com token |
+| `cabecao sync` | Você ou a tool `sync` (marco 1); hook de fim de sessão e agendador do sistema (marco 4) | Sincroniza e sai. Roda como processo filho, separado do servidor |
+| `cabecao serve` (marco 6) | Você, opcionalmente | Expõe o mesmo servidor por HTTP em `127.0.0.1`, com token |
 
 Vários processos convivem na mesma máquina: o SQLite em modo WAL aceita escritores simultâneos, e um arquivo de trava serializa as operações de git. Testado com 8 processos, 880 escritas e 36 syncs, sem corrupção.
 
@@ -77,7 +79,7 @@ Todas vêm de medição; os números estão em [11 · Evidências](11-evidencias
 | Grafo | Tabelas no SQLite + consultas recursivas | Banco de grafos, PageRank, detecção de comunidades |
 | MCP | SDK oficial v2 (`@modelcontextprotocol/server` 2.4) + Zod 4 | SDK v1: clientes novos falham contra ele |
 | Git | CLI `git` ≥ 2.38 do usuário | `gh` e APIs de provedor |
-| Empacotamento | Um arquivo gerado por `tsdown`, sem dependências de runtime | Dependências normais: `npx` até 2 vezes mais lento |
+| Empacotamento | Um bundle gerado por `tsdown`, sem dependências de runtime. 241 kB compactado, cerca de 840 kB instalado, 18 arquivos; cada comando é carregado só quando roda (`cabecao --version` leva cerca de 26 ms) | Dependências normais: `npx` até 2 vezes mais lento |
 | Projeto | pnpm, Vitest, Biome, Changesets | — |
 
 ## Estrutura do repositório do projeto
@@ -85,15 +87,16 @@ Todas vêm de medição; os números estão em [11 · Evidências](11-evidencias
 ```
 cabecao/
 ├── packages/
-│   ├── core/            # vault, parser, índice, busca, grafo, sync, segurança
-│   ├── server/          # servidor MCP
+│   ├── core/            # markdown, security, git, util, vault, db, sync, init, brain
+│   ├── server/          # servidor MCP (stdio)
 │   ├── cli/             # comando `cabecao` (publicado no npm)
-│   └── embeddings/      # runtime opcional, instalado no diretório de dados do usuário
+│   └── embeddings/      # runtime opcional (marco 2); hoje só o esqueleto do pacote
 ├── integrations/
-│   ├── claude-code/     # plugin com o servidor embutido, hooks e skill
-│   ├── mcpb/            # manifesto para o Claude Desktop
-│   └── obsidian/        # grafo, painéis, tipos de propriedade, Web Clipper
-├── templates/vault/     # estrutura inicial do cérebro
+│   ├── claude-code/     # plugin com o servidor embutido, hooks e skill (marco 4)
+│   ├── mcpb/            # manifesto para o Claude Desktop (marco 5)
+│   └── obsidian/        # grafo, painéis, tipos de propriedade, Web Clipper (marco 5)
+├── scripts/             # smoke.mjs e e2e.mjs (`pnpm smoke`, `pnpm e2e`)
+├── templates/vault/     # estrutura inicial do cérebro (os mesmos bytes que o `init` gera)
 ├── fixtures/vault/      # cérebro de exemplo, com dados inventados, usado nos testes
 ├── spikes/              # relatórios das provas de conceito
 └── docs/
@@ -102,9 +105,9 @@ cabecao/
 ## Fluxos principais
 
 ### Escrita (`remember`, `write_page`)
-1. Valida o esquema da nota.
+1. Valida o esquema da nota e confere as restrições a agentes (regras, arquivos de controle, `raw/`, proveniência; ver [05](05-mcp.md#restrições-a-agentes)).
 2. Passa o conteúdo pelo scanner de segredos; se achar, recusa.
-3. Procura memórias parecidas e decide: criar, atualizar, substituir ou ignorar. Em caso ambíguo, devolve os candidatos para o agente decidir.
+3. Procura memórias parecidas e decide: criar, atualizar, substituir ou ignorar. Em caso ambíguo, devolve os candidatos para o agente decidir. (Marco 4: no marco 1 o `remember` só cria.)
 4. Grava o arquivo de forma atômica (arquivo temporário + renomear).
 5. Atualiza o índice local e faz um commit local no [padrão do projeto](12-commits.md).
 

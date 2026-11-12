@@ -2,13 +2,15 @@
 
 > Nomes de pastas, tipos e campos são em **inglês**. O **conteúdo** das notas fica no seu idioma.
 
+> **Estado (marco 1):** a estrutura do cérebro, o frontmatter, o `.cabecao.json` e o banco local (`.cabecao/cabecao.db`) existem. A branch de índice (`cabecao/index`) e o campo `embedding` do `.cabecao.json` são do **marco 2**. As relações tipadas e os fatos com validade como recurso de uso (tools `relate`, `facts`, `graph`) são do **marco 3**.
+
 ## Estrutura do cérebro
 
 ```
 meu-cerebro/                      ← repositório git (privado)
 ├── .cabecao.json                 ← marca a pasta como cérebro e guarda a configuração compartilhada
 ├── .gitattributes                ← log.md com merge por união
-├── .gitignore                    ← ignora .cabecao/
+├── .gitignore                    ← ignora .cabecao/, temporários e lixo do sistema (ver abaixo)
 ├── AGENTS.md                     ← regras do cérebro para qualquer agente
 ├── CLAUDE.md                     ← importa o AGENTS.md
 ├── index.md                      ← catálogo gerado (derivado; regenerado a cada sync)
@@ -31,6 +33,22 @@ meu-cerebro/                      ← repositório git (privado)
     └── locks/  logs/
 ```
 
+### `.gitignore` do modelo
+
+O `init` cria um `.gitignore` que exclui só o que é local ou só gera conflito:
+
+```gitignore
+.cabecao/
+.cabecao-*.tmp
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.DS_Store
+Thumbs.db
+desktop.ini
+```
+
+O sync leva tudo o que o git não ignora ([04](04-sincronizacao.md), ADR 35). Por isso estas linhas importam: sem elas, o estado das janelas do Obsidian e o lixo do sistema virariam conflitos entre máquinas. Em um `.gitignore` que já existe (adoção de vault), o `init` acrescenta só as linhas que faltam, e o `doctor` confere.
+
 ### `.cabecao.json`
 
 Único arquivo de configuração versionado. Ele permite adotar um vault que já existe sem mover nada.
@@ -44,7 +62,7 @@ meu-cerebro/                      ← repositório git (privado)
 }
 ```
 
-O campo `embedding` só existe depois que você ativa a busca por significado e escolhe um modelo. Ele vale para todas as máquinas do cérebro. O exemplo mostra uma das sugestões; as dimensões e o tamanho do registro nos segmentos acompanham o modelo escolhido.
+O campo `embedding` é do marco 2 (hoje o arquivo não o tem). Ele só existirá depois que você ativar a busca por significado e escolher um modelo. Ele vale para todas as máquinas do cérebro. O exemplo mostra uma das sugestões; as dimensões e o tamanho do registro nos segmentos acompanham o modelo escolhido.
 
 ## Frontmatter
 
@@ -62,6 +80,7 @@ origin: agent:claude-code          # human | agent:<client> | ingest:<source>
 created: 2026-05-03
 updated: 2026-11-12
 confirmed: 2026-11-12
+edited_by: agent:claude-code       # só aparece quando um agente alterou uma nota sua (ver abaixo)
 valid_from: 2026-05-03             # validade no tempo
 valid_until:                       # vazio = ainda vale
 supersedes: ["[[usar-rabbitmq-para-filas]]"]
@@ -73,6 +92,13 @@ decided_by: ["[[Ana]]"]
 part_of: ["[[Projeto Atlas]]"]
 ---
 ```
+
+### Proveniência e `edited_by`
+
+`trust`, `origin` e `edited_by` registram quem escreveu e quanto confiar:
+
+- Um agente (cliente MCP) não grava `trust: high` nem troca o `origin` de uma nota.
+- Quando um agente altera uma nota do usuário (`origin: human` ou `trust: high`), o `trust` cai para `medium` e a nota ganha `edited_by: agent:<cliente>`. A nota deixa de passar por "escrita pelo usuário" sem que isso fique registrado ([ADR 36](adr/README.md)).
 
 ### Por que uma propriedade por tipo de relação
 
@@ -99,7 +125,9 @@ O Projeto Atlas migrou de RabbitMQ para SQS em maio de 2026 por custo operaciona
 
 Um fato novo que contradiz outro **não apaga** o antigo: o antigo recebe `valid_until` e `superseded_by`. Na medição, usar essas datas na busca derrubou de 50–70% para 0% os casos em que a versão vencida aparecia acima da correta.
 
-## Branch de índice (`cabecao/index`)
+## Branch de índice (`cabecao/index`) · marco 2
+
+Não existe no marco 1: o `init` não a cria e o sync só trabalha na branch principal. O que segue é o desenho.
 
 Fica no mesmo repositório, numa branch separada e sem histórico em comum com as notas. Só o Cabeção escreve nela.
 
@@ -141,7 +169,9 @@ A chave é o hash do texto embutido: o prefixo de contexto (`Título › Seção
 
 ## Banco local (`.cabecao/cabecao.db`)
 
-SQLite embutido do Node, em modo WAL. É uma visão materializada, reconstruída em segundos.
+SQLite embutido do Node, em modo WAL. É uma visão materializada, reconstruída em segundos (2 mil notas do zero em cerca de 640 ms). Fica dentro do cérebro, em `.cabecao/`, fora do git.
+
+O esquema abaixo é o desenho; a implementação tem colunas e tabelas a mais (por exemplo `expires_at`, `conflict_of`, `archived`, `start_line`) e, no marco 1, só a busca por palavra-chave a usa. Os vetores e as tabelas de grafo para uso em busca são dos marcos 2 e 3.
 
 ```sql
 notes(id TEXT PRIMARY KEY, path TEXT UNIQUE, type, title, scope, trust, origin,

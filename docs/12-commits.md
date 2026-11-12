@@ -45,13 +45,14 @@ Se você já usa o Obsidian Git com outro modelo de mensagem, copie o mesmo para
 
 | Ação | Quando |
 |---|---|
+| `init` | Primeira linha do corpo do primeiro commit de um cérebro (`init: cérebro criado`, `init: cérebro criado só nesta máquina` ou `init: vault adotado; nenhum arquivo foi movido`), seguida de um arquivo por linha. Sem `Cabecao-Session`. Para o marcador `{{action}}` do assunto, vale `add` |
 | `add` | Nota nova |
 | `update` | Nota existente alterada |
 | `supersede` | Nota nova que substitui outra |
-| `archive` | `forget` |
+| `archive` | `forget` (marco 4) |
 | `ingest` | Fonte registrada em `raw/` |
-| `edit` | Mudanças feitas fora do Cabeção (Obsidian, editor) |
-| `lint`, `consolidate`, `migrate` | Manutenção |
+| `edit` | Mudanças feitas fora do Cabeção (Obsidian, editor), gravadas pelo sync com `Cabecao-Client: manual` e sem `Cabecao-Session` |
+| `lint`, `consolidate`, `migrate` | Manutenção (marcos 4 e 5) |
 | `sync`, `conflict` | Integração entre máquinas |
 | `revert` | `undo` |
 
@@ -75,6 +76,19 @@ Os rodapés são o que permite desfazer por operação ou por sessão. Eles não
 - Edições feitas no Obsidian entram num commit só, criado no próximo sync.
 
 ## Exemplos
+
+O primeiro commit de um cérebro novo usa a ação `init` no corpo:
+
+```
+vault backup: 2026-11-12 14:00:00.000
+
+init: cérebro criado
+- .cabecao.json
+- AGENTS.md
+- ...
+```
+
+(a lista traz um arquivo por linha, sem as reticências)
 
 ```
 vault backup: 2026-11-12 14:32:10.482
@@ -118,5 +132,5 @@ O autor é a sua identidade do git. O Cabeção **não** acrescenta linhas de co
 ## Detalhes de implementação
 
 - Os commits automáticos usam `--no-verify`, para não depender de hooks do seu git.
-- Commits assinados com senha podem travar um processo sem terminal. O `doctor` detecta `commit.gpgsign` e avisa; a compatibilidade ainda não foi testada.
+- **Os commits do Cabeção saem sempre sem assinatura** (`--no-gpg-sign`), mesmo com `commit.gpgsign` ligado no seu git: uma chave com senha poderia travar um processo sem terminal. O `doctor` detecta `commit.gpgsign` e avisa. Não foi testado com um provedor que exija commits assinados.
 - A data do assunto usa o fuso da máquina, como o Obsidian Git. O ULID do rodapé é sempre em UTC.

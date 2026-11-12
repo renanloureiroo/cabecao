@@ -13,7 +13,10 @@ pnpm typecheck    # tsc --noEmit
 pnpm test         # Vitest
 pnpm build        # tsdown: gera packages/cli/dist
 pnpm smoke        # roda o bundle pronto
+pnpm e2e          # ponta a ponta: duas máquinas e um remoto local, sobre o bundle
 ```
+
+`pnpm e2e` precisa do bundle pronto (`pnpm build` antes). Ele simula duas máquinas e um remoto em pasta local e exercita, pelo `cabecao` gerado, o ciclo completo: `init`, escrita, `sync` entre as duas, conflito e `undo`.
 
 `pnpm format` corrige a formatação. `node packages/cli/src/bin.ts --version` roda a CLI sem build, em Node 22.18 ou superior.
 
@@ -28,10 +31,10 @@ pnpm smoke        # roda o bundle pronto
 
 ### O bundle
 
-O `tsdown` gera dois arquivos em `packages/cli/dist`, sem dependências de runtime:
+O `tsdown` gera, em `packages/cli/dist`, um conjunto pequeno de arquivos (18 no pacote publicado, 241 kB compactado), sem dependências de runtime:
 
 - `cabecao.mjs` é o bin. Ele só confere a versão do Node e carrega o resto.
-- `main.mjs` é a CLI, com os pacotes do workspace e do npm embutidos.
+- `main.mjs` é a CLI. Cada comando vira um arquivo à parte, carregado só quando roda; os pacotes do workspace e do npm vão embutidos. Mais da metade do peso é o SDK do MCP com o Zod, carregado só no `cabecao mcp`.
 
 A checagem fica num arquivo separado porque um `import` estático é avaliado antes de qualquer código. Num arquivo único, um Node antigo mostraria um erro cru em vez da mensagem.
 
@@ -41,7 +44,7 @@ O workflow [`ci.yml`](../.github/workflows/ci.yml) roda em todo Pull Request e e
 
 | Job | O que confere |
 |---|---|
-| `check` | Lint, typecheck, testes, build e smoke em Linux, macOS e Windows, com Node 22, 24 e 26 (9 combinações) |
+| `check` | Lint, typecheck, testes (1.181), build, smoke e o teste de ponta a ponta com duas máquinas (`pnpm e2e`), em Linux, macOS e Windows, com Node 22, 24 e 26 (9 combinações) |
 | `node-limits` | O bundle pronto roda no Node 22.16.0, o piso da faixa, e é recusado com a mensagem clara nos Nodes 20, 22.15.0 e 23 |
 | `package` | `publint`, `npm publish --dry-run` sem avisos, e o comando `cabecao` instalado a partir do tarball |
 

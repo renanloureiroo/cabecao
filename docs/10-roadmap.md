@@ -12,21 +12,26 @@ Cada marco entrega uma versão instalável e útil. Tudo em TypeScript.
 - [ ] Reservar `cabecao` no npm: o pacote `0.0.1` está pronto e validado com `npm publish --dry-run`; falta a [primeira publicação](13-publicacao.md#primeira-publicação-reserva-do-nome)
 - [ ] Ligar a publicação pelo GitHub Actions (depois da primeira publicação)
 
-## M1 · Núcleo: instalar com a URL e sincronizar (`0.1`)
+## M1 · Núcleo: instalar com a URL e sincronizar (`0.1`) ✅ implementado, em revisão
 Ao final: `npx cabecao init <url>` funciona em duas máquinas, com busca por palavra-chave, no Claude Code.
 
-- [ ] Parser próprio de Markdown e frontmatter
-- [ ] Vault: escrita atômica, ULIDs, validação de esquema, `.cabecao.json`
-- [ ] Banco local com `node:sqlite` + FTS5 e varredura incremental
-- [ ] `init` com os cinco casos de repositório
-- [ ] Sync de conteúdo: integração em memória, cópia de conflito, trava, recuperação após interrupção
-- [ ] Autenticação sem terminal
-- [ ] Padrão de commits + `undo`
-- [ ] Scanner de segredos
-- [ ] Servidor MCP nas duas gerações: `recall`, `search`, `read`, `remember`, `write_page`, `patch_page`, `status`, `sync`, `undo`
-- [ ] Instruções do servidor
-- [ ] CLI: `init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`
+O código está na branch `feat/m1-nucleo` e ainda não foi publicado no npm. Os itens abaixo estão implementados e cobertos por testes automatizados (1.181 testes e o teste de ponta a ponta com duas máquinas). O que não foi validado está nas linhas em aberto e em "O que ainda precisa de prova".
+
+- [x] Parser próprio de Markdown e frontmatter
+- [x] Vault: escrita atômica, ULIDs, validação de esquema, `.cabecao.json`
+- [x] Banco local com `node:sqlite` + FTS5 e varredura incremental
+- [x] `init` com os cinco casos de repositório, mais o cérebro só local
+- [x] Sync de conteúdo: integração em memória, cópia de conflito, trava, recuperação após interrupção. Sincroniza tudo o que o git não ignora ([ADR 35](adr/README.md))
+- [ ] Autenticação sem terminal: implementada (`GIT_TERMINAL_PROMPT=0`, `ssh -o BatchMode=yes`, tempo limite) e testada só com remoto local e HTTP local; falta com provedores reais, SSH e gerenciadores de credencial
+- [x] Padrão de commits + `undo` (commits sempre sem assinatura)
+- [x] Scanner de segredos (14 regras, em toda escrita e antes de todo envio). Mediu 53 de 53 segredos sintéticos e 0 falsos positivos no cérebro de exemplo e em `docs/`; nunca foi medido contra segredos reais
+- [x] Servidor MCP nas duas gerações, com 9 tools: `recall`, `search`, `read`, `status`, `remember`, `write_page`, `patch_page`, `sync`, `undo`. As outras 8 do plano vêm em marcos futuros ([05](05-mcp.md))
+- [x] Instruções do servidor
+- [x] CLI: `init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`
+- [x] Revisão de segurança e correções: um agente não cria nem edita regras, não escreve em arquivos de controle e, ao alterar uma nota do usuário, rebaixa a confiança e se registra em `edited_by` ([ADR 36](adr/README.md)); limites de tamanho de entrada; escrita que nunca segue link simbólico
+- [x] Teste de ponta a ponta com duas máquinas sobre o bundle (`pnpm e2e`), no CI
 - [ ] **Validar em GitHub, GitLab, Bitbucket e Gitea reais**
+- [ ] **Validar com clientes MCP reais** (Claude Code, Claude Desktop, Codex, Cursor): nenhum foi testado contra o servidor do marco 1
 
 ## M2 · Busca por significado, sincronizada (`0.2`)
 - [ ] Runtime opcional de embeddings, baixado sob demanda
@@ -63,7 +68,7 @@ Ao final: `npx cabecao init <url>` funciona em duas máquinas, com busca por pal
 - [ ] Painéis `.base` e modelo do Web Clipper
 - [ ] `export canvas`
 - [ ] Pacote `.mcpb` para o Claude Desktop
-- [ ] `install-client` para Codex, Cursor, VS Code e Gemini CLI
+- [ ] `install-client` para Codex, Cursor, VS Code e Gemini CLI: o comando já existe desde o M1 para os seis clientes; falta validar com os clientes reais
 - [ ] `upgrade` com migrações
 - [ ] Publicação no npm com proveniência
 
@@ -87,8 +92,10 @@ Estes pontos estão no plano com base em documentação ou em teste parcial. Cad
 | Provedores git reais | Só simulado com remoto local | M1 |
 | Falha de chave SSH e gerenciadores de credencial | Não testado | M1 |
 | Commits assinados | Não testado | M1 |
-| Sync em Windows e Linux | A PoC de sync rodou só no macOS | M1 |
-| Scanner de segredos | Não implementado | M1 |
+| Sync em Windows e Linux | O CI roda os testes e o teste de ponta a ponta nos dois, só com remoto local | M1 |
+| Scanner de segredos | Implementado; 53 de 53 sintéticos e 0 falsos positivos, nunca medido contra segredos reais | M1 |
+| Clientes MCP reais | Nenhum cliente real (Claude Code, Claude Desktop, Codex, Cursor) foi testado contra o servidor do marco 1 | M1 |
+| Cérebro real grande | Medido só com notas sintéticas (2 mil notas) | M1 |
 | Vetores de arquiteturas diferentes na mesma busca | Não medido | M2 |
 | Modelos fora da lista de sugestões | Não medidos; o usuário compara com `cabecao eval` | M2 |
 | Busca medida num cérebro real | Só conjuntos sintéticos e públicos | M2 |
