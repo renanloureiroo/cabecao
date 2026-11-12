@@ -66,7 +66,8 @@ export interface RenameRetryOptions {
 }
 
 /** Cerca de 2 s no total: o bastante para antivírus/indexador soltarem o arquivo, curto para não parecer travado. */
-const RENAME_DELAYS_MS = [5, 10, 20, 40, 80, 120, 160, 200, 200, 200, 200, 200, 200, 200, 200] as const;
+// Cerca de 6 s no total. Vários processos disputando o mesmo arquivo no Windows esgotavam um orçamento de 2 s (CI).
+const RENAME_DELAYS_MS = [5, 10, 20, 40, 80, 120, 160, ...Array.from({ length: 28 }, () => 200)] as const;
 
 /**
  * `rename` que, no Windows, tenta de novo quando o destino está momentaneamente aberto por outro processo
@@ -83,7 +84,8 @@ export async function renameWithRetry(from: string, to: string, options: RenameR
     } catch (error) {
       const delay = delays[attempt];
       if (delay === undefined || !isWindowsTransient(error, platform)) throw error;
-      await sleep(delay);
+      // O sorteio evita que processos que colidiram tentem de novo no mesmo instante.
+      await sleep(delay * (0.5 + Math.random()));
     }
   }
 }
