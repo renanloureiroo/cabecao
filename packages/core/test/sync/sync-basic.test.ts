@@ -227,32 +227,42 @@ describe('syncBrain: conteúdo entre duas máquinas', { timeout: TEST_TIMEOUT_MS
     expect(await head(a.dir)).toBe(await head(b.dir));
   });
 
-  it('o commit de edições respeita noteDirs e .gitignore e ignora temporários da escrita atômica', async () => {
+  it('o commit de edições leva tudo o que o git vê (fora das noteDirs e pastas ocultas também), respeita o .gitignore e ignora temporários', async () => {
     const created = await createWorld();
     world = created.world;
     const { a } = created;
     write(a.dir, 'wiki/ok.md', note('Ok'));
     write(a.dir, 'wiki/imagem.png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]));
     write(a.dir, 'fora/solto.md', 'fora das pastas de notas\n');
-    write(a.dir, '.obsidian/workspace.json', '{}\n');
+    write(a.dir, '.obsidian/app.json', '{}\n');
+    write(a.dir, '.obsidian/workspace.json', '{"aberto": true}\n');
     write(a.dir, 'wiki/.cabecao-999999-abcdef.tmp', 'temporário de um processo morto');
     // PID deste processo de teste: vivo em qualquer sistema
     write(a.dir, `wiki/.cabecao-${process.pid}-abcdef.tmp`, 'temporário de um processo vivo');
-    write(a.dir, '.gitignore', '.cabecao/\nwiki/ignorado.md\n');
+    write(a.dir, '.gitignore', '.cabecao/\nwiki/ignorado.md\n.obsidian/workspace.json\n');
     write(a.dir, 'wiki/ignorado.md', note('Ignorado'));
     const ra = await a.sync();
     expect(ra.status).toBe('ok');
     const committed = (await git(a.dir, ['show', '--name-only', '--format=', 'HEAD'])).split('\n').sort();
-    expect(committed).toEqual(['.gitignore', 'index.md', 'wiki/imagem.png', 'wiki/ok.md']);
-    expect(await git(a.dir, ['log', '-1', '--format=%B'])).toContain('edit: 3 arquivos alterados fora do Cabeção');
-    expect(exists(a.dir, 'fora/solto.md') && exists(a.dir, '.obsidian/workspace.json')).toBe(true);
+    expect(committed).toEqual([
+      '.gitignore',
+      '.obsidian/app.json',
+      'fora/solto.md',
+      'index.md',
+      'wiki/imagem.png',
+      'wiki/ok.md',
+    ]);
+    const message = await git(a.dir, ['log', '-1', '--format=%B']);
+    expect(message).toContain('edit: 5 arquivos alterados fora do Cabeção');
+    expect(message).toContain('- fora/solto.md');
+    // o .gitignore do usuário vale: o ignorado fica no disco e fora do git
+    expect(exists(a.dir, 'wiki/ignorado.md') && exists(a.dir, '.obsidian/workspace.json')).toBe(true);
+    expect(await git(world.remote, ['ls-tree', '-r', '--name-only', 'main'])).toContain('fora/solto.md');
     // o temporário de processo morto (PID inexistente) some; o de um processo vivo fica, e nenhum entra no commit
     expect(exists(a.dir, 'wiki/.cabecao-999999-abcdef.tmp')).toBe(false);
     expect(ra.recovered?.join(' ')).toContain('.cabecao-999999-abcdef.tmp');
     expect(exists(a.dir, `wiki/.cabecao-${process.pid}-abcdef.tmp`)).toBe(true);
-    expect(await git(a.dir, ['status', '--porcelain', '--', 'wiki'])).toBe(
-      `?? wiki/.cabecao-${process.pid}-abcdef.tmp`,
-    );
+    expect(await git(a.dir, ['status', '--porcelain'])).toBe(`?? wiki/.cabecao-${process.pid}-abcdef.tmp`);
   });
 
   it('cinco notas alteradas: tempo medido', async () => {

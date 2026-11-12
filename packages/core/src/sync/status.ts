@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { currentBranch, statusPorcelain } from '../git/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
 import { countCommits, type GitContext, git, revParse } from './git.ts';
-import { atomicTempOwner, isSyncablePath, parseConflictCopyPath, syncLayout } from './layout.ts';
+import { isSyncablePath, parseConflictCopyPath, syncLayout } from './layout.ts';
 import { resolveRemote } from './remote.ts';
 import { readState } from './state.ts';
 import type { ConflictCopy, SyncStatusInfo } from './types.ts';
@@ -63,7 +63,7 @@ async function syncRunning(lockPath: string): Promise<boolean> {
 export async function syncStatus(root: string): Promise<SyncStatusInfo> {
   const ctx = await context(root);
   const layout = syncLayout(ctx.root);
-  const config = await readBrainConfig(ctx.root);
+  await readBrainConfig(ctx.root); // recusa uma pasta que não é cérebro, como antes
   const branch = await currentBranch(ctx.root);
   const remote = branch === null ? null : await resolveRemote(ctx, branch, undefined);
   const head = await revParse(ctx, 'HEAD^{commit}');
@@ -74,9 +74,8 @@ export async function syncStatus(root: string): Promise<SyncStatusInfo> {
     unpushed = await countCommits(ctx, head, ...(tracking === null ? [] : ['--not', tracking]));
     unpulled = tracking === null ? 0 : await countCommits(ctx, tracking, '--not', head);
   }
-  const pending = (await statusPorcelain(ctx.root)).filter(
-    (entry) => atomicTempOwner(entry.path) === null && isSyncablePath(entry.path, config),
-  ).length;
+  // mesmo critério do commit de edições do sync (`collectPending`): o que o git lista, menos `.cabecao/` e temporários
+  const pending = (await statusPorcelain(ctx.root)).filter((entry) => isSyncablePath(entry.path)).length;
   const state = await readState(layout);
   return {
     branch,

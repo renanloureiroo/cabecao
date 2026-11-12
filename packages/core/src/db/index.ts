@@ -15,6 +15,7 @@ export {
 export type {
   Backlink,
   BrokenLink,
+  ConflictCopyOption,
   IndexedNote,
   IndexStatus,
   ListNotesOptions,

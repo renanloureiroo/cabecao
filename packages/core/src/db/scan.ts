@@ -1,5 +1,6 @@
 // Varredura incremental (decisão 20): compara a listagem do vault com a tabela `notes` por data e tamanho, só lê o
 // que mudou, pula conteúdo de hash igual, detecta renomeações e grava tudo numa transação.
+import { parseConflictCopyPath } from '../sync/conflict-name.ts';
 import { withLock } from '../util/index.ts';
 import type { BrainConfig, LinkIndex, NoteFile, NoteRead, RelationsConfig } from '../vault/index.ts';
 import { buildLinkIndex, displayTitle, listNoteFiles, readNote, resolveWikiLink, VaultError } from '../vault/index.ts';
@@ -94,17 +95,19 @@ async function resetIndex(handle: IndexHandle): Promise<void> {
 function statements(db: DatabaseSync) {
   const noteColumns = `type = ?, title = ?, scope = ?, trust = ?, origin = ?, created = ?, updated = ?, confirmed = ?,
     valid_from = ?, valid_until = ?, expires_at = ?, content_hash = ?, mtime = ?, size = ?, frontmatter = ?,
-    frontmatter_error = ?, managed = ?, title_derived = ?, archived = ?, indexed_at = ?`;
+    frontmatter_error = ?, managed = ?, title_derived = ?, archived = ?, conflict_of = ?, indexed_at = ?`;
   return {
     known: db.prepare('select id, path, mtime, size, content_hash, managed from notes'),
     pathById: db.prepare('select path from notes where id = ?'),
     insertNote: db.prepare(`insert into notes(id, path, type, title, scope, trust, origin, created, updated, confirmed,
       valid_from, valid_until, expires_at, content_hash, mtime, size, frontmatter, frontmatter_error, managed,
-      title_derived, archived, indexed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+      title_derived, archived, conflict_of, indexed_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     updateNote: db.prepare(`update notes set id = ?, path = ?, ${noteColumns} where path = ?`),
     touch: db.prepare('update notes set mtime = ?, size = ? where path = ?'),
     moveNote: db.prepare(
-      'update notes set id = ?, path = ?, archived = ?, mtime = ?, size = ?, title = ?, indexed_at = ? where path = ?',
+      `update notes set id = ?, path = ?, archived = ?, mtime = ?, size = ?, title = ?, conflict_of = ?, indexed_at = ?
+       where path = ?`,
     ),
     titleInfo: db.prepare('select frontmatter, title, title_derived from notes where path = ?'),
     deleteNote: db.prepare('delete from notes where path = ?'),
@@ -124,6 +127,11 @@ function statements(db: DatabaseSync) {
   };
 }
 type Statements = ReturnType<typeof statements>;
+
+/** Caminho da nota original, se `path` é uma cópia de conflito do sync; `null` caso contrário. */
+function conflictOf(path: string): string | null {
+  return parseConflictCopyPath(path)?.original ?? null;
+}
 
 /** Grava os campos da nota (linha de `notes`) e substitui trechos, arestas e fato. */
 function writeNote(
@@ -154,6 +162,7 @@ function writeNote(
     record.frontmatterId === null ? 0 : 1,
     record.titleDerived ? 1 : 0,
     record.archived ? 1 : 0,
+    conflictOf(record.path),
     now,
   ] as const;
   if (wherePath === null) {
@@ -192,7 +201,8 @@ function writeNote(
       record.validUntil,
     );
   }
-  if (record.fact !== null) {
+  // uma cópia de conflito não é memória vigente: o fato dela repetiria o da nota original
+  if (record.fact !== null && conflictOf(record.path) === null) {
     const { subject, predicate, object } = record.fact;
     st.insertFact.run(id, subject, predicate, object, record.validFrom, record.validUntil);
   }
@@ -315,7 +325,8 @@ async function runScan(handle: IndexHandle, root: string, config: ScanConfig, st
 
   /**
    * Escolhe o id de uma nota a gravar em `path`. Um `id` do frontmatter que já é de OUTRA nota viva vira conflito:
-   * esta nota recebe um id derivado do caminho e é conferida de novo na próxima varredura.
+   * esta nota recebe um id derivado do caminho e é conferida de novo na próxima varredura. Uma cópia de conflito do
+   * sync NUNCA fica com o `id` do frontmatter (que é o da nota original): recebe sempre o id derivado do caminho.
    */
   const chooseId = (
     record: NoteRecord,
@@ -323,7 +334,9 @@ async function runScan(handle: IndexHandle, root: string, config: ScanConfig, st
     fromPath: string | null,
   ): { id: string; conflictWith: string | null } => {
     const wanted = record.frontmatterId;
-    if (wanted === null || wanted.startsWith(PATH_ID_PREFIX)) return { id: pathNoteId(path), conflictWith: null };
+    if (wanted === null || wanted.startsWith(PATH_ID_PREFIX) || conflictOf(path) !== null) {
+      return { id: pathNoteId(path), conflictWith: null };
+    }
     const holder = st.pathById.get(wanted);
     const holderPath = holder === undefined ? null : String(holder.path);
     if (holderPath === null || holderPath === path || holderPath === fromPath)
@@ -374,7 +387,17 @@ async function runScan(handle: IndexHandle, root: string, config: ScanConfig, st
       }
     }
     const id = row.managed ? row.id : pathNoteId(file.path);
-    st.moveNote.run(id, file.path, file.archived ? 1 : 0, file.mtimeMs, file.size, title, now, row.path);
+    st.moveNote.run(
+      id,
+      file.path,
+      file.archived ? 1 : 0,
+      file.mtimeMs,
+      file.size,
+      title,
+      conflictOf(file.path),
+      now,
+      row.path,
+    );
     consumed.add(row.path);
     affectedKeys.add(pathNameKey(row.path));
     affectedKeys.add(pathNameKey(file.path));
@@ -410,9 +433,14 @@ async function runScan(handle: IndexHandle, root: string, config: ScanConfig, st
       return;
     }
 
-    // caminho novo: renomeação com o mesmo conteúdo?
+    // caminho novo: renomeação com o mesmo conteúdo? Não entre uma cópia de conflito e uma nota comum: a cópia tem
+    // id derivado do caminho e a nota, o do frontmatter; esse caso é reprocessado inteiro logo abaixo
+    const isCopy = conflictOf(file.path) !== null;
     const sameContent = (missingByHash.get(read.contentHash) ?? []).find(
-      (candidate) => !consumed.has(candidate.path) && candidate.mtime !== RECHECK_MTIME,
+      (candidate) =>
+        !consumed.has(candidate.path) &&
+        candidate.mtime !== RECHECK_MTIME &&
+        (conflictOf(candidate.path) !== null) === isCopy,
     );
     if (sameContent !== undefined) {
       move(sameContent, file);
@@ -420,7 +448,7 @@ async function runScan(handle: IndexHandle, root: string, config: ScanConfig, st
       return;
     }
     const record = extractNote(read, config);
-    const sameId = record.frontmatterId === null ? undefined : missingById.get(record.frontmatterId);
+    const sameId = record.frontmatterId === null || isCopy ? undefined : missingById.get(record.frontmatterId);
     if (sameId !== undefined && !consumed.has(sameId.path)) {
       // movida E editada: mesma nota (mesmo `id`) em outro caminho
       consumed.add(sameId.path);

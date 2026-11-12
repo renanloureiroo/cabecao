@@ -31,11 +31,16 @@ export interface IndexedNote {
   readonly frontmatter: Readonly<Record<string, unknown>>;
   /** Mensagem do erro de YAML, se o frontmatter não pôde ser lido. */
   readonly frontmatterError: string | null;
+  /**
+   * Cópia de conflito do sync (`nota.conflict-<máquina>-<data>.md`): caminho da nota original; `null` numa nota
+   * comum. Uma cópia nunca tem o `id` da original e fica fora das listagens e da busca, a não ser que peçam.
+   */
+  readonly conflictOf: string | null;
 }
 
 const NOTE_COLUMNS = `n.id, n.path, n.type, n.title, n.scope, n.trust, n.origin, n.created, n.updated, n.confirmed,
   n.valid_from, n.valid_until, n.expires_at, n.archived, n.managed, n.content_hash, n.mtime, n.size, n.frontmatter,
-  n.frontmatter_error`;
+  n.frontmatter_error, n.conflict_of`;
 
 const text = (value: unknown): string | null => (value === null || value === undefined ? null : String(value));
 
@@ -72,13 +77,15 @@ function toNote(row: Record<string, unknown>): IndexedNote {
     size: Number(row.size),
     frontmatter: parseObject(row.frontmatter),
     frontmatterError: text(row.frontmatter_error),
+    conflictOf: text(row.conflict_of),
   };
 }
 
 export type NoteRef = { readonly id: string } | { readonly path: string };
 
 /**
- * Nota por `id` ou por caminho. O caminho aceita `\\`, NFD e a falta do `.md`; sem achar o caminho exato, tenta
+ * Nota por `id` ou por caminho. Por `id` nunca devolve uma cópia de conflito no lugar da original (a cópia tem id
+ * derivado do caminho); pelo caminho exato da cópia, devolve a cópia. O caminho aceita `\\`, NFD e a falta do `.md`; sem achar o caminho exato, tenta
  * sem diferenciar maiúsculas (e só aceita se houver uma única nota assim).
  */
 export function getNote(index: LocalIndex, ref: NoteRef): IndexedNote | null {
@@ -156,13 +163,19 @@ export interface Backlink {
   readonly archived: boolean;
 }
 
-/** Links que chegam na nota `noteId`, vindos de outras notas, por caminho de origem. */
-export function backlinks(index: LocalIndex, noteId: string): Backlink[] {
+/** Opção comum das consultas: incluir as cópias de conflito do sync. Padrão: não. */
+export interface ConflictCopyOption {
+  /** Inclui as cópias de conflito (`nota.conflict-<máquina>-<data>.md`). Padrão: não. */
+  readonly includeConflictCopies?: boolean;
+}
+
+/** Links que chegam na nota `noteId`, vindos de outras notas, por caminho de origem. Cópias de conflito, só se pedir. */
+export function backlinks(index: LocalIndex, noteId: string, options: ConflictCopyOption = {}): Backlink[] {
   return connection(index)
     .prepare(
       `select e.origin, e.type, e.line, e.anchor, s.id, s.path, s.title, s.type as note_type, s.archived
        from edges e join notes s on s.id = e.src_note
-       where e.dst_note = ? and e.src_note <> e.dst_note
+       where e.dst_note = ? and e.src_note <> e.dst_note${options.includeConflictCopies === true ? '' : ' and s.conflict_of is null'}
        order by s.path, e.id`,
     )
     .all(noteId)
@@ -179,7 +192,7 @@ export function backlinks(index: LocalIndex, noteId: string): Backlink[] {
     }));
 }
 
-export interface ListNotesOptions {
+export interface ListNotesOptions extends ConflictCopyOption {
   readonly types?: readonly string[];
   /** Escopos aceitos, comparados exatamente (para o `recall`: `['global', 'project:atlas']`). */
   readonly scope?: string | readonly string[];
@@ -189,11 +202,15 @@ export interface ListNotesOptions {
   readonly limit?: number;
 }
 
-/** Notas por tipo e escopo, sem a busca: o `recall` pede regras, preferências e armadilhas assim. */
+/**
+ * Notas por tipo e escopo, sem a busca: o `recall` pede regras, preferências e armadilhas assim. As cópias de
+ * conflito do sync ficam de fora (não são memória vigente), a não ser com `includeConflictCopies`.
+ */
 export function listNotes(index: LocalIndex, options: ListNotesOptions = {}): IndexedNote[] {
   const filters: string[] = [];
   const params: SQLInputValue[] = [];
   if (options.includeArchived !== true) filters.push('n.archived = 0');
+  if (options.includeConflictCopies !== true) filters.push('n.conflict_of is null');
   if (options.types !== undefined) {
     if (options.types.length === 0) return [];
     filters.push(`n.type in (${options.types.map(() => '?').join(', ')})`);
@@ -220,10 +237,13 @@ export function listNotes(index: LocalIndex, options: ListNotesOptions = {}): In
     .map(toNote);
 }
 
-/** O handoff mais recente (por `updated`/`created`, e pelo `id`, que é um ULID, no empate), ou `null`. */
+/**
+ * O handoff mais recente (por `updated`/`created`, e pelo `id`, que é um ULID, no empate), ou `null`. Uma cópia de
+ * conflito de um handoff não conta, a não ser com `includeConflictCopies`.
+ */
 export function latestHandoff(
   index: LocalIndex,
-  options: Pick<ListNotesOptions, 'scope' | 'includeArchived'> = {},
+  options: Pick<ListNotesOptions, 'scope' | 'includeArchived' | 'includeConflictCopies'> = {},
 ): IndexedNote | null {
   return listNotes(index, { ...options, types: ['handoff'], orderBy: 'updated', limit: 1 })[0] ?? null;
 }
@@ -238,12 +258,15 @@ export interface BrokenLink {
   readonly line: number | null;
 }
 
-export function brokenLinks(index: LocalIndex, options: { readonly includeArchived?: boolean } = {}): BrokenLink[] {
+export function brokenLinks(
+  index: LocalIndex,
+  options: { readonly includeArchived?: boolean } & ConflictCopyOption = {},
+): BrokenLink[] {
   return connection(index)
     .prepare(
       `select s.id, s.path, e.origin, e.type, e.target, e.line
        from edges e join notes s on s.id = e.src_note
-       where e.dst_note is null${options.includeArchived === true ? '' : ' and s.archived = 0'}
+       where e.dst_note is null${options.includeArchived === true ? '' : ' and s.archived = 0'}${options.includeConflictCopies === true ? '' : ' and s.conflict_of is null'}
        order by s.path, e.id`,
     )
     .all()
@@ -266,12 +289,14 @@ export interface IndexStatus {
   readonly archived: number;
   /** Notas sem `id` no frontmatter. */
   readonly unmanaged: number;
-  /** Notas por tipo (só as não arquivadas). Notas sem tipo ficam em `untyped`. */
+  /** Notas por tipo (só as não arquivadas e que não são cópias de conflito). Notas sem tipo ficam em `untyped`. */
   readonly byType: Readonly<Record<string, number>>;
   readonly untyped: number;
+  /** Cópias de conflito do sync indexadas (entram em `notes`, não em `byType`). */
+  readonly conflictCopies: number;
   readonly chunks: number;
   readonly edges: number;
-  /** Links sem destino, em notas não arquivadas. */
+  /** Links sem destino, em notas não arquivadas que não são cópias de conflito. */
   readonly brokenLinks: number;
   readonly facts: number;
   /** Fim da última varredura (ISO 8601, UTC), ou `null` se nunca houve. */
@@ -288,7 +313,9 @@ export function indexStatus(index: LocalIndex): IndexStatus {
   const byType: Record<string, number> = {};
   let untyped = 0;
   for (const row of db
-    .prepare('select type, count(*) as n from notes where archived = 0 group by type order by type')
+    .prepare(
+      'select type, count(*) as n from notes where archived = 0 and conflict_of is null group by type order by type',
+    )
     .all()) {
     if (row.type === null) untyped = Number(row.n);
     else byType[String(row.type)] = Number(row.n);
@@ -302,10 +329,12 @@ export function indexStatus(index: LocalIndex): IndexStatus {
     unmanaged: count('select count(*) as n from notes where managed = 0'),
     byType,
     untyped,
+    conflictCopies: count('select count(*) as n from notes where conflict_of is not null'),
     chunks: count('select count(*) as n from chunks'),
     edges: count('select count(*) as n from edges'),
     brokenLinks: count(
-      'select count(*) as n from edges e join notes s on s.id = e.src_note where e.dst_note is null and s.archived = 0',
+      `select count(*) as n from edges e join notes s on s.id = e.src_note
+       where e.dst_note is null and s.archived = 0 and s.conflict_of is null`,
     ),
     facts: count('select count(*) as n from facts'),
     lastScanAt: state(STATE_KEYS.lastScanAt),

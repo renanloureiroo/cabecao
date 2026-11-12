@@ -6,7 +6,7 @@ import type { DatabaseSync } from './sqlite.ts';
  * Versão do esquema DESTE banco (não confundir com o `schemaVersion` do `.cabecao.json`). Qualquer mudança nas
  * tabelas abaixo, ou no que a varredura grava nelas, sobe este número; o banco é refeito na próxima abertura.
  */
-export const INDEX_SCHEMA_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 2;
 
 /** Chaves conhecidas da tabela `state`. */
 export const STATE_KEYS = {
@@ -20,7 +20,9 @@ export const STATE_KEYS = {
 } as const;
 
 // Datas ficam como texto ISO (`AAAA-MM-DD`, ou com hora), do jeito que estão no frontmatter: comparar texto ISO
-// é comparar datas. `frontmatter` é o JSON do frontmatter inteiro.
+// é comparar datas. `frontmatter` é o JSON do frontmatter inteiro. `conflict_of` marca uma cópia de conflito do
+// sync (`nota.conflict-<máquina>-<data>.md`) com o caminho da nota original: a cópia nunca recebe o `id` da
+// original (fica com o id derivado do caminho) e as consultas a deixam de fora, a não ser que peçam.
 const DDL = `
 create table notes(
   id text primary key,
@@ -44,6 +46,7 @@ create table notes(
   managed integer not null default 0,
   title_derived integer not null default 0,
   archived integer not null default 0,
+  conflict_of text,
   indexed_at text not null
 );
 create index notes_type on notes(type, scope);

@@ -103,6 +103,11 @@ export interface KeywordSearchOptions {
   readonly budgetTokens?: number;
   /** Inclui notas de `memory/_archive/`. Padrão: não. */
   readonly includeArchived?: boolean;
+  /**
+   * Inclui as cópias de conflito do sync (`nota.conflict-<máquina>-<data>.md`). Padrão: não; elas não são memória
+   * vigente e repetiriam o texto da nota original.
+   */
+  readonly includeConflictCopies?: boolean;
   /** "Hoje" para calcular a validade. Padrão: a data local atual. */
   readonly now?: Date;
 }
@@ -198,6 +203,7 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
   const filters: string[] = [];
   const params: SQLInputValue[] = [];
   if (options.includeArchived !== true) filters.push('n.archived = 0');
+  if (options.includeConflictCopies !== true) filters.push('n.conflict_of is null');
   if (options.types !== undefined && options.types.length > 0) {
     filters.push(`n.type in (${options.types.map(() => '?').join(', ')})`);
     params.push(...options.types);

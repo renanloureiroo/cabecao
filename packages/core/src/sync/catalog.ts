@@ -5,6 +5,7 @@ import { splitFrontmatter } from '../markdown/index.ts';
 import { ATOMIC_TMP_PREFIX, ATOMIC_TMP_SUFFIX, normalizeNfc, writeFileAtomic } from '../util/index.ts';
 import type { BrainConfig, IndexEntry } from '../vault/index.ts';
 import { isInNoteDirs, LOG_MD, renderIndexMd } from '../vault/index.ts';
+import { isConflictCopyPath } from './conflict-name.ts';
 import { editTree, type GitContext, listTree, readObjects, type TreeEntry, writeBlob } from './git.ts';
 
 /** O que o catálogo precisa de uma nota. */
@@ -23,13 +24,16 @@ export function noteMetaFromText(text: string): NoteMeta {
 
 /**
  * Mesmo critério de `listNoteFiles` (vault), aplicado a um caminho de uma árvore do git: `.md` dentro das
- * `noteDirs`, fora de pastas ocultas, sem os temporários da escrita atômica, sem o catálogo e sem o diário.
+ * `noteDirs`, fora de pastas ocultas, sem os temporários da escrita atômica, sem o catálogo e sem o diário. As
+ * cópias de conflito (`nota.conflict-<máquina>-<data>.md`) também ficam fora: não são memória vigente, e o banco
+ * local (`listNotes`, que gera o mesmo catálogo nas escritas) as deixa de fora pelo mesmo motivo.
  */
 export function isCatalogNote(path: string, config: Pick<BrainConfig, 'noteDirs' | 'indexMd'>): boolean {
   const name = path.slice(path.lastIndexOf('/') + 1);
   if (name.length <= 3 || name.slice(-3).toLowerCase() !== '.md') return false;
   if (name.startsWith(ATOMIC_TMP_PREFIX) && name.endsWith(ATOMIC_TMP_SUFFIX)) return false;
   if (path.split('/').some((segment) => segment.startsWith('.'))) return false;
+  if (isConflictCopyPath(path)) return false;
   const lower = normalizeNfc(path).toLowerCase();
   if (lower === normalizeNfc(config.indexMd).toLowerCase() || lower === LOG_MD) return false;
   return isInNoteDirs(normalizeNfc(path), config);
