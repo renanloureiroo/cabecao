@@ -94,6 +94,7 @@ cabecao/
 │   ├── mcpb/            # manifesto para o Claude Desktop
 │   └── obsidian/        # grafo, painéis, tipos de propriedade, Web Clipper
 ├── templates/vault/     # estrutura inicial do cérebro
+├── fixtures/vault/      # cérebro de exemplo, com dados inventados, usado nos testes
 ├── spikes/              # relatórios das provas de conceito
 └── docs/
 ```

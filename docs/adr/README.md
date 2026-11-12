@@ -37,3 +37,4 @@ Cada decisão traz o motivo e a evidência. Os números e os detalhes estão em 
 | 31 | Regras de uso no hook de início e nas instruções do servidor | 5 de 5 sessões usaram o cérebro; só com as tools, 1 de 5 | Só skill |
 | 32 | Plugin com o servidor embutido | 0,05 s por execução, contra 1,4 s com `npx` | Plugin chamando `npx` |
 | 33 | pnpm, tsdown, Vitest, Biome, Changesets | Build e testes passaram nos três sistemas | — |
+| 34 | CI e publicação do **projeto** no GitHub Actions; o produto continua sem depender dele (decisão 03) | O repositório do projeto já está no GitHub; a matriz de três sistemas e três versões do Node sai de graça | Outro serviço de CI; publicar sempre à mão |
