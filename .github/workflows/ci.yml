@@ -107,7 +107,8 @@ jobs:
         working-directory: packages/cli
         run: |
           npm publish --dry-run 2>&1 | tee "$RUNNER_TEMP/publish.log"
-          if grep -Ei 'npm (warn|error)' "$RUNNER_TEMP/publish.log"; then
+          # O CI não tem login no npm, de propósito: o aviso de login é o único tolerado.
+          if grep -Ei 'npm (warn|error)' "$RUNNER_TEMP/publish.log" | grep -v 'requires you to be logged in'; then
             echo "::error::npm publish --dry-run emitiu aviso ou erro"
             exit 1
           fi
