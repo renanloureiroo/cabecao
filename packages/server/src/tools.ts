@@ -150,7 +150,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Write page',
       description:
-        'Create, overwrite or append to a note by path. Validated against the schema and committed to git; undo reverts it.',
+        "Create, overwrite or append to a note by path. Validated against the schema, scanned for secrets and committed to git; undo reverts it. raw/ holds immutable sources (create only); the brain's control files (AGENTS.md, CLAUDE.md, index.md, log.md) and memory/rules/ are user-only. Editing a user's note lowers its trust to medium and records edited_by.",
       inputSchema: writePageInput,
       outputSchema: writeOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
@@ -192,7 +192,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Undo',
       description:
-        'Undo with git revert: the last operation, one operation (op) or every write of a session. Undoing an undo redoes it.',
+        'Undo with git revert: your last operation, one operation (the full op id returned by a write) or every write of a session (the full session_handle). Only agent operations can be undone here; the user undoes the rest with the CLI. Undoing an undo redoes it.',
       inputSchema: undoInput,
       outputSchema: undoOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },

@@ -1,7 +1,7 @@
 // Registro do servidor MCP nos clientes de IA: o que `install-client` faz e o que o `init` reusa no passo 4.
 // O `doctor` usa a leitura (`readRegistrations`), que só lê arquivos e nunca executa o cliente.
 import { readFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { CliError } from '../errors.ts';
 import type { CliIo } from '../types.ts';
 import type { ClientDef, ClientId, JsonEntry, JsonTarget, Location, Target, TomlTarget } from './clients.ts';
@@ -10,7 +10,14 @@ import { editFile, findExecutable, isDirectory } from './files.ts';
 import type { JsonObjectNode, JsonValue } from './jsonc.ts';
 import { deepEqual, findProp, isPlainObject, JsoncError, parseJsonc, removeEntry, setEntry, toValue } from './jsonc.ts';
 import type { Launch } from './launch.ts';
-import { hasTomlTable, removeTomlTable, setTomlTable, TomlError, TomlUnsupportedError } from './toml.ts';
+import {
+  hasTomlTable,
+  readTomlTableValues,
+  removeTomlTable,
+  setTomlTable,
+  TomlError,
+  TomlUnsupportedError,
+} from './toml.ts';
 
 /** O que o registro precisa do processo: ambiente e sistema (caminhos, `PATH`), o executor e onde avisar. */
 export type ClientIo = Pick<CliIo, 'env' | 'platform' | 'exec' | 'stderr'>;
@@ -18,11 +25,21 @@ export type ClientIo = Pick<CliIo, 'env' | 'platform' | 'exec' | 'stderr'>;
 /** O que aconteceu com o registro num arquivo (ou num cliente). */
 export type Outcome = 'installed' | 'updated' | 'unchanged' | 'removed' | 'absent';
 
+/** A entrada `cabecao` que foi trocada apontava para outro cérebro. */
+export interface ReplacedEntry {
+  /** O cérebro da entrada antiga (o valor de `--brain`), ou `null` se ela não tinha um que desse para ler. */
+  brain: string | null;
+  /** Como a entrada antiga iniciava o servidor: comando e argumentos. */
+  command: string;
+}
+
 export interface FileReport {
   path: string;
   status: Outcome;
   /** Cópia de segurança criada nesta execução. */
   backup?: string;
+  /** Presente quando a entrada trocada apontava para outro cérebro. */
+  replaced?: ReplacedEntry;
 }
 
 export interface ClientReport {
@@ -33,6 +50,8 @@ export interface ClientReport {
   method: 'cli' | 'file';
   files: FileReport[];
   error?: string;
+  /** No registro pelo comando do cliente: a entrada trocada apontava para outro cérebro. */
+  replaced?: ReplacedEntry;
 }
 
 export const CLAUDE_SCOPE = ['--scope', 'user'] as const;
@@ -44,6 +63,28 @@ export function tomlEntries(launch: Launch): Record<string, string | readonly st
 export function jsonEntry(target: JsonTarget, launch: Launch, existing: unknown): JsonEntry {
   // O que o cabecao define vence; o resto do que o usuário pôs na entrada (env, timeout, tools...) fica.
   return { ...target.defaults, ...(isPlainObject(existing) ? (existing as JsonEntry) : {}), ...target.entry(launch) };
+}
+
+const brainOf = (args: readonly string[] | undefined): string | null => {
+  const at = args?.indexOf('--brain') ?? -1;
+  const value = at === -1 ? undefined : args?.[at + 1];
+  return value === undefined || value === '' ? null : value;
+};
+
+/**
+ * Compara a entrada antiga com a nova: se a antiga apontava para OUTRO cérebro (ou para um que não dá para ler),
+ * devolve o que ela tinha, para a saída avisar. Trocar só o caminho do Node ou do cabecao não é avisado.
+ */
+export function replacedEntry(previous: unknown, launch: Launch): ReplacedEntry | undefined {
+  if (!isPlainObject(previous)) return undefined;
+  const command = typeof previous.command === 'string' ? previous.command : '';
+  const args = Array.isArray(previous.args)
+    ? previous.args.filter((arg): arg is string => typeof arg === 'string')
+    : [];
+  const before = brainOf(args);
+  const after = brainOf(launch.args);
+  if (before !== null && after !== null && resolve(before) === resolve(after)) return undefined;
+  return { brain: before, command: [command, ...args].filter((part) => part !== '').join(' ') };
 }
 
 function parseConfig(path: string, text: string): JsonObjectNode {
@@ -97,7 +138,7 @@ function assertOnlyEntryChanged(
 }
 
 async function applyJson(target: JsonTarget, launch: Launch | undefined): Promise<FileReport> {
-  const state: { outcome: Outcome } = { outcome: 'unchanged' };
+  const state: { outcome: Outcome; replaced?: ReplacedEntry } = { outcome: 'unchanged' };
   const change = await editFile(target.path, (current) => {
     if (current === undefined || current.trim() === '') {
       if (launch === undefined) {
@@ -126,6 +167,8 @@ async function applyJson(target: JsonTarget, launch: Launch | undefined): Promis
     const desired = jsonEntry(target, launch, existing);
     if (deepEqual(existing, desired)) return undefined;
     state.outcome = existing === undefined ? 'installed' : 'updated';
+    const replaced = existing === undefined ? undefined : replacedEntry(existing, launch);
+    if (replaced !== undefined) state.replaced = replaced;
     const edited = setEntry(current, root, target.section, SERVER_NAME, desired);
     assertOnlyEntryChanged(target.path, before, edited, target.section, desired);
     return edited;
@@ -134,11 +177,12 @@ async function applyJson(target: JsonTarget, launch: Launch | undefined): Promis
     path: target.path,
     status: state.outcome,
     ...(change.backup === undefined ? {} : { backup: change.backup }),
+    ...(state.replaced === undefined ? {} : { replaced: state.replaced }),
   };
 }
 
 async function applyToml(target: TomlTarget, launch: Launch | undefined): Promise<FileReport> {
-  const state: { outcome: Outcome } = { outcome: 'unchanged' };
+  const state: { outcome: Outcome; replaced?: ReplacedEntry } = { outcome: 'unchanged' };
   const change = await editFile(target.path, (current) => {
     const text = current ?? '';
     try {
@@ -156,6 +200,8 @@ async function applyToml(target: TomlTarget, launch: Launch | undefined): Promis
       const edited = setTomlTable(text, target.table, tomlEntries(launch));
       if (edited === text) return undefined;
       state.outcome = existed ? 'updated' : 'installed';
+      const replaced = existed ? replacedEntry(readTomlTableValues(text, target.table), launch) : undefined;
+      if (replaced !== undefined) state.replaced = replaced;
       // Relê o resultado: se a edição tivesse quebrado o arquivo, o erro aparece aqui, antes de gravar.
       if (!hasTomlTable(edited, target.table)) throw new Error(`a edição de ${target.path} não ficou como esperado`);
       return edited;
@@ -181,6 +227,7 @@ async function applyToml(target: TomlTarget, launch: Launch | undefined): Promis
     path: target.path,
     status: state.outcome,
     ...(change.backup === undefined ? {} : { backup: change.backup }),
+    ...(state.replaced === undefined ? {} : { replaced: state.replaced }),
   };
 }
 
@@ -294,7 +341,11 @@ async function applyClaudeCode(
     }
     throw new CliError(`"claude mcp add-json" falhou: ${failure(added)}`);
   }
-  return report(current.known && current.entry !== undefined ? 'updated' : 'installed');
+  const replaced = current.known && current.entry !== undefined ? replacedEntry(current.entry, launch) : undefined;
+  return {
+    ...report(current.known && current.entry !== undefined ? 'updated' : 'installed'),
+    ...(replaced === undefined ? {} : { replaced }),
+  };
 }
 
 async function isDetected(ctx: ClientIo, def: ClientDef, location: Location): Promise<boolean> {
@@ -312,15 +363,24 @@ export const OUTCOME_TEXT: Readonly<Record<Outcome, string>> = {
   absent: 'não estava registrado',
 };
 
+/** Aviso de que a entrada trocada apontava para outro cérebro, com o que ela tinha. */
+export function replacedText(replaced: ReplacedEntry): string {
+  const brain =
+    replaced.brain === null ? 'um cérebro que não deu para identificar' : `outro cérebro (${replaced.brain})`;
+  return `ATENÇÃO: a entrada "${SERVER_NAME}" que havia apontava para ${brain} e foi trocada. Antes: ${replaced.command || '(sem comando)'}`;
+}
+
 export function reportText(reports: readonly ClientReport[]): string {
   const lines: string[] = [];
   for (const report of reports) {
     if (report.status === 'failed') continue;
     const where = report.method === 'cli' ? ' pelo comando "claude mcp" (escopo user)' : '';
     lines.push(`${report.label}: ${OUTCOME_TEXT[report.status]}${where}`);
+    if (report.replaced !== undefined) lines.push(`  ${replacedText(report.replaced)}`);
     for (const file of report.files) {
       const backup = file.backup === undefined ? '' : ` (original guardado em ${file.backup})`;
       lines.push(`  ${file.path}: ${OUTCOME_TEXT[file.status]}${backup}`);
+      if (file.replaced !== undefined) lines.push(`    ${replacedText(file.replaced)}`);
     }
   }
   const changed = reports.some((report) => ['installed', 'updated', 'removed'].includes(report.status));

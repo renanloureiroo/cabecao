@@ -146,7 +146,7 @@ export async function writeIndexMd(
   content: string,
 ): Promise<boolean> {
   return serializeWrites(root, async () => {
-    const target = await resolveVaultPath(root, config.indexMd);
+    const target = await resolveVaultPath(root, config.indexMd, { write: true });
     try {
       if ((await readFile(target, 'utf8')) === content) return false;
     } catch (error) {
@@ -188,7 +188,7 @@ export function formatLogLine(entry: LogEntry): string {
 export async function appendLogLine(root: string, entry: LogEntry): Promise<string> {
   return serializeWrites(root, async () => {
     const line = formatLogLine(entry);
-    const target = await resolveVaultPath(root, LOG_MD);
+    const target = await resolveVaultPath(root, LOG_MD, { write: true });
     for (let attempt = 0; ; attempt++) {
       const stamp = await fileStamp(target);
       let current: string | null = null;

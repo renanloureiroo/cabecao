@@ -113,6 +113,7 @@ export const CANONICAL_FIELDS = [
   'sources',
   'trust',
   'origin',
+  'edited_by',
   'created',
   'updated',
   'confirmed',
@@ -143,7 +144,17 @@ const COMMON_RECOMMENDED = ['trust', 'origin', 'created', 'updated'] as const;
 const PAGE_FIELDS: NoteTypeFields = {
   required: ['id', 'type', 'title'],
   recommended: ['scope', ...COMMON_RECOMMENDED],
-  optional: ['tags', 'sources', 'confirmed', 'valid_from', 'valid_until', 'supersedes', 'superseded_by', 'expires_at'],
+  optional: [
+    'tags',
+    'sources',
+    'edited_by',
+    'confirmed',
+    'valid_from',
+    'valid_until',
+    'supersedes',
+    'superseded_by',
+    'expires_at',
+  ],
 };
 const FACT_FIELDS: NoteTypeFields = {
   required: ['id', 'type', 'subject', 'predicate', 'object'],
@@ -153,6 +164,7 @@ const FACT_FIELDS: NoteTypeFields = {
     'scope',
     'tags',
     'sources',
+    'edited_by',
     'confirmed',
     'valid_until',
     'supersedes',
@@ -179,6 +191,8 @@ export type NoteIssueCode =
   | 'invalid_scope'
   | 'invalid_trust'
   | 'invalid_origin'
+  /** `edited_by` não é `agent:<cliente>`. */
+  | 'invalid_edited_by'
   | 'invalid_date'
   | 'invalid_date_range'
   | 'invalid_list'
@@ -207,6 +221,8 @@ const ISO_DATE_RE =
   /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const SCOPE_RE = /^(?:global|project:[\w-]+)$/;
 const ORIGIN_RE = /^(?:human|agent:[\w.-]+|ingest:[\w.-]+)$/;
+/** `edited_by`: o último agente que alterou uma nota do usuário (`agent:<cliente>`). */
+const EDITED_BY_RE = /^agent:[\w.-]+$/;
 const PREDICATE_RE = /^[a-z][a-z0-9_]*$/;
 /** O valor inteiro é UM wikilink: `[[alvo]]`, `[[alvo#seção]]` ou `[[alvo|apelido]]`. */
 const SINGLE_WIKILINK_RE = /^\[\[[^[\]\n|#]+(?:#[^[\]\n|]*)?(?:\|[^[\]\n]*)?\]\]$/;
@@ -316,6 +332,10 @@ export function validateNote(note: ValidateNoteInput, config?: RelationsConfig):
       'origin',
       'regras (type: rule) só o usuário cria: "origin" deveria ser "human"',
     );
+  }
+
+  if (present(fm.edited_by) && !(typeof fm.edited_by === 'string' && EDITED_BY_RE.test(fm.edited_by))) {
+    add('warning', 'invalid_edited_by', 'edited_by', '"edited_by" deveria ser "agent:<cliente>"');
   }
 
   for (const field of DATE_FIELDS) {

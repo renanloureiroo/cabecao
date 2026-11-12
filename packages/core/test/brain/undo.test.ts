@@ -94,7 +94,7 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(again.code).toBe('already_undone');
 
     // desfaz a primeira (antiga): as linhas do index.md e do log.md são vizinhas, e mesmo assim não há conflito
-    const old = await brain.undo({ op: first.op.slice(0, 20) });
+    const old = await brain.undo({ op: first.op });
     expect(old.undone.map((item) => item.op)).toEqual([first.op]);
     expect((await brain.search({ query: 'Alfa' })).hits).toEqual([]);
     expect((await brain.search({ query: 'Beta' })).hits.length).toBe(1);
@@ -111,7 +111,7 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(now.has(first.path)).toBe(false);
     expect(afterFirst.has(first.path)).toBe(true);
     expect((await errorOf(brain.undo({ op: first.op }))).code).toBe('already_undone');
-    expect((await errorOf(brain.undo({ op: '7ZZZZZZZZZ' }))).code).toBe('not_found');
+    expect((await errorOf(brain.undo({ op: '7ZZZZZZZZZZZZZZZZZZZZZZZZZ' }))).code).toBe('not_found');
   });
 
   it('por sessão: desfaz tudo que a sessão gravou, num commit, e deixa o resto', async () => {

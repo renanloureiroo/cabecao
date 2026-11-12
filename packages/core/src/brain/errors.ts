@@ -1,6 +1,6 @@
 // Erros da camada de operações: um `code` estável que o servidor MCP e a CLI conferem, mensagem em português pronta
 // para mostrar e, quando há o que o agente fazer, um `next_step`.
-import { GitError, GitStateError } from '../git/index.ts';
+import { GitError, GitStateError, redactCredentials } from '../git/index.ts';
 import { FileChangedError, LockTimeoutError } from '../util/index.ts';
 import type { NoteIssue } from '../vault/index.ts';
 import { VaultError } from '../vault/index.ts';
@@ -51,8 +51,11 @@ export type BrainErrorCode = (typeof BRAIN_ERROR_CODES)[number];
 
 /** Onde o scanner achou um possível segredo. O segredo em si NUNCA aparece aqui. */
 export interface SecretHit {
-  /** `content`: o corpo enviado; `frontmatter`: um campo enviado; `pending`: edição feita fora do Cabeção no mesmo arquivo. */
-  readonly where: 'content' | 'frontmatter' | 'pending';
+  /**
+   * `content`: o corpo enviado; `frontmatter`: um campo enviado; `path`: o caminho da nota pedido no `write_page`;
+   * `pending`: edição feita fora do Cabeção no mesmo arquivo.
+   */
+  readonly where: 'content' | 'frontmatter' | 'path' | 'pending';
   /** Campo do frontmatter, em `frontmatter`; caminho do arquivo, em `pending`. */
   readonly field: string | null;
   /** Linha (a partir de 1) dentro do texto em `where`. */
@@ -156,6 +159,21 @@ const NEXT_STEPS: Partial<Record<BrainErrorCode, string>> = {
 };
 
 /**
+ * Mensagem de uma falha do git para o agente: o subcomando e o que o git disse, sem a linha de comando inteira (que
+ * traz caminhos de arquivos temporários desta máquina e não ajuda o agente em nada).
+ */
+function gitFailureMessage(error: GitError): string {
+  const subcommand = error.args.find((arg) => !arg.startsWith('-')) ?? '';
+  const said = redactCredentials(error.stderr.trim().split('\n').slice(-3).join(' ')).slice(0, 400);
+  const outcome = error.timedOut
+    ? 'tempo limite'
+    : error.exitCode === null
+      ? error.message.split(': ').slice(1).join(': ') || 'não iniciou'
+      : `código ${error.exitCode}`;
+  return `o git falhou${subcommand === '' ? '' : ` em "${subcommand}"`} (${outcome})${said === '' ? '' : `: ${said}`}`;
+}
+
+/**
  * Converte o erro de qualquer módulo do núcleo num `BrainError`. Erros que já são `BrainError` passam intactos; o
  * que não é reconhecido vira `git_failed` (falha do git) ou é relançado como está (defeito de programa).
  */
@@ -195,7 +213,7 @@ export function toBrainError(error: unknown): BrainError {
     });
   }
   if (error instanceof GitError) {
-    return new BrainError('git_failed', error.message, { cause: error });
+    return new BrainError('git_failed', gitFailureMessage(error), { cause: error });
   }
   throw error;
 }

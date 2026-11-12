@@ -25,6 +25,7 @@ export type { VaultErrorCode, VaultErrorDetails } from './errors.ts';
 export { VaultError } from './errors.ts';
 export type { FileNameStyle, NoteFileNameInput } from './filename.ts';
 export {
+  dirNameProblem,
   FILE_NAME_STYLES,
   fileNameKey,
   fileNameProblem,
@@ -36,7 +37,17 @@ export {
 } from './filename.ts';
 export type { NoteFile } from './list.ts';
 export { listNoteFiles } from './list.ts';
-export { assertNotePath, isInNoteDirs, normalizeRelPath, resolveVaultPath } from './paths.ts';
+export type { DiskCasePath, ResolveVaultPathOptions } from './paths.ts';
+export {
+  assertNotePath,
+  diskCasePath,
+  isBrainControlFile,
+  isInNoteDirs,
+  isPrivateTarget,
+  normalizeRelPath,
+  ROOT_CONTROL_FILE_RE,
+  resolveVaultPath,
+} from './paths.ts';
 export type { NoteRead } from './read.ts';
 export { hashContent, readNote } from './read.ts';
 export type { AmbiguousName, LinkIndex, LinkResolution } from './resolve.ts';
@@ -85,6 +96,7 @@ export type {
   CreateNoteInput,
   CreateNoteOptions,
   NoteChanges,
+  PatchNoteOptions,
   UpdateNoteOptions,
   WriteAction,
   WriteResult,

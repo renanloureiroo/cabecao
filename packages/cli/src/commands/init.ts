@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 import type { InitResult, InitStep, InitWarning } from '@cabecao/core';
-import { initBrain, remoteUrlProblem, resolveRemoteArg } from '@cabecao/core';
+import { connectLaterStep, initBrain, remoteUrlProblem, resolveRemoteArg } from '@cabecao/core';
 import { homeDir, machineConfigDir, toCliError, withBrain } from '../brain.ts';
 import type { DoctorReport } from '../doctor/checks.ts';
 import { renderReport } from '../doctor/checks.ts';
@@ -25,7 +25,7 @@ const STEP_TEXT: Readonly<Record<InitStep, string>> = {
 
 /** Como ligar um remoto a um cérebro criado só local (o comando `cabecao remote` chega num marco seguinte). */
 export function connectLaterText(branch: string | null): string {
-  return `Para sincronizar com outras máquinas, crie um repositório privado e vazio (em qualquer provedor) e, na pasta do cérebro, rode "git remote add origin <url>" e "git push -u origin ${branch ?? '<branch>'}". Depois disso, "cabecao sync" mantém as máquinas em dia e "cabecao init <url>" instala nas outras.`;
+  return connectLaterStep(branch);
 }
 
 export type IndexStep = { notes: number; ms: number | null } | { error: string };
@@ -46,10 +46,12 @@ const message = (error: unknown): string => {
   return converted instanceof Error ? converted.message : String(converted);
 };
 
-/** Passos seguintes do núcleo, sem os que citam comandos que esta versão da CLI ainda não tem. */
+/** Passos seguintes do núcleo (que só citam comandos que existem), com a orientação do remoto no caso local. */
 function nextSteps(result: InitResult): string[] {
-  const steps = result.nextSteps.filter((step) => !step.includes('cabecao remote'));
-  if (result.case === 'local') steps.push(connectLaterText(result.branch));
+  const steps = [...result.nextSteps];
+  // o núcleo já dá esta orientação no caso local; aqui só se garante que ela esteja lá, uma vez
+  const later = connectLaterText(result.branch);
+  if (result.case === 'local' && !steps.includes(later)) steps.push(later);
   return steps;
 }
 

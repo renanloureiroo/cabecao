@@ -6,3 +6,8 @@
 # Obsidian: estado das janelas, que muda a cada clique e só gera conflito entre máquinas.
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+
+# Lixo do sistema operacional: o sync leva tudo o que não está ignorado, e estes arquivos só geram conflito.
+.DS_Store
+Thumbs.db
+desktop.ini

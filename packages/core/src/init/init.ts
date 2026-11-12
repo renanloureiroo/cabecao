@@ -153,7 +153,7 @@ export interface InitResult {
   readonly detection: InitDetection | null;
   /** Por que o remoto falhou, nos casos `remote-error`. */
   readonly error: RemoteFailure | null;
-  /** Dá para começar só local agora e ligar o remoto depois (`cabecao remote <url>`). */
+  /** Dá para começar só local agora e ligar o remoto depois (com o git: ver `connectLaterStep`). */
   readonly canStartLocal: boolean;
   readonly warnings: readonly InitWarning[];
   /** O que o usuário pode fazer em seguida, em português. */
@@ -200,6 +200,18 @@ function makeResult(root: string, fields: Partial<InitResult> & Pick<InitResult,
 
 const shown = (url: string): string => redactCredentials(url);
 
+/**
+ * Como ligar um remoto a um cérebro só local, com o que existe hoje (o comando `cabecao remote` ainda não existe):
+ * o git liga e envia, e o `cabecao sync` cuida do resto. É o mesmo texto que a CLI mostra.
+ */
+export function connectLaterStep(branch: string | null): string {
+  return `Para sincronizar com outras máquinas, crie um repositório privado e vazio (em qualquer provedor) e, na pasta do cérebro, rode "git remote add origin <url>" e "git push -u origin ${branch ?? '<branch>'}". Depois disso, "cabecao sync" mantém as máquinas em dia e "cabecao init <url>" instala nas outras.`;
+}
+
+/** Recomeçar só local depois de uma falha com o remoto. */
+const START_LOCAL_STEP =
+  'Ou comece só local agora (cabecao init, sem URL) e ligue um remoto vazio depois: na pasta do cérebro, "git remote add origin <url>", "git push -u origin <branch>" e "cabecao sync".';
+
 function remoteFailureResult(
   ctx: Pick<Context, 'root' | 'warnings'>,
   remote: string,
@@ -217,7 +229,7 @@ function remoteFailureResult(
     warnings: ctx.warnings,
     nextSteps: [
       ...(failure.category === 'invalid-url' ? [] : [`Confira o acesso no terminal: git ls-remote ${shown(remote)}`]),
-      'Ou comece só local agora (cabecao init, sem URL) e ligue o remoto depois com cabecao remote <url>.',
+      START_LOCAL_STEP,
     ],
   });
 }
@@ -285,13 +297,14 @@ async function checkSameBrain(root: string, remote: string | null, options: GitO
     if (origin === null) {
       return {
         same: false,
-        reason: 'já é um cérebro, mas só local; para ligá-lo a esse remoto, use cabecao remote <url>',
+        reason:
+          'já é um cérebro, mas só local; para ligá-lo a esse remoto (vazio), rode na pasta dele "git remote add origin <url>", "git push -u origin <branch>" e depois "cabecao sync"',
       };
     }
     if (normalizeRemoteUrl(origin, root) !== normalizeRemoteUrl(remote)) {
       return {
         same: false,
-        reason: `já é um cérebro, ligado a outro remoto (${shown(origin)}); para trocar, use cabecao remote <url>`,
+        reason: `já é um cérebro, ligado a outro remoto (${shown(origin)}); para trocar, rode na pasta dele "git remote set-url origin <url>" (o novo remoto tem de estar vazio ou ter este mesmo cérebro) e depois "cabecao sync"`,
       };
     }
   }
@@ -445,9 +458,7 @@ async function createLocal(ctx: Context): Promise<InitResult> {
     commit,
     machine: ctx.machine.machine,
     warnings: ctx.warnings,
-    nextSteps: [
-      'Para sincronizar com outras máquinas, crie um repositório privado e vazio no provedor que preferir e rode cabecao remote <url>.',
-    ],
+    nextSteps: [connectLaterStep(branch)],
   });
 }
 
@@ -573,10 +584,7 @@ async function fromRemote(ctx: Context, remote: string): Promise<InitResult> {
       detection: summary,
       canStartLocal: true,
       warnings: ctx.warnings,
-      nextSteps: [
-        'Use um repositório vazio (de preferência privado) ou um vault de notas Markdown.',
-        'Ou comece só local (cabecao init, sem URL) e ligue um remoto vazio depois com cabecao remote <url>.',
-      ],
+      nextSteps: ['Use um repositório vazio (de preferência privado) ou um vault de notas Markdown.', START_LOCAL_STEP],
     });
   }
   if (detection.stats.hasCommits) await runGit(['reset', '--quiet', '--hard', 'HEAD'], { ...quick, cwd: root });

@@ -1,4 +1,5 @@
 import type { ListOperationsOutput, UndoInput, UndoOutput } from '@cabecao/core';
+import { MIN_HUMAN_ID_PREFIX } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { UsageError } from '../errors.ts';
 import { formatWhen, plural } from '../text.ts';
@@ -6,13 +7,17 @@ import type { CommandContext, CommandResult } from '../types.ts';
 
 const LIST_LIMIT_MAX = 200;
 
-function idOption(ctx: CommandContext, name: string): string | undefined {
+/**
+ * `--op` e `--session`: o ULID ou o começo dele, com pelo menos `MIN_HUMAN_ID_PREFIX` caracteres (com menos, um
+ * engano desfaria a operação errada). `--list --session` só lê, e aceita qualquer começo.
+ */
+function idOption(ctx: CommandContext, name: string, min: number): string | undefined {
   const value = ctx.values[name];
   if (value === undefined) return undefined;
   const text = String(value).trim();
-  if (!/^[0-9A-Za-z]{1,26}$/.test(text)) {
+  if (!new RegExp(`^[0-9A-Za-z]{${min},26}$`).test(text)) {
     throw new UsageError(
-      `--${name} deveria ser o identificador da ${name === 'op' ? 'operação' : 'sessão'} (ou o começo dele)`,
+      `--${name} deveria ser o identificador da ${name === 'op' ? 'operação' : 'sessão'} (ou o começo dele${min > 1 ? `, com pelo menos ${min} caracteres` : ''})`,
     );
   }
   return text;
@@ -56,9 +61,9 @@ export function listText(output: ListOperationsOutput): string {
 
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (ctx.positionals.length > 0) throw new UsageError(`argumento a mais: ${ctx.positionals.join(' ')}`);
-  const op = idOption(ctx, 'op');
-  const session = idOption(ctx, 'session');
   const list = ctx.values.list === true;
+  const op = idOption(ctx, 'op', MIN_HUMAN_ID_PREFIX);
+  const session = idOption(ctx, 'session', list ? 1 : MIN_HUMAN_ID_PREFIX);
   if (op !== undefined && session !== undefined) throw new UsageError('use --op ou --session, não os dois');
   if (list && op !== undefined) throw new UsageError('--list não combina com --op');
   let limit: number | undefined;
