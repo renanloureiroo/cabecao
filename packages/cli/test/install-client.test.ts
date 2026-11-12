@@ -384,7 +384,8 @@ describe('Claude Code pelo comando claude', () => {
     expect(result.code).toBe(0);
     expect(box.calls).toHaveLength(1);
     const [call] = box.calls;
-    expect(call?.file).toBe(claudePath);
+    // o Windows devolve a extensão como está no PATHEXT (`.EXE`)
+    expect(call?.file.toLowerCase()).toBe(claudePath.toLowerCase());
     expect(call?.args.slice(0, 5)).toEqual(['mcp', 'add-json', 'cabecao', '--scope', 'user']);
     expect(JSON.parse(call?.args[5] ?? '')).toEqual({ type: 'stdio', command: FAKE_NODE, args: expectedArgs() });
     expect(JSON.parse(result.stdout).data.clients[0]).toMatchObject({ status: 'installed', method: 'cli' });
@@ -595,7 +596,9 @@ describe('como o servidor é referenciado', () => {
   it('install-client --npx grava a forma com npx', async () => {
     await box.cabecao(['cursor', '--brain', box.brain, '--npx']);
     const entry = entryIn(mainTarget('cursor') as JsonTarget, await readFile(mainTarget('cursor').path, 'utf8'));
-    expect(entry).toMatchObject({ args: ['-y', 'cabecao', 'mcp', '--brain', box.brain] });
+    // no Windows o npx é chamado por `cmd /c npx`; o fim dos argumentos é igual nos três sistemas
+    const args = (entry as { args: string[] }).args;
+    expect(args.slice(-5)).toEqual(['-y', 'cabecao', 'mcp', '--brain', box.brain]);
   });
 });
 
