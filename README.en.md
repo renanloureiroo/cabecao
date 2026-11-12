@@ -7,7 +7,7 @@
   <strong>English</strong> · <a href="README.md">Português</a>
 </p>
 
-> **Status: 🚧 validated plan, no code yet.** Every architecture decision was tested in a proof of concept before entering the plan. See the [evidence](docs/11-evidencias.md) and [roadmap](docs/10-roadmap.md) (Portuguese for now).
+> **Status: 🚧 foundation in place, features in progress.** The monorepo, CI and a minimal CLI (`cabecao --version`) exist; commands arrive in milestone 1. Every architecture decision was tested in a proof of concept before entering the plan. See the [evidence](docs/11-evidencias.md) and [roadmap](docs/10-roadmap.md) (Portuguese for now).
 
 ---
 
