@@ -11,7 +11,7 @@ Cada decisão traz o motivo e a evidência. Os números e os detalhes estão em 
 | 05 | TypeScript em Node `^22.16 \|\| >=24` | SDK de MCP de primeira linha; `npx`; FTS5 embutido a partir da 22.16 | Python, Rust, Go |
 | 06 | `node:sqlite` embutido como banco local | Passou em 15 combinações de sistema e Node, sem dependência nativa | `better-sqlite3` (fica como plano B) |
 | 07 | Busca vetorial por força bruta em JavaScript | 31–70 ms em 100 mil vetores; mesma velocidade do `sqlite-vec` | `sqlite-vec`, LanceDB |
-| 08 | EmbeddingGemma 300m q4, local, como modelo padrão | Melhor resultado em português entre 13 modelos | Modelos menores; modelos maiores não ganharam |
+| 08 | O usuário escolhe o modelo de embeddings ao ativar a busca por significado; o projeto documenta sugestões testadas | Não impor uma licença de modelo a ninguém; o melhor modelo em português (EmbeddingGemma 300m) não tem licença de código aberto reconhecida | Um modelo padrão fixo |
 | 09 | Runtime de embeddings opcional, baixado sob demanda | Mantém o pacote em ~160 KB | Embutir `transformers.js` (470 MB) |
 | 10 | Vetores em `int8` com escala por vetor | Mesma qualidade do `float32`, um quarto do tamanho | `float16`, binário, truncamento |
 | 11 | Fusão convexa com cobertura (α = 0,5) | RRF derrubou paráfrases de 67% para 15% | RRF, reranker |

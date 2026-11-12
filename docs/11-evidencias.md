@@ -29,7 +29,7 @@ Só os relatórios e três scripts pequenos são versionados. O código das prov
 ### Embeddings e busca (11)
 Treze modelos, 178 trechos e 138 perguntas em português, mais Belebele e parte do Quati.
 
-- **Mudou o modelo:** o pequeno que estava no plano acertou 17% das paráfrases; o EmbeddingGemma 300m, 67%.
+- **Mudou o modelo:** o pequeno que estava no plano acertou 17% das paráfrases; o EmbeddingGemma 300m, 67%. Como o melhor modelo não tem licença de código aberto reconhecida, a escolha passou a ser do usuário, com as medições como guia.
 - **Mudou a fusão:** RRF piorou o resultado; entrou a fusão convexa com cobertura.
 - **Confirmado:** vetores em `int8` não perdem qualidade; o prefixo de contexto ajuda.
 - **Saiu:** reranker e `transformers.js` como runtime.

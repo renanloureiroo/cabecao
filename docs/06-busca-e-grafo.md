@@ -23,7 +23,7 @@ flowchart LR
 - Sozinha, acerta 95% das buscas por termo exato (IDs, nomes de função, códigos de erro) e 0% das paráfrases.
 
 ### Significado
-- **Modelo:** EmbeddingGemma 300m, ONNX q4, 768 dimensões, rodando na sua máquina.
+- **Modelo:** você escolhe ao ativar a busca por significado; ver "Escolha do modelo" abaixo. Ele roda na sua máquina.
 - **Contexto no trecho:** cada trecho é embutido com o prefixo `Título › Seção`. Isso levou o acerto de 0,825 para 0,872, e de 17–33% para 75–92% nas perguntas que dependem do título.
 - **Trechos:** divisão por seções do Markdown, com cerca de 350 tokens.
 - **Busca:** força bruta em JavaScript; 100 mil vetores em 31 a 70 ms.
@@ -42,24 +42,43 @@ A fusão usual (RRF) **piorou** o resultado: o acerto em paráfrases caiu de 67%
 | Belebele (MRR) | 0,935 | 0,928 | 0,952 |
 | Quati (nDCG@10) | 0,583 | 0,564 | 0,580 |
 
-### Por que este modelo
+### Escolha do modelo
 
-Treze modelos foram medidos em português. Os principais:
+O Cabeção **não impõe um modelo**. Quem instala escolhe, e o projeto documenta sugestões testadas. O Cabeção não redistribui nenhum modelo: ele é baixado do Hugging Face na sua máquina, sob a licença do próprio modelo.
 
-| Modelo | Tamanho | Acerto no sintético (MRR) | Paráfrases certas | Licença |
-|---|---|---|---|---|
-| **EmbeddingGemma 300m q4** | 197 MB | **0,872** | **67%** | Gemma Terms of Use |
-| bge-m3 q8 | 570 MB | 0,836 | 48% | MIT |
-| EmbeddingGemma 2 q4 | 175 MB | 0,802 | 40% | Apache-2.0 |
-| multilingual-e5-base q8 | 279 MB | 0,763 | 40% | MIT |
-| multilingual-e5-small q8 | 118 MB | 0,693 | 17% | MIT |
+```bash
+cabecao embeddings on                       # mostra as sugestões e pergunta
+cabecao embeddings on embeddinggemma-300m   # escolhe direto
+```
 
-- Nenhum modelo maior superou o escolhido, então não há um "modo qualidade".
-- Um modelo pequeno com palavra-chave não alcança o escolhido (0,699 contra 0,857).
-- **Licença:** a do EmbeddingGemma 300m não é uma licença de código aberto reconhecida. O Cabeção não redistribui o modelo; ele é baixado do Hugging Face na sua máquina. Para quem exige só Apache ou MIT, `cabecao config embedding embeddinggemma-2` troca pelo EmbeddingGemma 2, com perda em paráfrases.
+A escolha é gravada no `.cabecao.json` do cérebro. As outras máquinas usam o mesmo modelo sem perguntar de novo, porque os vetores sincronizados só servem para o modelo que os gerou.
+
+#### Sugestões testadas
+
+Treze modelos foram medidos em português. Estes têm configuração pronta:
+
+| Nome | Tamanho | Acerto no sintético (MRR) | Paráfrases certas | Licença | Indicado para |
+|---|---|---|---|---|---|
+| `embeddinggemma-300m` | 197 MB | **0,872** | **67%** | Gemma Terms of Use | Melhor qualidade em português |
+| `bge-m3` | 570 MB | 0,836 | 48% | MIT | Boa qualidade com licença aberta, se o tamanho não incomodar |
+| `embeddinggemma-2` | 175 MB | 0,802 | 40% | Apache-2.0 | Licença aberta e modelo leve |
+| `multilingual-e5-base` | 279 MB | 0,763 | 40% | MIT | Alternativa aberta de tamanho médio |
+| `multilingual-e5-small` | 118 MB | 0,693 | 17% | MIT | Máquinas fracas; depende muito da busca por palavra-chave |
+
+- Nenhum modelo maior superou o primeiro da lista.
+- Um modelo pequeno com palavra-chave não alcança o melhor (0,699 contra 0,857).
+- A licença "Gemma Terms of Use" não é uma licença de código aberto reconhecida; leia os termos antes de escolher esse modelo.
+
+#### Modelo próprio
+
+Qualquer modelo ONNX do Hugging Face pode ser usado, declarando no `.cabecao.json` o repositório, o arquivo, as dimensões, o tipo de agregação e os prefixos de pergunta e de trecho. Modelos fora da lista não foram medidos; rode `cabecao eval` para comparar.
+
+#### Trocar de modelo
+
+`cabecao embeddings switch <nome>` recalcula tudo numa pasta nova da branch de índice. O modelo antigo continua em uso até a troca terminar.
 
 ### Reranker
-Fora do padrão. O `bge-reranker-v2-m3` (571 MB) não melhorou o modelo escolhido e levou cerca de 8,5 s para reordenar 30 candidatos. Um reranker pequeno piorou o resultado.
+Fora do padrão. O `bge-reranker-v2-m3` (571 MB) não melhorou o melhor modelo e levou cerca de 8,5 s para reordenar 30 candidatos. Um reranker pequeno piorou o resultado.
 
 ### Runtime de embeddings
 - O núcleo não tem nenhuma dependência de aprendizado de máquina; a busca por palavra-chave funciona logo após instalar.

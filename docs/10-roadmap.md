@@ -28,7 +28,8 @@ Ao final: `npx cabecao init <url>` funciona em duas máquinas, com busca por pal
 
 ## M2 · Busca por significado, sincronizada (`0.2`)
 - [ ] Runtime opcional de embeddings, baixado sob demanda
-- [ ] EmbeddingGemma 300m q4 com prefixo de contexto
+- [ ] Escolha do modelo pelo usuário, com configurações prontas para as sugestões testadas e suporte a modelo próprio
+- [ ] Prefixo de contexto nos trechos
 - [ ] Segmentos imutáveis na branch de índice + envio atômico com o conteúdo
 - [ ] Vetores em memória e fusão convexa com cobertura
 - [ ] `compact` e gerações do índice
@@ -87,7 +88,7 @@ Estes pontos estão no plano com base em documentação ou em teste parcial. Cad
 | Sync em Windows e Linux | A PoC de sync rodou só no macOS | M1 |
 | Scanner de segredos | Não implementado | M1 |
 | Vetores de arquiteturas diferentes na mesma busca | Não medido | M2 |
-| Licença do modelo padrão | Decisão sua; há alternativa Apache-2.0 | M2 |
+| Modelos fora da lista de sugestões | Não medidos; o usuário compara com `cabecao eval` | M2 |
 | Busca medida num cérebro real | Só conjuntos sintéticos e públicos | M2 |
 | Plugin instalado a partir do repositório público | Só marketplace local | M4 |
 | Sessões interativas do Claude Code | Só modo não interativo | M4 |

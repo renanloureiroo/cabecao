@@ -72,7 +72,7 @@ Todas vêm de medição; os números estão em [11 · Evidências](11-evidencias
 | Runtime | Node.js `^22.16 \|\| >=24` | Versões anteriores não têm busca por texto no SQLite embutido |
 | Banco local | `node:sqlite` embutido, com FTS5 | `better-sqlite3` fica como plano B, por ser dependência nativa |
 | Busca vetorial | Força bruta em JavaScript sobre `Int8Array` | `sqlite-vec`: mesma velocidade, sem binário para Windows ARM |
-| Embeddings | EmbeddingGemma 300m (ONNX q4) com `onnxruntime-node` | Modelos menores erram demais em português; `transformers.js` pesa 470 MB |
+| Embeddings | Modelo ONNX escolhido pelo usuário, com `onnxruntime-node`; sugestões testadas na documentação | Um modelo fixo; `transformers.js`, que pesa 470 MB |
 | Parser de Markdown | Próprio (varredura de linhas + `yaml`) | `remark`: 12 vezes mais lento e errou mais casos |
 | Grafo | Tabelas no SQLite + consultas recursivas | Banco de grafos, PageRank, detecção de comunidades |
 | MCP | SDK oficial v2 (`@modelcontextprotocol/server` 2.4) + Zod 4 | SDK v1: clientes novos falham contra ele |

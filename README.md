@@ -20,7 +20,7 @@ Um **segundo cérebro pessoal** que vive num **repositório git seu**, em qualqu
 - 📝 **Markdown é a fonte da verdade.** Você lê e edita no Obsidian ou em qualquer editor.
 - 🔗 **Qualquer remoto git.** Sem depender de API de provedor, Pull Request ou CI.
 - 🔄 **Sincroniza tudo.** Uma máquina nunca recalcula o embedding que outra já calculou.
-- 🔎 **Busca híbrida** por palavra-chave e por significado, com modelo local (nada sai da sua máquina).
+- 🔎 **Busca híbrida** por palavra-chave e por significado, com um modelo local que você escolhe (nada sai da sua máquina).
 - 🕸️ **Wiki com grafo:** wikilinks, relações tipadas e fatos com validade no tempo, que o agente navega.
 - 🧠 **Memória de agente:** o que você ensinou numa sessão está disponível na próxima, em qualquer cliente.
 - ↩️ **Tudo reversível:** cada operação é um commit, com comando para desfazer.

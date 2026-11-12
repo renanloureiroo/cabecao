@@ -44,6 +44,8 @@ meu-cerebro/                      ← repositório git (privado)
 }
 ```
 
+O campo `embedding` só existe depois que você ativa a busca por significado e escolhe um modelo. Ele vale para todas as máquinas do cérebro. O exemplo mostra uma das sugestões; as dimensões e o tamanho do registro nos segmentos acompanham o modelo escolhido.
+
 ## Frontmatter
 
 ```yaml

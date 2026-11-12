@@ -36,10 +36,12 @@ O pacote tem cerca de 160 KB e nenhuma dependência. Primeiro `npx` medido: pert
 ### Ativar a busca por significado
 
 ```bash
-cabecao embeddings on
+cabecao embeddings on [modelo]
 ```
 
-Baixa o runtime e o modelo (cerca de 310 MB no total) para o diretório de dados do usuário e calcula os embeddings do que ainda não tem. Numa segunda máquina, os embeddings já vêm do repositório; ela só precisa do modelo para embutir as perguntas e as notas novas. Antes disso, a busca por palavra-chave já funciona.
+É um passo separado e opcional; o `init` continua pedindo só a URL. Sem o nome do modelo, o comando mostra as sugestões testadas, com tamanho, qualidade e licença de cada uma, e pergunta qual você quer. A lista está em [06 · Busca e grafo](06-busca-e-grafo.md#escolha-do-modelo).
+
+Depois ele baixa o runtime (cerca de 115 MB) e o modelo escolhido (de 118 a 570 MB) para o diretório de dados do usuário e calcula os embeddings do que ainda não tem. A escolha fica gravada no cérebro: numa segunda máquina, `cabecao embeddings on` usa o mesmo modelo sem perguntar, e os embeddings já vêm do repositório. Antes disso tudo, a busca por palavra-chave já funciona.
 
 ### Segunda máquina
 
@@ -88,7 +90,7 @@ cabecao install-client --print     # só mostra a configuração
 | `cabecao undo [--session\|--op]` | Desfaz |
 | `cabecao lint` | Relatório de saúde |
 | `cabecao consolidate` | Chama um agente não interativo para consolidar |
-| `cabecao embeddings on\|off\|status` | Busca por significado |
+| `cabecao embeddings on [modelo]\|off\|status\|switch <modelo>` | Busca por significado, com o modelo que você escolher |
 | `cabecao schedule on\|off` | Sync periódico pelo agendador do sistema |
 | `cabecao compact` | Reduz o índice e inicia uma geração nova |
 | `cabecao reindex [--full]` | Reconstrói o banco local |
