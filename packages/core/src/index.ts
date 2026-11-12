@@ -12,3 +12,4 @@ export * from './git/index.ts';
 export * from './markdown/index.ts';
 export * from './security/index.ts';
 export * from './util/index.ts';
+export * from './vault/index.ts';
