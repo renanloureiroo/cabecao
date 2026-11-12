@@ -1,0 +1,618 @@
+// Verificações do `doctor` (docs/08-instalacao-e-operacao.md, "O que o doctor verifica"). Cada uma é uma função pura:
+// recebe os fatos já coletados (`facts.ts` faz a parte que lê disco, git e rede) e devolve o resultado com a correção
+// sugerida. Assim cada regra é testável sem montar um cérebro de verdade.
+//
+// Ficam de fora, por serem do marco 2: runtime e modelo de embeddings, trechos sem embedding.
+import type { ClientId } from '../install-client/clients.ts';
+import type { ClientRegistration } from '../install-client/register.ts';
+import { formatWhen } from '../text.ts';
+
+export type CheckStatus = 'ok' | 'warn' | 'fail';
+
+export interface CheckResult {
+  /** Identificador estável (`node`, `git`, `remote`...), para scripts. */
+  id: string;
+  /** Nome curto, em português, mostrado no terminal. */
+  title: string;
+  status: CheckStatus;
+  /** O que foi visto. */
+  message: string;
+  /** O que fazer, quando há o que fazer. */
+  fix?: string;
+  /** Detalhes, um por linha (arquivos, linhas que faltam...). */
+  items?: string[];
+}
+
+/** Trava encontrada em `.cabecao/locks/`. */
+export interface LockFact {
+  path: string;
+  /** Dono gravado no arquivo; `null` se não deu para ler. */
+  owner: { pid: number; host: string } | null;
+  ageMs: number;
+  /** O processo dono existe nesta máquina; `null` quando o dono é de outra máquina ou desconhecido. */
+  alive: boolean | null;
+}
+
+export type ProbeFact =
+  | { kind: 'skipped' }
+  | { kind: 'ok'; branches: readonly string[] }
+  | { kind: 'failed'; category: string; message: string; detail: string };
+
+export type VisibilityFact =
+  | { kind: 'skipped' }
+  | { kind: 'checked'; visibility: 'public' | 'private-or-missing' | 'unknown'; provider: string | null; url: string };
+
+export type IndexFact =
+  | { kind: 'missing' }
+  | {
+      kind: 'present';
+      rebuilt: string | null;
+      schemaVersion: number;
+      expectedSchemaVersion: number;
+      notes: number;
+      lastScanAt: string | null;
+    }
+  | { kind: 'error'; message: string };
+
+/** Tudo o que as verificações precisam saber. Os campos `undefined` não foram coletados (dependiam de outro). */
+export interface DoctorFacts {
+  platform: NodeJS.Platform;
+  nodeVersion: string;
+  git: { kind: 'ok'; version: string; supported: boolean; minimum: string } | { kind: 'error'; message: string };
+  /** A pasta do cérebro, ou por que não há uma. */
+  brain: { kind: 'resolved'; root: string } | { kind: 'unresolved'; message: string; hint?: string };
+  /** `.cabecao.json` lido. */
+  config?: { kind: 'ok'; schemaVersion: number; supported: number } | { kind: 'error'; message: string; hint?: string };
+  machine?: { kind: 'ok'; name: string | null; configPath: string } | { kind: 'error'; message: string };
+  repo?: { kind: 'ok'; branch: string | null; headTime: number | null } | { kind: 'error'; message: string };
+  remote?: { name: string; url: string; branch: string } | null;
+  probe?: ProbeFact;
+  visibility?: VisibilityFact;
+  gitignore?: { exists: boolean; missing: readonly string[] };
+  gitattributes?: { exists: boolean; missing: readonly string[] };
+  index?: IndexFact;
+  locks?: readonly LockFact[];
+  /** `index.lock` do git e a idade dele. */
+  gitIndexLock?: { path: string; ageMs: number } | null;
+  /** Operação do git pela metade: `merge`, `rebase`, `cherry-pick`, `revert`, `bisect`. */
+  gitOperation?: string | null;
+  /** O diário do sync existe: uma aplicação foi interrompida. */
+  syncJournal?: boolean;
+  syncRunning?: boolean;
+  lastSync?: { at: string; status: string; message: string } | null;
+  conflicts?: readonly { copy: string; original: string; originalExists: boolean }[];
+  gpgSign?: boolean;
+  identity?: { kind: 'ok'; ident: string } | { kind: 'error'; message: string };
+  clients?: { kind: 'skipped' } | { kind: 'read'; detected: readonly ClientId[]; registrations: ClientRegistration[] };
+}
+
+/** Uma verificação: devolve `null` quando não se aplica (fato não coletado, outro sistema). */
+export type Check = (facts: DoctorFacts) => CheckResult | null;
+
+/** Idade a partir da qual uma trava de outra máquina é considerada abandonada (a mesma do núcleo). */
+export const LOCK_STALE_MS = 10 * 60_000;
+/** O git considera abandonado um `index.lock` sem dono depois de alguns segundos; o sync, depois de 30 s. */
+export const GIT_LOCK_STALE_MS = 30_000;
+/** Folga entre a última varredura e o último commit antes de o banco ser dado como desatualizado. */
+export const INDEX_FRESHNESS_SLACK_MS = 60_000;
+/** Limite clássico de caminho no Windows. */
+export const WINDOWS_MAX_PATH = 260;
+/** Espaço que sobra para pastas e nomes de nota (com cópia de conflito) abaixo do qual o `doctor` avisa. */
+export const WINDOWS_PATH_MARGIN = 100;
+
+const REINIT_HINT = 'Rode "cabecao init" (com a URL do repositório, se houver) ou aponte para o cérebro com --brain.';
+
+/**
+ * Mesma faixa do bin (`node-version.ts`): `^22.16.0 || >=24.0.0`. Não é importada de lá de propósito: o bin embute
+ * aquele arquivo, e um segundo uso faria o bundler separá-lo num pedaço compartilhado, dando ao bin um import
+ * estático. Um teste confere que as duas regras concordam.
+ */
+export function isSupportedNode(version: string): boolean {
+  const [major = Number.NaN, minor = Number.NaN] = version.replace(/^v/, '').split('.').map(Number);
+  return major === 22 ? minor >= 16 : major >= 24;
+}
+
+export const checkNode: Check = (facts) => {
+  const problem = isSupportedNode(facts.nodeVersion)
+    ? undefined
+    : `o Cabeção precisa do Node.js 22.16+ ou 24+, e este é o v${facts.nodeVersion.replace(/^v/, '')}`;
+  const version = `v${facts.nodeVersion.replace(/^v/, '')}`;
+  if (problem !== undefined) {
+    return { id: 'node', title: 'Node.js', status: 'fail', message: problem, fix: 'Instale o Node.js 24 (LTS).' };
+  }
+  const major = Number(version.slice(1).split('.')[0]);
+  return {
+    id: 'node',
+    title: 'Node.js',
+    status: 'ok',
+    message: major === 22 ? `${version} (funciona; o recomendado é o 24)` : version,
+  };
+};
+
+export const checkGit: Check = (facts) => {
+  const { git } = facts;
+  if (git.kind === 'error') {
+    return {
+      id: 'git',
+      title: 'git',
+      status: 'fail',
+      message: git.message,
+      fix: 'Instale o git (https://git-scm.com) e confira que ele está no PATH.',
+    };
+  }
+  if (!git.supported) {
+    return {
+      id: 'git',
+      title: 'git',
+      status: 'fail',
+      message: `${git.version} é mais antigo que o mínimo (${git.minimum})`,
+      fix: `Atualize o git para ${git.minimum} ou mais novo (https://git-scm.com).`,
+    };
+  }
+  return { id: 'git', title: 'git', status: 'ok', message: git.version };
+};
+
+export const checkBrain: Check = (facts) => {
+  if (facts.brain.kind === 'unresolved') {
+    return {
+      id: 'brain',
+      title: 'Cérebro',
+      status: 'fail',
+      message: facts.brain.message,
+      fix: facts.brain.hint ?? REINIT_HINT,
+    };
+  }
+  const { config } = facts;
+  if (config === undefined) return null;
+  if (config.kind === 'error') {
+    return { id: 'brain', title: 'Cérebro', status: 'fail', message: config.message, fix: config.hint ?? REINIT_HINT };
+  }
+  if (facts.repo?.kind === 'error') {
+    return { id: 'brain', title: 'Cérebro', status: 'fail', message: facts.repo.message, fix: REINIT_HINT };
+  }
+  return {
+    id: 'brain',
+    title: 'Cérebro',
+    status: 'ok',
+    message: `${facts.brain.root} (esquema ${config.schemaVersion}${config.schemaVersion === config.supported ? '' : `; esta versão do Cabeção usa o ${config.supported}`})`,
+  };
+};
+
+export const checkMachine: Check = (facts) => {
+  const { machine } = facts;
+  if (machine === undefined) return null;
+  if (machine.kind === 'error') {
+    return {
+      id: 'machine',
+      title: 'Configuração da máquina',
+      status: 'fail',
+      message: machine.message,
+      fix: 'Corrija o arquivo ou apague-o e rode "cabecao init" de novo (o cérebro não é tocado).',
+    };
+  }
+  if (machine.name === null) {
+    return {
+      id: 'machine',
+      title: 'Configuração da máquina',
+      status: 'warn',
+      message: `ainda não há ${machine.configPath}: os commits e as cópias de conflito usam o nome do computador`,
+      fix: 'Rode "cabecao init" (num cérebro que já existe ele só grava o nome desta máquina, com --machine <nome>).',
+    };
+  }
+  return { id: 'machine', title: 'Configuração da máquina', status: 'ok', message: `máquina "${machine.name}"` };
+};
+
+export const checkRemote: Check = (facts) => {
+  if (facts.remote === undefined) return null;
+  if (facts.remote === null) {
+    return {
+      id: 'remote',
+      title: 'Remoto',
+      status: 'warn',
+      message: 'cérebro só local: nenhum remoto configurado, nada é sincronizado com outras máquinas',
+      fix: 'Crie um repositório privado e vazio e, na pasta do cérebro, rode "git remote add origin <url>" e "git push -u origin <branch>"; depois "cabecao sync".',
+    };
+  }
+  const { probe } = facts;
+  const where = `${facts.remote.name} (${facts.remote.url})`;
+  if (probe === undefined || probe.kind === 'skipped') {
+    return { id: 'remote', title: 'Remoto', status: 'ok', message: `${where}; não consultado (--offline)` };
+  }
+  if (probe.kind === 'failed') {
+    const offline = probe.category === 'network';
+    return {
+      id: 'remote',
+      title: 'Remoto',
+      status: offline ? 'warn' : 'fail',
+      message: probe.message,
+      fix: offline
+        ? 'Sem rede, o sync guarda tudo em commits locais e envia quando o remoto voltar. Se a rede está boa, confira o endereço com "git remote -v".'
+        : probe.category === 'auth'
+          ? `O sync roda sem terminal e não pode pedir senha: configure uma chave SSH sem senha (ou com o ssh-agent) ou um token salvo no gerenciador de credenciais, e teste com "git ls-remote ${facts.remote.name}" na pasta do cérebro.`
+          : `Confira o endereço ("git remote -v") e o acesso no provedor; teste com "git ls-remote ${facts.remote.name}" na pasta do cérebro.`,
+      ...(probe.detail === '' ? {} : { items: probe.detail.split('\n') }),
+    };
+  }
+  if (!probe.branches.includes(facts.remote.branch)) {
+    return {
+      id: 'remote',
+      title: 'Remoto',
+      status: 'warn',
+      message: `${where} responde sem pedir senha, mas não tem a branch ${facts.remote.branch}`,
+      fix: 'Rode "cabecao sync" para enviar a branch.',
+    };
+  }
+  return {
+    id: 'remote',
+    title: 'Remoto',
+    status: 'ok',
+    message: `${where} responde sem pedir senha (branch ${facts.remote.branch})`,
+  };
+};
+
+export const checkVisibility: Check = (facts) => {
+  const { visibility } = facts;
+  if (visibility === undefined || visibility.kind === 'skipped') return null;
+  if (visibility.provider === null) {
+    return {
+      id: 'visibility',
+      title: 'Visibilidade',
+      status: 'ok',
+      message:
+        'não verificável (só dá para conferir em HTTPS de provedor conhecido): confirme no provedor que o repositório é privado',
+    };
+  }
+  if (visibility.visibility === 'public') {
+    return {
+      id: 'visibility',
+      title: 'Visibilidade',
+      status: 'warn',
+      message: `${visibility.url} parece PÚBLICO: o ${visibility.provider} respondeu a uma leitura sem credenciais`,
+      fix: `Torne o repositório privado nas configurações do ${visibility.provider} antes de gravar notas pessoais.`,
+    };
+  }
+  return {
+    id: 'visibility',
+    title: 'Visibilidade',
+    status: 'ok',
+    message:
+      visibility.visibility === 'unknown'
+        ? `não deu para confirmar com o ${visibility.provider} (sem rede?)`
+        : `privado (o ${visibility.provider} recusou a leitura sem credenciais)`,
+  };
+};
+
+function lineFileCheck(
+  id: string,
+  file: string,
+  fact: { exists: boolean; missing: readonly string[] } | undefined,
+): CheckResult | null {
+  if (fact === undefined) return null;
+  if (fact.missing.length === 0)
+    return { id, title: file, status: 'ok', message: 'tem as linhas que o Cabeção precisa' };
+  return {
+    id,
+    title: file,
+    status: 'warn',
+    message: fact.exists ? `faltam ${fact.missing.length} linha(s)` : 'o arquivo não existe',
+    fix: `Acrescente ao ${file} do cérebro, e faça um commit (ou rode "cabecao sync"):`,
+    items: [...fact.missing],
+  };
+}
+
+export const checkGitignore: Check = (facts) => lineFileCheck('gitignore', '.gitignore', facts.gitignore);
+export const checkGitattributes: Check = (facts) =>
+  lineFileCheck('gitattributes', '.gitattributes', facts.gitattributes);
+
+export const checkIndex: Check = (facts) => {
+  const { index } = facts;
+  if (index === undefined) return null;
+  const refresh = 'Nada a fazer: qualquer leitura (cabecao status, search, o servidor MCP) atualiza o banco sozinha.';
+  if (index.kind === 'missing') {
+    return {
+      id: 'index',
+      title: 'Banco local',
+      status: 'warn',
+      message: 'ainda não foi montado nesta máquina',
+      fix: 'Rode "cabecao status": ele monta o banco a partir das notas.',
+    };
+  }
+  if (index.kind === 'error') {
+    return {
+      id: 'index',
+      title: 'Banco local',
+      status: 'fail',
+      message: index.message,
+      fix: 'Apague a pasta .cabecao/ do cérebro (ela não vai para o git) e rode "cabecao status" para refazer o banco.',
+    };
+  }
+  if (index.rebuilt !== null) {
+    return {
+      id: 'index',
+      title: 'Banco local',
+      status: 'warn',
+      message:
+        index.rebuilt === 'corrupt'
+          ? 'estava corrompido e foi recriado vazio agora'
+          : index.rebuilt === 'schema_changed'
+            ? 'era de outra versão do Cabeção e foi recriado vazio agora'
+            : 'foi criado vazio agora',
+      fix: refresh,
+    };
+  }
+  if (index.schemaVersion !== index.expectedSchemaVersion) {
+    return {
+      id: 'index',
+      title: 'Banco local',
+      status: 'warn',
+      message: `esquema ${index.schemaVersion}, esperado ${index.expectedSchemaVersion} (outra versão do Cabeção está usando este cérebro)`,
+      fix: 'Use a mesma versão do Cabeção em todos os clientes desta máquina ("npx cabecao@latest").',
+    };
+  }
+  const headTime = facts.repo?.kind === 'ok' ? facts.repo.headTime : null;
+  const scanned = index.lastScanAt === null ? Number.NaN : Date.parse(index.lastScanAt);
+  // A data do commit tem só segundos, e uma escrita indexa a nota um instante ANTES de fazer o commit dela: a folga
+  // evita acusar de desatualizado o banco que acabou de receber a escrita. (O núcleo ainda não grava o último commit
+  // indexado, `last_indexed_commit`; com ele a comparação seria exata.)
+  if (Number.isNaN(scanned) || (headTime !== null && scanned < headTime * 1000 - INDEX_FRESHNESS_SLACK_MS)) {
+    return {
+      id: 'index',
+      title: 'Banco local',
+      status: 'warn',
+      message:
+        index.lastScanAt === null
+          ? 'nunca foi varrido'
+          : `a última varredura (${formatWhen(index.lastScanAt)}) é anterior ao último commit`,
+      fix: refresh,
+    };
+  }
+  return {
+    id: 'index',
+    title: 'Banco local',
+    status: 'ok',
+    message: `em dia com o último commit (${index.notes} nota(s), varrido em ${formatWhen(index.lastScanAt ?? '')})`,
+  };
+};
+
+export const checkLocks: Check = (facts) => {
+  if (facts.locks === undefined) return null;
+  const orphans: string[] = [];
+  for (const lock of facts.locks) {
+    const dead = lock.alive === false || (lock.alive === null && lock.ageMs > LOCK_STALE_MS);
+    if (!dead) continue;
+    const who =
+      lock.owner === null ? 'dono ilegível' : `processo ${lock.owner.pid} em ${lock.owner.host}, que não existe mais`;
+    orphans.push(`${lock.path} (${who})`);
+  }
+  const gitLock = facts.gitIndexLock;
+  if (gitLock != null && gitLock.ageMs > GIT_LOCK_STALE_MS) {
+    orphans.push(`${gitLock.path} (do git, há ${Math.round(gitLock.ageMs / 1000)} s)`);
+  }
+  if (orphans.length === 0) return { id: 'locks', title: 'Travas', status: 'ok', message: 'nenhuma trava órfã' };
+  return {
+    id: 'locks',
+    title: 'Travas',
+    status: 'warn',
+    message: `${orphans.length} trava(s) de processo que morreu`,
+    fix: 'O próximo sync ou escrita toma as travas do Cabeção sozinho. A do git ("index.lock"), apague à mão se nenhum git estiver rodando.',
+    items: orphans,
+  };
+};
+
+const ABORT: Readonly<Record<string, string>> = {
+  merge: 'git merge --abort',
+  rebase: 'git rebase --abort',
+  'cherry-pick': 'git cherry-pick --abort',
+  revert: 'git revert --abort',
+  bisect: 'git bisect reset',
+};
+
+export const checkInterrupted: Check = (facts) => {
+  if (facts.gitOperation === undefined && facts.syncJournal === undefined && facts.repo === undefined) return null;
+  if (facts.gitOperation != null) {
+    return {
+      id: 'interrupted',
+      title: 'Operações interrompidas',
+      status: 'fail',
+      message: `há um ${facts.gitOperation} do git pela metade na pasta do cérebro: o sync se recusa a continuar`,
+      fix: `Termine a operação ou desfaça com "${ABORT[facts.gitOperation] ?? 'git status'}" na pasta do cérebro.`,
+    };
+  }
+  if (facts.repo?.kind === 'ok' && facts.repo.branch === null) {
+    return {
+      id: 'interrupted',
+      title: 'Operações interrompidas',
+      status: 'fail',
+      message: 'o cérebro está com o HEAD solto (fora de uma branch): o sync se recusa a continuar',
+      fix: 'Volte para a branch principal com "git switch <branch>" na pasta do cérebro.',
+    };
+  }
+  if (facts.syncJournal === true && facts.syncRunning !== true) {
+    return {
+      id: 'interrupted',
+      title: 'Operações interrompidas',
+      status: 'warn',
+      message: 'um sync foi interrompido no meio da aplicação',
+      fix: 'Rode "cabecao sync": ele recupera o estado sozinho, sem perder nada.',
+    };
+  }
+  const last = facts.lastSync;
+  if (last != null && (last.status === 'error' || last.status === 'blocked')) {
+    return {
+      id: 'interrupted',
+      title: 'Operações interrompidas',
+      status: 'warn',
+      message: `o último sync (${last.at}) terminou como "${last.status}": ${last.message}`,
+      fix: 'Resolva o que a mensagem aponta e rode "cabecao sync" de novo.',
+    };
+  }
+  return { id: 'interrupted', title: 'Operações interrompidas', status: 'ok', message: 'nenhuma' };
+};
+
+export const checkConflicts: Check = (facts) => {
+  if (facts.conflicts === undefined) return null;
+  if (facts.conflicts.length === 0)
+    return { id: 'conflicts', title: 'Conflitos', status: 'ok', message: 'nenhum pendente' };
+  return {
+    id: 'conflicts',
+    title: 'Conflitos',
+    status: 'warn',
+    message: `${facts.conflicts.length} cópia(s) de conflito esperando você`,
+    fix: 'Compare cada cópia com a nota original, junte o que importa na nota e apague a cópia; depois rode "cabecao sync".',
+    items: facts.conflicts.map(
+      (conflict) =>
+        `${conflict.copy} → ${conflict.original}${conflict.originalExists ? '' : ' (a original foi apagada)'}`,
+    ),
+  };
+};
+
+export const checkGpgSign: Check = (facts) => {
+  if (facts.gpgSign === undefined) return null;
+  if (!facts.gpgSign)
+    return { id: 'gpgsign', title: 'Assinatura de commits', status: 'ok', message: 'commit.gpgsign desligado' };
+  return {
+    id: 'gpgsign',
+    title: 'Assinatura de commits',
+    status: 'warn',
+    message:
+      'commit.gpgsign está ligado: os commits do Cabeção saem SEM assinatura, porque a chave poderia pedir senha num processo sem terminal e travar o sync',
+    fix: 'Nada a fazer se o provedor não exige commits assinados nesta branch. Se exige, desligue a exigência para o repositório do cérebro.',
+  };
+};
+
+export const checkIdentity: Check = (facts) => {
+  const { identity } = facts;
+  if (identity === undefined) return null;
+  if (identity.kind === 'error') {
+    return {
+      id: 'identity',
+      title: 'Identidade do git',
+      status: 'fail',
+      message: `o git não sabe o nome e o e-mail do autor: ${identity.message}`,
+      fix: 'Rode git config --global user.name "Seu Nome" e git config --global user.email "voce@exemplo.com".',
+    };
+  }
+  return { id: 'identity', title: 'Identidade do git', status: 'ok', message: identity.ident };
+};
+
+export const checkWindowsPath: Check = (facts) => {
+  if (facts.platform !== 'win32' || facts.brain.kind !== 'resolved') return null;
+  const length = facts.brain.root.length;
+  const margin = WINDOWS_MAX_PATH - length;
+  if (margin >= WINDOWS_PATH_MARGIN) {
+    return { id: 'windows-path', title: 'Caminho no Windows', status: 'ok', message: `${length} caracteres` };
+  }
+  return {
+    id: 'windows-path',
+    title: 'Caminho no Windows',
+    status: margin <= 0 ? 'fail' : 'warn',
+    message: `o caminho do cérebro tem ${length} caracteres e deixa ${Math.max(margin, 0)} para pastas e nomes de nota, perto do limite de ${WINDOWS_MAX_PATH} do Windows`,
+    fix: 'Mova o cérebro para uma pasta mais curta (por exemplo C:\\cabecao) e rode "cabecao init" lá, ou ligue os caminhos longos do Windows (LongPathsEnabled) e "git config --global core.longpaths true".',
+  };
+};
+
+export const checkClients: Check = (facts) => {
+  const { clients } = facts;
+  if (clients === undefined || clients.kind === 'skipped') return null;
+  if (clients.detected.length === 0) {
+    return {
+      id: 'clients',
+      title: 'Clientes MCP',
+      status: 'warn',
+      message: 'nenhum cliente de IA encontrado nesta máquina',
+      fix: 'Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Gemini CLI), rode "cabecao install-client --all", ou "cabecao install-client --print" para configurar à mão.',
+    };
+  }
+  const items: string[] = [];
+  const pending: string[] = [];
+  for (const registration of clients.registrations) {
+    const states = registration.files.map((file) => file.state);
+    const ok = states.length > 0 && states.every((state) => state === 'current');
+    const text = registration.files
+      .map((file) => {
+        const label =
+          file.state === 'current'
+            ? 'registrado para este cérebro'
+            : file.state === 'different'
+              ? 'registrado com outra configuração (outro cérebro ou outro caminho)'
+              : file.state === 'unreadable'
+                ? 'arquivo ilegível'
+                : 'não registrado';
+        return `${file.path}: ${label}`;
+      })
+      .join('; ');
+    items.push(`${registration.label}: ${text || 'sem arquivo de configuração'}`);
+    if (!ok) pending.push(registration.client);
+  }
+  if (pending.length === 0) {
+    return {
+      id: 'clients',
+      title: 'Clientes MCP',
+      status: 'ok',
+      message: `${clients.registrations.length} cliente(s) registrado(s)`,
+      items,
+    };
+  }
+  return {
+    id: 'clients',
+    title: 'Clientes MCP',
+    status: 'warn',
+    message: `${pending.length} de ${clients.registrations.length} cliente(s) sem o registro deste cérebro`,
+    fix: `Rode "cabecao install-client ${pending.join(' ')}" e reinicie o cliente.`,
+    items,
+  };
+};
+
+/** Todas as verificações, na ordem em que aparecem. */
+export const CHECKS: readonly Check[] = [
+  checkNode,
+  checkGit,
+  checkBrain,
+  checkMachine,
+  checkIdentity,
+  checkGpgSign,
+  checkRemote,
+  checkVisibility,
+  checkGitignore,
+  checkGitattributes,
+  checkIndex,
+  checkLocks,
+  checkInterrupted,
+  checkConflicts,
+  checkWindowsPath,
+  checkClients,
+];
+
+export interface DoctorReport {
+  brain: string | null;
+  checks: CheckResult[];
+  summary: Record<CheckStatus, number>;
+}
+
+/** Roda as verificações sobre os fatos e resume. */
+export function evaluate(facts: DoctorFacts, checks: readonly Check[] = CHECKS): DoctorReport {
+  const results = checks.map((check) => check(facts)).filter((result): result is CheckResult => result !== null);
+  const summary: Record<CheckStatus, number> = { ok: 0, warn: 0, fail: 0 };
+  for (const result of results) summary[result.status] += 1;
+  return { brain: facts.brain.kind === 'resolved' ? facts.brain.root : null, checks: results, summary };
+}
+
+const LABEL: Readonly<Record<CheckStatus, string>> = { ok: 'ok', warn: 'aviso', fail: 'falha' };
+
+/** Texto do relatório para o terminal. `indent` é usado quando o relatório vai dentro da saída do `init`. */
+export function renderReport(report: DoctorReport, indent = ''): string {
+  const width = Math.max(...report.checks.map((check) => check.title.length));
+  const lines: string[] = [];
+  for (const check of report.checks) {
+    lines.push(`${indent}${LABEL[check.status].padEnd(5)}  ${check.title.padEnd(width)}  ${check.message}`);
+    const pad = `${indent}${' '.repeat(7 + width + 2)}`;
+    for (const item of check.items ?? []) lines.push(`${pad}- ${item}`);
+    if (check.fix !== undefined && check.status !== 'ok') lines.push(`${pad}Correção: ${check.fix}`);
+  }
+  const { ok, warn, fail } = report.summary;
+  lines.push(
+    '',
+    `${indent}${ok} ok, ${warn} ${warn === 1 ? 'aviso' : 'avisos'}, ${fail} ${fail === 1 ? 'falha' : 'falhas'}.`,
+  );
+  return lines.join('\n');
+}

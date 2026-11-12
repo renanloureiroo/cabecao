@@ -43,6 +43,8 @@ jobs:
       - run: pnpm build
       - name: smoke do bundle
         run: pnpm smoke
+      - name: ponta a ponta com duas máquinas e um remoto local
+        run: pnpm e2e
       - uses: actions/upload-artifact@v7
         if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
         with:

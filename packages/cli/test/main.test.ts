@@ -220,7 +220,12 @@ describe('erros', () => {
     const result = await run(['eco', '--json'], { commands });
     expect(result.code).toBe(1);
     expect(result.stderr).toBe('cabecao: nada configurado\nRode cabecao init.\n');
-    expect(JSON.parse(result.stdout).error).toEqual({ kind: 'runtime', message: 'nada configurado', code: 'ENADA' });
+    expect(JSON.parse(result.stdout).error).toEqual({
+      kind: 'runtime',
+      message: 'nada configurado',
+      code: 'ENADA',
+      hint: 'Rode cabecao init.',
+    });
   });
 
   it('erro inesperado sai com código 1, sem stack, a menos de CABECAO_DEBUG=1', async () => {
@@ -249,6 +254,33 @@ describe('erros', () => {
     const result = await run(['quebrado'], { commands });
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('módulo sumiu');
+  });
+});
+
+describe('comando dono do stdout', () => {
+  function owner(runImpl: CommandModule['run']): CommandSpec[] {
+    return [{ name: 'proto', summary: 'x', usage: ['proto'], ownsStdout: true, load: async () => ({ run: runImpl }) }];
+  }
+
+  it('o roteador não escreve nada no stdout: nem texto, nem JSON, nem o JSON de erro', async () => {
+    const ok = await run(['proto', '--json'], { commands: owner(() => ({ text: 'não', data: { x: 1 } })) });
+    expect(ok).toEqual({ code: 0, stdout: '', stderr: '' });
+    const failed = await run(['proto', '--json'], {
+      commands: owner(() => {
+        throw new CliError('quebrou', { hint: 'faça algo' });
+      }),
+    });
+    expect(failed.code).toBe(1);
+    expect(failed.stdout).toBe('');
+    expect(failed.stderr).toBe('cabecao: quebrou\nfaça algo\n');
+  });
+
+  it('a ajuda e os erros de uso continuam normais', async () => {
+    const commands = owner(() => ({}));
+    expect((await run(['proto', '--help'], { commands })).stdout).toContain('cabecao proto');
+    const usage = await run(['proto', '--xyz', '--json'], { commands });
+    expect(usage.code).toBe(2);
+    expect(JSON.parse(usage.stdout).error.kind).toBe('usage');
   });
 });
 

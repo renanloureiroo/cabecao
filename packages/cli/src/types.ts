@@ -96,5 +96,10 @@ export interface CommandSpec {
   options?: Readonly<Record<string, OptionSpec>>;
   /** Texto livre mostrado no fim de `cabecao <comando> --help`. */
   details?: string;
+  /**
+   * O comando é dono do stdout (o `mcp` fala o protocolo por lá): o roteador não escreve nada nele, nem o texto,
+   * nem o JSON de `--json`, nem o de erro. Mensagens e erros vão só para stderr.
+   */
+  ownsStdout?: boolean;
   load: () => Promise<CommandModule>;
 }
