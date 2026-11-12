@@ -7,7 +7,11 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { isErrno, isWindowsTransient } from './errors.ts';
 
 export interface LockOptions {
-  /** Quanto esperar pela trava antes de desistir com `LockTimeoutError`. `0` tenta uma vez só. Padrão: 30 s. */
+  /**
+   * Quanto esperar por um dono VIVO antes de desistir com `LockTimeoutError`. `0` não espera ninguém, mas ainda toma
+   * na mesma chamada uma trava livre ou abandonada: o prazo nunca vence entre tirar a trava de um morto e tentar
+   * criá-la de novo. Padrão: 30 s.
+   */
   timeoutMs?: number;
   /**
    * Idade (pela data de modificação do arquivo) a partir da qual a trava é considerada abandonada. Quem segura a
@@ -53,6 +57,12 @@ export const DEFAULT_LOCK_STALE_MS = 10 * 60_000;
 const UNREADABLE_STALE_MS = 2_000;
 /** O "roubo" dura milissegundos; um mutex de roubo mais velho que isto é de um processo que morreu no meio. */
 const STEAL_MUTEX_STALE_MS = 5_000;
+/**
+ * Novas tentativas permitidas depois do prazo, enquanto cada olhada encontra a trava livre (sumiu, ou era de um morto
+ * e foi removida). Cada uma cria a trava ou perde para outro processo que a criou no meio; o limite só existe para
+ * a corrida improvável de perder sempre para donos que também somem.
+ */
+const MAX_FREE_RETRIES_AFTER_DEADLINE = 5;
 
 type LockState =
   | { kind: 'gone' }
@@ -137,8 +147,11 @@ async function tryCreate(path: string, owner: LockOwner): Promise<{ ok: true } |
  * Remove uma trava abandonada. Um segundo arquivo exclusivo (`.steal`) garante que só um processo por vez faz a
  * remoção, e a trava é conferida de novo lá dentro; sem isso, dois processos que vissem a mesma trava morta
  * poderiam apagar, um depois do outro, a trava morta e a trava nova que o primeiro acabou de criar.
+ *
+ * Devolve `true` quando, na saída, o caminho está livre (removemos a trava, ou ela já tinha sumido); `false` quando
+ * outro processo está no meio do roubo ou a trava conferida de novo já não é abandonada.
  */
-async function removeIfStale(path: string, staleMs: number): Promise<void> {
+async function removeIfStale(path: string, staleMs: number): Promise<boolean> {
   const mutex = `${path}.steal`;
   try {
     await (await open(mutex, 'wx')).close();
@@ -149,15 +162,21 @@ async function removeIfStale(path: string, staleMs: number): Promise<void> {
       } catch {
         // outro processo já limpou
       }
-      return;
+      return false;
     }
-    if (isWindowsTransient(error)) return;
+    if (isWindowsTransient(error)) return false;
     throw error;
   }
   try {
-    if (isStale(await readState(path), staleMs)) await unlink(path);
+    const state = await readState(path);
+    if (state.kind === 'gone') return true;
+    if (!isStale(state, staleMs)) return false;
+    await unlink(path);
+    return true;
   } catch (error) {
-    if (!isErrno(error, 'ENOENT') && !isWindowsTransient(error)) throw error;
+    if (isErrno(error, 'ENOENT')) return true;
+    if (isWindowsTransient(error)) return false;
+    throw error;
   } finally {
     await unlink(mutex).catch(() => {});
   }
@@ -188,6 +207,11 @@ async function unlinkOwn(path: string, token: string): Promise<void> {
  * Espera (com novas tentativas espaçadas) até `timeoutMs`. Toma a trava de quem morreu sem soltar: processo que
  * não existe mais nesta máquina, ou arquivo sem renovação há mais de `staleMs`.
  *
+ * O prazo só encerra a espera por um dono vivo. Se a última olhada achou a trava livre (sumiu, ou era de um morto e
+ * acabou de ser removida), tenta criá-la de novo mesmo com o prazo vencido: sob carga, o prazo curto do sync
+ * (250 ms) pode acabar durante o próprio roubo, e desistir ali deixaria o caminho livre e responderia "ocupado".
+ * Isso não afrouxa a exclusão mútua: só a criação exclusiva (`wx`) dá a trava.
+ *
  * A trava é cooperativa e não é reentrante: adquirir duas vezes o mesmo caminho no mesmo processo faz a segunda
  * esperar pela primeira.
  */
@@ -199,6 +223,7 @@ export async function acquireLock(path: string, options: LockOptions = {}): Prom
 
   let lastOwner: LockOwner | null = null;
   let lastError: unknown;
+  let freeRetriesAfterDeadline = 0;
   for (let attempt = 0; ; attempt++) {
     const owner: LockOwner = {
       pid: process.pid,
@@ -213,14 +238,21 @@ export async function acquireLock(path: string, options: LockOptions = {}): Prom
     const state = await readState(path);
     if (state.kind === 'owned') lastOwner = state.owner;
     const stale = isStale(state, staleMs);
-    if (stale) await removeIfStale(path, staleMs);
+    // Livre: sumiu, ou era de um morto e foi removida agora. Abandonada mas não removida: outro processo está no
+    // meio do roubo (dura milissegundos).
+    const free = state.kind === 'gone' || (stale && (await removeIfStale(path, staleMs)));
 
     const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new LockTimeoutError(path, timeoutMs, lastOwner, lastError);
-    // Trava que sumiu ou acabou de ser removida: tenta de novo quase na hora. Em uso: espera crescente com sorteio,
-    // para os processos na fila não acordarem todos juntos.
-    const free = state.kind === 'gone' || stale;
-    const wait = free ? 1 : Math.min(50, 5 + attempt * 5) * (0.5 + Math.random());
+    if (remaining <= 0) {
+      if (free && freeRetriesAfterDeadline < MAX_FREE_RETRIES_AFTER_DEADLINE) {
+        freeRetriesAfterDeadline++;
+        continue;
+      }
+      throw new LockTimeoutError(path, timeoutMs, lastOwner, lastError);
+    }
+    // Trava livre ou em roubo: tenta de novo quase na hora. Em uso: espera crescente com sorteio, para os processos
+    // na fila não acordarem todos juntos.
+    const wait = free || stale ? 1 : Math.min(50, 5 + attempt * 5) * (0.5 + Math.random());
     await sleep(Math.min(wait, remaining));
   }
 }
