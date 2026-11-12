@@ -10,6 +10,8 @@ const dist = fileURLToPath(new URL('../packages/cli/dist/', import.meta.url));
 const bin = join(dist, 'cabecao.mjs');
 const pkg = JSON.parse(readFileSync(new URL('../packages/cli/package.json', import.meta.url), 'utf8'));
 const expectUnsupported = process.env.SMOKE_EXPECT === 'unsupported';
+/** Comandos registrados; cada um vira um arquivo próprio no bundle, carregado só quando roda. */
+const COMMAND_NAMES = ['init', 'status', 'doctor', 'sync', 'search', 'undo', 'mcp', 'install-client'];
 
 function cabecao(args, env = process.env) {
   const result = spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', env });
@@ -77,14 +79,20 @@ if (expectUnsupported) {
   const help = cabecao(['--help']);
   check(
     '--help sai com código 0 e lista os comandos',
-    help.code === 0 && help.stdout.includes('--version') && help.stdout.includes('install-client'),
+    help.code === 0 &&
+      help.stdout.includes('--version') &&
+      COMMAND_NAMES.every((name) => help.stdout.includes(`  ${name} `)),
     help,
   );
-  const commandHelp = cabecao(['install-client', '--help']);
+  for (const name of COMMAND_NAMES) {
+    const own = cabecao([name, '--help']);
+    check(`${name} --help mostra o uso`, own.code === 0 && own.stdout.includes(`cabecao ${name}`), own);
+  }
+  const clientHelp = cabecao(['install-client', '--help']);
   check(
-    'install-client --help mostra o uso',
-    commandHelp.code === 0 && commandHelp.stdout.includes('--print') && commandHelp.stdout.includes('gemini'),
-    commandHelp,
+    'install-client --help cita os clientes',
+    clientHelp.stdout.includes('--print') && clientHelp.stdout.includes('gemini'),
+    clientHelp,
   );
   const unknown = cabecao(['comando-que-nao-existe']);
   check(
@@ -104,14 +112,20 @@ if (expectUnsupported) {
   const files = readdirSync(dist).filter((name) => name.endsWith('.mjs'));
   check('o bin não tem import estático', staticClosure('cabecao.mjs').size === 1, [...staticClosure('cabecao.mjs')]);
   const eager = [...staticClosure('main.mjs')];
-  const commandChunks = files.filter((name) => name.startsWith('install-client'));
+  const commandChunks = files.filter((name) => COMMAND_NAMES.some((command) => name.startsWith(`${command}-`)));
+  // O núcleo é o pedaço que carrega o `node:sqlite`; o servidor MCP, o que traz o SDK do MCP.
+  const heavy = files.filter((name) => {
+    const code = readFileSync(join(dist, name), 'utf8');
+    return code.includes('node:sqlite') || code.includes('modelcontextprotocol');
+  });
   check(
-    '--version e --help não avaliam o código dos comandos',
-    commandChunks.length === 1 &&
+    '--version e --help não avaliam o código dos comandos, do núcleo nem do servidor MCP',
+    commandChunks.length === COMMAND_NAMES.length &&
+      heavy.length > 0 &&
       eager.length > 1 && // prova que a leitura dos imports funciona: main.mjs importa o pedaço compartilhado
-      eager.every((name) => !commandChunks.includes(name)) &&
-      staticClosure(commandChunks[0]).size > 1,
-    { eager, files },
+      eager.every((name) => !commandChunks.includes(name) && !heavy.includes(name)) &&
+      commandChunks.every((name) => staticClosure(name).size > 1),
+    { eager, heavy, commandChunks, files },
   );
 
   const home = mkdtempSync(join(tmpdir(), 'cabecao-smoke-'));
@@ -141,6 +155,28 @@ if (expectUnsupported) {
       'install-client é idempotente',
       again.code === 0 && JSON.parse(again.stdout || 'null')?.data?.clients?.[0]?.status === 'unchanged',
       again,
+    );
+
+    const noBrain = cabecao(['status'], { ...env, CABECAO_BRAIN: join(home, 'não existe') });
+    check(
+      'status sem cérebro sai com 1 e diz o que fazer, sem stack',
+      noBrain.code === 1 && noBrain.stderr.includes('cabecao init') && !/\n\s+at /.test(noBrain.stderr),
+      noBrain,
+    );
+    const doctor = cabecao(['doctor', '--offline', '--json'], env);
+    const doctorJson = JSON.parse(doctor.stdout || 'null');
+    check(
+      'doctor sem cérebro: verifica Node e git e falha no cérebro (código 1)',
+      doctor.code === 1 &&
+        doctorJson?.data?.checks?.find((item) => item.id === 'node')?.status === 'ok' &&
+        doctorJson?.data?.checks?.find((item) => item.id === 'brain')?.status === 'fail',
+      doctor,
+    );
+    const mcpJson = cabecao(['mcp', '--json'], { ...env, CABECAO_BRAIN: join(home, 'não existe') });
+    check(
+      'mcp com erro não escreve nada no stdout, nem com --json',
+      mcpJson.code === 1 && mcpJson.stdout === '',
+      mcpJson,
     );
   } finally {
     rmSync(home, { recursive: true, force: true });

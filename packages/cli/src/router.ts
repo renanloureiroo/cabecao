@@ -116,6 +116,13 @@ export function generalHelp(commands: readonly CommandSpec[]): string {
     'Opções globais:',
     optionsTable(GLOBAL_OPTIONS),
     '',
+    'Para começar:',
+    `  ${CLI_NAME} init <url-do-repositório>   numa máquina nova (ou sem URL, para um cérebro só local)`,
+    `  ${CLI_NAME} doctor                       se algo parecer errado`,
+    '',
+    `O cérebro usado é o de --brain, senão o de ${BRAIN_ENV}, senão o padrão desta máquina (gravado pelo init),`,
+    'senão a pasta atual, se ela for um cérebro.',
+    '',
     HOMEPAGE,
   ];
   return `${lines.join('\n')}\n`;
@@ -179,7 +186,13 @@ function explicitBrain(io: CliIo, values: Values): string | undefined {
   return chosen === undefined || chosen === '' ? undefined : resolve(io.cwd, chosen);
 }
 
-function reportError(io: CliIo, error: unknown, command: string | undefined, json: boolean): number {
+function reportError(
+  io: CliIo,
+  error: unknown,
+  command: string | undefined,
+  json: boolean,
+  ownsStdout = false,
+): number {
   const usage = error instanceof UsageError;
   const expected = usage || error instanceof CliError;
   const debug = io.env[DEBUG_ENV] === '1';
@@ -197,12 +210,18 @@ function reportError(io: CliIo, error: unknown, command: string | undefined, jso
     io.stderr.write(`Rode de novo com ${DEBUG_ENV}=1 para ver os detalhes.\n`);
   }
 
-  if (json) {
+  if (json && !ownsStdout) {
     const code = error instanceof CliError ? error.code : undefined;
+    const hint = error instanceof CliError ? error.hint : undefined;
     writeJson(io, {
       ok: false,
       command: command ?? null,
-      error: { kind: usage ? 'usage' : 'runtime', message, ...(code === undefined ? {} : { code }) },
+      error: {
+        kind: usage ? 'usage' : 'runtime',
+        message,
+        ...(code === undefined ? {} : { code }),
+        ...(hint === undefined ? {} : { hint }),
+      },
     });
   }
   return usage ? EXIT_USAGE : EXIT_ERROR;
@@ -216,6 +235,7 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
   // Vale até os argumentos serem validados: um erro de uso ainda precisa saber se sai em JSON.
   let json = io.argv.includes('--json');
   let known: string | undefined;
+  let ownsStdout = false;
   try {
     const located = locateCommand(io.argv);
     if (located === undefined) {
@@ -237,6 +257,8 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
     const command = findCommand(commands, located.name);
     known = command.name;
     const { values, positionals } = parseStrict(rest, { ...command.options, ...GLOBAL_OPTIONS });
+    // Só depois de os argumentos serem aceitos: `mcp --help` e erros de uso continuam saindo normalmente.
+    ownsStdout = command.ownsStdout === true && values.help !== true && values.version !== true;
     json = values.json === true;
     if (values.version === true) return printVersion(io, json);
     if (values.help === true) return printCommandHelp(io, json, command);
@@ -253,12 +275,13 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
     const { run } = await command.load();
     const result = await run(ctx);
     const code = result.code ?? EXIT_OK;
+    if (ownsStdout) return code;
     if (json) writeJson(io, { ok: code === EXIT_OK, command: command.name, data: result.data ?? null });
     else if (result.text !== undefined && result.text !== '') {
       io.stdout.write(result.text.endsWith('\n') ? result.text : `${result.text}\n`);
     }
     return code;
   } catch (error) {
-    return reportError(io, error, known, json);
+    return reportError(io, error, known, json, ownsStdout);
   }
 }
