@@ -1,91 +1,95 @@
 <p align="center">
   <strong>🧠 Cabeção</strong><br/>
-  <em>O segundo cérebro local-first para você e seus agentes de IA, servido por MCP.</em>
+  <em>Seu segundo cérebro pessoal, em Markdown e git, para você e seus agentes de IA.</em>
 </p>
 
 <p align="center">
   <a href="README.en.md">English</a> · <strong>Português</strong>
 </p>
 
-> **Status: 🚧 em planejamento.** A arquitetura, as decisões e o roadmap estão abertos em [`docs/`](docs/). Ainda não existe versão instalável; acompanhe o [roadmap](docs/10-roadmap.md).
+> **Status: 🚧 plano validado, código ainda não escrito.** Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano. Veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
 
 ---
 
-O nome é uma homenagem ao **Cabeção** de *Malhação*: aquele personagem que sabe de tudo e lembra de tudo. A ideia é a mesma: um cérebro externo que **lembra por você e pelos seus agentes**, entre sessões, ferramentas e máquinas.
+O nome homenageia o **Cabeção** de *Malhação*: o personagem que sabe e lembra de tudo.
 
 ## O que é
 
-O Cabeção é um **segundo cérebro** guardado em **Markdown dentro de um repositório git**: na sua máquina e, se você quiser, num repositório privado no GitHub. Ele expõe esse cérebro para qualquer agente de IA (Claude Code, Claude Desktop, Codex, Cursor...) por meio de um **servidor MCP**.
+Um **segundo cérebro pessoal** que vive num **repositório git seu**, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio), e que qualquer agente de IA acessa por **MCP**. Você usa em quantas máquinas quiser: tudo sincroniza, inclusive embeddings e grafo.
 
-- 📝 **Markdown é a fonte da verdade.** Você lê e edita tudo no Obsidian (ou em qualquer editor).
-- 🔎 **Busca híbrida:** palavra-chave (BM25) + semântica (embeddings) + grafo de links, com orçamento de tokens.
-- 🕸️ **Grafo de conhecimento:** wikilinks, relações tipadas, entidades e **fatos com validade no tempo**.
-- 🧠 **Memória de agente:** `remember`/`recall` com escopo, tipo, proveniência e resolução de conflitos (ADD/UPDATE/SUPERSEDE).
-- 🔄 **Sincroniza tudo**, incluindo **embeddings, grafo e índices**, via git, sem recalcular o que já foi calculado em outra máquina.
-- 🧹 **Manutenção automática:** *lint*, consolidação e esquecimento. As mudanças chegam como **Pull Request** para você aprovar.
-- 🔒 **Local-first e privado:** embeddings locais por padrão, scanner de segredos e conteúdo externo marcado como não confiável.
-- 🔌 **MCP moderno:** especificação **2026-07-28** (núcleo *stateless*), compatível com clientes da geração anterior.
-- 🖥️ **Visual:** Obsidian (grafo, Bases, Canvas) e um **MCP App** com explorador do grafo dentro do Claude.
-
-## Como funciona (resumo)
-
-```
- Claude Code · Claude Desktop · Codex · Cursor            Obsidian
-             │ MCP (stdio / HTTP local)                      │
-             ▼                                               ▼
- ┌───────────────────── cabecao (daemon + MCP) ─────────────────────┐
- │ search · read · write · remember · recall · graph · facts ·      │
- │ ingest · handoff · lint · consolidate · sync                     │
- └──────────┬──────────────────────────────────────┬───────────────┘
-            ▼                                      ▼
-  Repositório git do seu cérebro          .cabecao/cache/cabecao.db
-  ├─ raw/  wiki/  memory/   (conteúdo)    (SQLite: FTS5 + sqlite-vec +
-  └─ .cabecao/ embeddings/ graph/          tabelas de grafo; reconstruído
-     (derivados sincronizados)              incrementalmente)
-            │
-            ▼ cabecao sync (pull → reindex incremental → push)
-     GitHub (repo PRIVADO do seu cérebro)
-```
-
-Detalhes em [docs/02-arquitetura.md](docs/02-arquitetura.md).
+- 📝 **Markdown é a fonte da verdade.** Você lê e edita no Obsidian ou em qualquer editor.
+- 🔗 **Qualquer remoto git.** Sem depender de API de provedor, Pull Request ou CI.
+- 🔄 **Sincroniza tudo.** Uma máquina nunca recalcula o embedding que outra já calculou.
+- 🔎 **Busca híbrida** por palavra-chave e por significado, com modelo local (nada sai da sua máquina).
+- 🕸️ **Wiki com grafo:** wikilinks, relações tipadas e fatos com validade no tempo, que o agente navega.
+- 🧠 **Memória de agente:** o que você ensinou numa sessão está disponível na próxima, em qualquer cliente.
+- ↩️ **Tudo reversível:** cada operação é um commit, com comando para desfazer.
+- 🪶 **Leve:** um pacote de ~160 KB, sem dependência nativa. O modelo de embeddings é baixado só quando você ativa a busca semântica.
 
 ## Instalação (planejada)
 
+Você informa só a URL do repositório:
+
 ```bash
-npx cabecao@latest init
+npx cabecao init git@gitlab.com:voce/meu-cerebro.git
 ```
 
-O assistente de instalação:
-1. cria (ou adota) a pasta do cérebro com a estrutura e o schema;
-2. inicializa o git e, se você quiser, cria um **repo privado** no GitHub;
-3. configura os embeddings (local por padrão, sem chave de API);
-4. registra o MCP nos clientes encontrados (Claude Code, Claude Desktop, Codex, Cursor);
-5. configura o Obsidian (grafo colorido, dashboards em Bases);
-6. roda `cabecao doctor`.
+O Cabeção descobre o resto:
 
-Outras formas: **plugin do Claude Code** (`/plugin marketplace add renanloureiroo/cabecao`) e **MCPB** com um clique para o Claude Desktop. Veja [docs/08-instalacao-e-operacao.md](docs/08-instalacao-e-operacao.md).
+| O repositório... | O que acontece |
+|---|---|
+| está vazio | cria a estrutura, o primeiro commit e envia |
+| já tem um cérebro Cabeção | baixa tudo e monta o índice sem recalcular nada |
+| tem um vault de Obsidian ou Markdown comum | adota, sem mover nenhum arquivo |
+| tem outra coisa (código, por exemplo) | recusa e explica |
 
-> ⚠️ **O código do Cabeção é público; o seu cérebro não deve ser.** Guarde o repositório do seu cérebro como **privado**.
+Depois ele registra o servidor MCP nos clientes que encontrar (Claude Code, Claude Desktop, Codex, Cursor) e, se você quiser, configura o Obsidian.
+
+Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
+
+> ⚠️ **O código do Cabeção é público; o seu cérebro não deve ser.** Use um repositório **privado**.
+
+## Como funciona
+
+```
+ Claude Code · Claude Desktop · Codex · Cursor            Obsidian
+             │ MCP (stdio)                                   │
+             ▼                                               ▼
+ ┌──────────────────────── cabecao ────────────────────────────┐
+ │ recall · search · read · graph · facts · remember · ingest  │
+ │ handoff · forget · sync · lint · consolidate · undo         │
+ └──────────┬──────────────────────────────────┬───────────────┘
+            ▼                                  ▼
+  Repositório git do cérebro            Índice local (fora do git)
+  ├─ branch principal: suas notas       SQLite com busca por texto
+  └─ branch cabecao/index:              + vetores em memória
+     embeddings e grafo                 + grafo
+            │
+            ▼  cabecao sync
+   Qualquer remoto git
+```
 
 ## Documentação
 
 | Documento | Conteúdo |
 |---|---|
-| [01 · Visão](docs/01-visao.md) | Problema, objetivos, não-objetivos, princípios |
-| [02 · Arquitetura](docs/02-arquitetura.md) | Componentes, processos e fluxos |
-| [03 · Modelo de dados](docs/03-modelo-de-dados.md) | Estrutura do vault, frontmatter, SQLite |
-| [04 · Sincronização](docs/04-sincronizacao.md) | Como embeddings, grafo e índices são sincronizados |
-| [05 · Servidor MCP](docs/05-mcp.md) | Tools, resources, prompts e extensões (spec 2026-07-28) |
-| [06 · Busca e grafo](docs/06-busca-e-grafo.md) | Recuperação híbrida, relações, fatos temporais, comunidades |
-| [07 · Ciclo de vida e segurança](docs/07-ciclo-de-vida-e-seguranca.md) | Consolidação, esquecimento, confiança, segredos |
-| [08 · Instalação e operação](docs/08-instalacao-e-operacao.md) | Instalar, atualizar, diagnosticar |
-| [09 · Guia do Obsidian](docs/09-obsidian.md) | Visualizar e navegar o cérebro no Obsidian |
+| [01 · Visão](docs/01-visao.md) | Problema, objetivos, o que fica de fora |
+| [02 · Arquitetura](docs/02-arquitetura.md) | Componentes, processos e escolhas técnicas |
+| [03 · Modelo de dados](docs/03-modelo-de-dados.md) | Estrutura do cérebro, frontmatter, índice local |
+| [04 · Sincronização](docs/04-sincronizacao.md) | Como conteúdo, embeddings e grafo sincronizam por git |
+| [05 · Servidor MCP](docs/05-mcp.md) | Tools, confirmações, compatibilidade de protocolo |
+| [06 · Busca e grafo](docs/06-busca-e-grafo.md) | Busca híbrida, validade temporal, grafo |
+| [07 · Ciclo de vida e segurança](docs/07-ciclo-de-vida-e-seguranca.md) | Captura, manutenção, desfazer, segredos |
+| [08 · Instalação e operação](docs/08-instalacao-e-operacao.md) | Instalar, usar, atualizar, diagnosticar |
+| [09 · Guia do Obsidian](docs/09-obsidian.md) | Visualizar e navegar o cérebro |
 | [10 · Roadmap](docs/10-roadmap.md) | Marcos e entregas |
+| [11 · Evidências](docs/11-evidencias.md) | O que cada prova de conceito testou e concluiu |
+| [12 · Padrão de commits](docs/12-commits.md) | Formato dos commits automáticos |
 | [ADRs](docs/adr/) | Registro das decisões de arquitetura |
 
 ## Contribuindo
 
-O projeto está no começo e toda ajuda é bem-vinda, principalmente para discutir a arquitetura. Leia o [CONTRIBUTING.md](CONTRIBUTING.md).
+Leia o [CONTRIBUTING.md](CONTRIBUTING.md). O projeto é escrito em TypeScript.
 
 ## Licença
 

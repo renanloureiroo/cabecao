@@ -1,153 +1,117 @@
 # 02 · Arquitetura
 
-## Visão de componentes
+## Componentes
 
 ```mermaid
 flowchart TB
     subgraph Clientes
-      CC[Claude Code<br/>plugin: MCP + hooks + skills]
-      CD[Claude Desktop<br/>MCPB]
+      CC[Claude Code<br/>plugin: MCP + hooks + skill]
+      CD[Claude Desktop<br/>pacote .mcpb]
       OT[Codex · Cursor · outros]
       OB[Obsidian]
     end
 
-    subgraph Cabecao["cabecao (processo local)"]
-      direction TB
-      ADP[Adaptador stdio<br/>cabecao mcp]
-      HTTP[Servidor MCP HTTP<br/>127.0.0.1 · stateless]
-      MCP[Camada MCP<br/>tools · resources · prompts<br/>Tasks · MCP Apps]
-      CORE[Core]
-      subgraph CoreMods[" "]
-        VA[Vault<br/>leitura/escrita atômica]
-        PA[Parser<br/>frontmatter · wikilinks · chunks]
-        IX[Indexador<br/>incremental]
-        EM[Embeddings<br/>provedores plugáveis]
-        SE[Busca híbrida<br/>BM25 + vetor + grafo + RRF]
-        GR[Grafo<br/>links · relações · fatos]
-        LC[Ciclo de vida<br/>remember · lint · consolidate]
-        SY[Sync<br/>git · merge drivers]
-        SEC[Segurança<br/>segredos · confiança]
+    subgraph Cabecao["cabecao (um arquivo JS, sem dependências)"]
+      MCP[Servidor MCP stdio<br/>duas gerações do protocolo]
+      CLI[CLI: init · sync · doctor · undo · ...]
+      subgraph Core
+        VA[Vault: parser próprio,<br/>escrita atômica]
+        IX[Indexador incremental]
+        SE[Busca híbrida]
+        GR[Grafo e fatos temporais]
+        SY[Sync por git]
+        SEC[Scanner de segredos]
       end
-      W[Watcher de arquivos]
-      SCH[Agendador<br/>sync · lint · consolidação]
+      EM[Runtime de embeddings<br/>opcional, baixado sob demanda]
     end
 
     subgraph Dados
-      REPO[(Repo git do cérebro<br/>raw · wiki · memory · .cabecao)]
-      DB[(.cabecao/cache/cabecao.db<br/>SQLite: FTS5 · vec0 · grafo)]
-      GH[(GitHub<br/>repo privado)]
+      MAIN[(Branch principal<br/>notas em Markdown)]
+      IDX[(Branch cabecao/index<br/>embeddings + grafo)]
+      DB[(Índice local<br/>SQLite + vetores em memória)]
+      REM[(Qualquer remoto git)]
     end
 
-    CC --> ADP
-    CD --> ADP
-    OT --> ADP
-    OT --> HTTP
-    ADP -->|proxy se o daemon<br/>estiver rodando| HTTP
-    ADP --> MCP
-    HTTP --> MCP
-    MCP --> CORE
-    CORE --- CoreMods
-    W --> IX
-    SCH --> SY
-    SCH --> LC
-    VA <--> REPO
+    CC --> MCP
+    CD --> MCP
+    OT --> MCP
+    MCP --> Core
+    CLI --> Core
+    Core --> EM
+    VA <--> MAIN
+    SY <--> MAIN
+    SY <--> IDX
     IX --> DB
     SE --> DB
-    SY <--> GH
-    OB <--> REPO
+    MAIN <--> REM
+    IDX <--> REM
+    OB <--> MAIN
 ```
 
-## Processos
+## Processos: sem daemon
 
-O Cabeção roda em **dois modos**, sempre com um **único escritor** por cérebro:
+Não existe serviço rodando o tempo todo. Cada processo é autossuficiente:
 
-| Modo | Como inicia | Quando usar |
+| Processo | Quem inicia | O que faz |
 |---|---|---|
-| **Daemon** (`cabecao serve`) | Serviço do sistema (launchd/systemd/Task Scheduler) ou manual | Recomendado. Um processo só cuida do watcher, do indexador, da fila de embeddings, do sync agendado e do MCP via HTTP local |
-| **Embutido** (`cabecao mcp`) | O cliente MCP inicia via stdio | Sem daemon; é o modo das primeiras versões. O adaptador roda o core no próprio processo. O SQLite em modo WAL aceita vários processos; um *lock* de arquivo serializa as operações de git. Não há watcher nem sync agendado: a indexação acontece ao iniciar e a cada escrita, e o sync é sob demanda |
+| `cabecao mcp` | O cliente MCP, um por cliente aberto | Atende as tools. Ao subir, **não faz nada com efeito colateral**; a varredura incremental roda na primeira chamada |
+| `cabecao sync` | Hook de fim de sessão, agendador do sistema, você ou a tool `sync` | Sincroniza e sai. Roda como processo filho, separado do servidor |
+| `cabecao serve` | Você, opcionalmente | Expõe o mesmo servidor por HTTP em `127.0.0.1`, com token |
 
-O **adaptador stdio** (`cabecao mcp`) é a porta de entrada universal. Se o daemon está rodando, ele **repassa** as chamadas para o HTTP local. Senão, roda o core embutido. Assim, Claude Code e Claude Desktop abertos ao mesmo tempo **não brigam** pelo SQLite nem pelo git.
+Vários processos convivem na mesma máquina: o SQLite em modo WAL aceita escritores simultâneos, e um arquivo de trava serializa as operações de git. Testado com 8 processos, 880 escritas e 36 syncs, sem corrupção.
 
-> A especificação MCP 2026-07-28 tornou o protocolo *stateless* (sem sessão de transporte). Isso facilita servir vários clientes num único daemon HTTP local. Ver [ADR-0006](adr/0006-mcp-2026-07-28-stateless.md).
+Arquivos alterados fora do Cabeção (você editando no Obsidian) são detectados por uma **varredura incremental** de data e tamanho, que leva menos de 1 segundo em 30 mil notas. O aviso de alteração do sistema operacional serve só de gatilho para essa varredura, porque sozinho ele perde eventos no Windows.
 
-## Fluxos principais
+## Escolhas técnicas
 
-### 1. Busca (`search` / `recall`)
-```mermaid
-sequenceDiagram
-    participant A as Agente
-    participant M as MCP
-    participant S as Busca
-    participant D as SQLite
-    A->>M: search("como fazemos deploy?", budget=3000)
-    M->>S: consulta
-    par
-      S->>D: BM25 (FTS5)
-    and
-      S->>D: KNN (sqlite-vec)
-    end
-    S->>S: fusão RRF
-    S->>D: expansão por grafo (vizinhos 1 salto)
-    S->>S: rerank opcional + corte por orçamento de tokens
-    S-->>M: hits com trecho, caminho, score, motivo, proveniência
-    M-->>A: resultado estruturado (structuredContent)
-```
+Todas vêm de medição; os números estão em [11 · Evidências](11-evidencias.md).
 
-### 2. Escrita de memória (`remember`)
-1. Valida o schema (tipo, escopo, fonte).
-2. Roda o scanner de segredos e **rejeita** se encontrar algo.
-3. Procura memórias parecidas (vetor + chave).
-4. Decide **ADD / UPDATE / SUPERSEDE / NOOP**. Em caso ambíguo, devolve os candidatos para o **agente** decidir.
-5. Escreve o Markdown de forma atômica (arquivo temporário + rename).
-6. Indexa incrementalmente e enfileira o commit.
-
-### 3. Ingestão (`ingest`)
-1. Registra a fonte em `raw/` (cópia imutável + hash + metadados).
-2. Devolve ao agente a fonte, o schema e as páginas relacionadas já existentes.
-3. O **agente** escreve os resumos, conceitos e entidades (com `write_page`/`remember`).
-4. O Cabeção atualiza `index.md`, `log.md`, os índices e o grafo.
-
-### 4. Sincronização (`sync`)
-Ver [04 · Sincronização](04-sincronizacao.md).
-
-### 5. Consolidação (`consolidate`)
-O servidor não tem LLM próprio (ver [05](05-mcp.md)), então quem raciocina é sempre um agente:
-1. `consolidate(start)` cria a **branch** `cabecao/consolidation-AAAA-WW` e devolve os episódios recentes, o resultado do lint e os candidatos.
-2. O **agente** analisa e grava as propostas com as tools de escrita.
-3. `consolidate(finish)` faz o commit e abre um **PR** no GitHub (ou gera um relatório local, sem GitHub).
-4. Você revisa e faz o merge.
-
-Disparo: manual (você pede ao agente) ou agendado, quando a CLI chama um agente em modo não interativo (ex.: `claude -p`). Sem nenhum agente de linha de comando instalado, só o disparo manual funciona.
+| Camada | Escolha | Alternativa descartada |
+|---|---|---|
+| Linguagem | TypeScript estrito | — |
+| Runtime | Node.js `^22.16 \|\| >=24` | Versões anteriores não têm busca por texto no SQLite embutido |
+| Banco local | `node:sqlite` embutido, com FTS5 | `better-sqlite3` fica como plano B, por ser dependência nativa |
+| Busca vetorial | Força bruta em JavaScript sobre `Int8Array` | `sqlite-vec`: mesma velocidade, sem binário para Windows ARM |
+| Embeddings | EmbeddingGemma 300m (ONNX q4) com `onnxruntime-node` | Modelos menores erram demais em português; `transformers.js` pesa 470 MB |
+| Parser de Markdown | Próprio (varredura de linhas + `yaml`) | `remark`: 12 vezes mais lento e errou mais casos |
+| Grafo | Tabelas no SQLite + consultas recursivas | Banco de grafos, PageRank, detecção de comunidades |
+| MCP | SDK oficial v2 (`@modelcontextprotocol/server` 2.4) + Zod 4 | SDK v1: clientes novos falham contra ele |
+| Git | CLI `git` ≥ 2.38 do usuário | `gh` e APIs de provedor |
+| Empacotamento | Um arquivo gerado por `tsdown`, sem dependências de runtime | Dependências normais: `npx` até 2 vezes mais lento |
+| Projeto | pnpm, Vitest, Biome, Changesets | — |
 
 ## Estrutura do repositório do projeto
 
 ```
 cabecao/
 ├── packages/
-│   ├── core/          # vault, parser, índice, busca, grafo, sync, ciclo de vida
-│   ├── server/        # MCP: stdio + HTTP, tools, resources, prompts, extensões
-│   ├── cli/           # CLI `cabecao` (publicado no npm como `cabecao`)
-│   └── graph-app/     # MCP App: explorador visual do grafo
+│   ├── core/            # vault, parser, índice, busca, grafo, sync, segurança
+│   ├── server/          # servidor MCP
+│   ├── cli/             # comando `cabecao` (publicado no npm)
+│   └── embeddings/      # runtime opcional, instalado no diretório de dados do usuário
 ├── integrations/
-│   ├── claude-code/   # plugin: .mcp.json, hooks, skills
-│   ├── mcpb/          # manifest.json para o Claude Desktop
-│   └── obsidian/      # graph.json, Bases, templates, Web Clipper
-├── templates/vault/   # estrutura inicial do cérebro + schema
-├── docs/              # esta documentação
-└── .claude-plugin/    # marketplace.json (instalação via /plugin)
+│   ├── claude-code/     # plugin com o servidor embutido, hooks e skill
+│   ├── mcpb/            # manifesto para o Claude Desktop
+│   └── obsidian/        # grafo, painéis, tipos de propriedade, Web Clipper
+├── templates/vault/     # estrutura inicial do cérebro
+├── spikes/              # relatórios das provas de conceito
+└── docs/
 ```
 
-## Stack
+## Fluxos principais
 
-| Camada | Escolha | Motivo |
-|---|---|---|
-| Linguagem | TypeScript, Node.js ≥ 22 | Ecossistema MCP de primeira linha; `npx` facilita a instalação |
-| MCP | `@modelcontextprotocol/server` v2 | Tier 1, suporta 2026-07-28 com fallback 2025 |
-| Banco local | SQLite (`better-sqlite3`) + FTS5 + `sqlite-vec` | Arquivo único, rápido, sem servidor |
-| Embeddings | `transformers.js` (padrão, local) · Ollama · APIs | Zero dependência externa por padrão |
-| Markdown | `remark`/`unified` + `gray-matter` | Parser robusto de frontmatter e wikilinks |
-| Watcher | `chokidar` | Multiplataforma |
-| Git | CLI `git` + `gh` (opcional) | Usa a instalação do usuário e as credenciais dele |
-| Validação | Zod v4 | Schemas compartilhados entre MCP e core |
-| Testes | Vitest + vault de *fixtures* + cliente MCP real (as duas gerações do protocolo) | |
-| Monorepo | pnpm workspaces | |
+### Escrita (`remember`, `write_page`)
+1. Valida o esquema da nota.
+2. Passa o conteúdo pelo scanner de segredos; se achar, recusa.
+3. Procura memórias parecidas e decide: criar, atualizar, substituir ou ignorar. Em caso ambíguo, devolve os candidatos para o agente decidir.
+4. Grava o arquivo de forma atômica (arquivo temporário + renomear).
+5. Atualiza o índice local e faz um commit local no [padrão do projeto](12-commits.md).
+
+### Busca (`search`, `recall`)
+Ver [06 · Busca e grafo](06-busca-e-grafo.md).
+
+### Sincronização
+Ver [04 · Sincronização](04-sincronizacao.md).
+
+### Onde o agente recebe as regras
+A medição mostrou que só expor as tools não basta: sem instrução, o agente consultou o cérebro em 1 de 5 sessões. Com as regras no hook de início de sessão ou nas instruções do servidor, em 5 de 5. Por isso as regras de uso vão nos dois lugares; ver [05](05-mcp.md) e [07](07-ciclo-de-vida-e-seguranca.md).

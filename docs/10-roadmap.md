@@ -1,103 +1,101 @@
 # 10 · Roadmap
 
-Cada marco gera uma versão **instalável e útil**. Só se avança quando o marco anterior estiver testado e documentado.
+Cada marco entrega uma versão instalável e útil. Tudo em TypeScript.
 
-A ordem segue dois critérios: os requisitos principais (sincronizar e instalar fácil) entram cedo, e a peça mais arriscada (o daemon) entra só depois que o núcleo estiver estável.
+## M0 · Fundação ✅ quase completa
+- [x] Provas de conceito de todas as decisões de arquitetura ([evidências](11-evidencias.md))
+- [x] Plano e documentação reescritos com base nos resultados
+- [ ] Monorepo pnpm + tsdown + Vitest + Biome + Changesets
+- [ ] CI do projeto: Linux, macOS e Windows × Node 22, 24 e 26
+- [ ] Reservar `cabecao` no npm
+- [ ] Vault de exemplo para testes
 
-## M0 · Fundação do projeto (`0.0.x`)
-- [x] Visão, arquitetura, modelo de dados, sync, MCP, busca, segurança, instalação e guia do Obsidian
-- [x] ADRs iniciais
-- [ ] Monorepo pnpm + TypeScript + lint/format + Vitest
-- [ ] CI no GitHub Actions (lint, typecheck, testes em macOS/Linux/Windows)
-- [ ] Vault de *fixtures* para testes
-- [ ] Reservar o nome `cabecao` no npm
-- [ ] **Spike de validação** (ver "Riscos a validar" abaixo)
+## M1 · Núcleo: instalar com a URL e sincronizar (`0.1`)
+Ao final: `npx cabecao init <url>` funciona em duas máquinas, com busca por palavra-chave, no Claude Code.
 
-## M1 · Núcleo utilizável e sincronizado (`0.1`)
-Objetivo: instalar com um comando, usar no Claude Code e sincronizar com o GitHub.
-- [ ] `templates/vault` + `AGENTS.md`/`CLAUDE.md` padrão
-- [ ] Parser: frontmatter (Zod), wikilinks, chunking por seções
-- [ ] Vault: escrita atômica, ULIDs, validação de schema
-- [ ] SQLite (WAL) + FTS5 + indexação incremental por `content_hash`
-- [ ] MCP stdio **dual-era** (`serveStdio`), modo embutido: `recall`, `search` (keyword), `read`, `remember`, `write_page`, `patch_page`, `status`, `sync`
-- [ ] Resources `schema`, `index`, `page/{path}`
-- [ ] **Sync básico:** lock, commit, `pull --rebase`, reindex incremental, push, conflitos preservados
-- [ ] Scanner de segredos bloqueante (antes de qualquer push)
-- [ ] CLI: `init` (com `gh repo create --private`), `doctor`, `status`, `search`, `sync`, `mcp`
-- [ ] Instalação: `npx cabecao init` + `claude mcp add`
-- [ ] Testes e2e com cliente MCP nas gerações 2025 e 2026
+- [ ] Parser próprio de Markdown e frontmatter
+- [ ] Vault: escrita atômica, ULIDs, validação de esquema, `.cabecao.json`
+- [ ] Banco local com `node:sqlite` + FTS5 e varredura incremental
+- [ ] `init` com os cinco casos de repositório
+- [ ] Sync de conteúdo: integração em memória, cópia de conflito, trava, recuperação após interrupção
+- [ ] Autenticação sem terminal
+- [ ] Padrão de commits + `undo`
+- [ ] Scanner de segredos
+- [ ] Servidor MCP nas duas gerações: `recall`, `search`, `read`, `remember`, `write_page`, `patch_page`, `status`, `sync`, `undo`
+- [ ] Instruções do servidor
+- [ ] CLI: `init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`
+- [ ] **Validar em GitHub, GitLab, Bitbucket e Gitea reais**
 
-## M2 · Busca semântica sincronizada (`0.2`)
-- [ ] Interface de provedor de embeddings + `transformers.js` padrão
-- [ ] Armazenamento T2 endereçado por conteúdo (shards JSONL, `merge=union`)
-- [ ] `sqlite-vec` + busca híbrida RRF + orçamento de tokens
-- [ ] Contextual retrieval (prefixo de seção)
-- [ ] `compact` + medição do crescimento do repositório
-- [ ] Provedores Ollama e API (*opt-in*)
-- [ ] `cabecao eval` com perguntas douradas
+## M2 · Busca por significado, sincronizada (`0.2`)
+- [ ] Runtime opcional de embeddings, baixado sob demanda
+- [ ] EmbeddingGemma 300m q4 com prefixo de contexto
+- [ ] Segmentos imutáveis na branch de índice + envio atômico com o conteúdo
+- [ ] Vetores em memória e fusão convexa com cobertura
+- [ ] `compact` e gerações do índice
+- [ ] Alternativa em WebAssembly para sistemas sem runtime nativo
+- [ ] `cabecao eval`
+- [ ] **Medir a busca com vetores calculados em máquinas diferentes**
 
-## M3 · Grafo (`0.3`)
-- [ ] Arestas de wikilinks, `relations` e fatos
-- [ ] Fatos temporais (`as_of`, `supersedes`)
-- [ ] Entidades + aliases + sugestão de fusão
-- [ ] Tools `graph`, `facts`, `relate`
-- [ ] Expansão por grafo na busca
-- [ ] Export T3 (`nodes/edges.jsonl`) + *merge driver* `cabecao-regen`
+## M3 · Wiki com grafo e validade no tempo (`0.3`)
+- [ ] Datas de validade e `as_of` na busca, com marcação de vigente ou vencido
+- [ ] Relações tipadas: uma propriedade por relação
+- [ ] Notas de fato e tool `facts`
+- [ ] Arestas no SQLite, tool `graph` e `relate`
+- [ ] Bloco `related` na busca
+- [ ] Menções sem link, por dicionário de títulos
+- [ ] Grafo exportado na branch de índice
 
-## M4 · Ciclo de vida e integração com o Claude Code (`0.4`)
-- [ ] Plugin do Claude Code (MCP + hooks + skills) + `marketplace.json`
-- [ ] `session_handle`, episódios, `handoff_save`
-- [ ] Dedupe ADD/UPDATE/SUPERSEDE/NOOP
-- [ ] `ingest` (plano de ingestão) + prompts
-- [ ] `lint` completo
-- [ ] `consolidate` (start/finish) via branch + PR e modo sem GitHub
-- [ ] `forget` com MRTR + fallback por token + arquivamento
-- [ ] `trust`/`origin` em todo o pipeline + `instructions` no `server/discover`
+## M4 · Ciclo de vida e plugin do Claude Code (`0.4`)
+- [ ] Plugin: servidor embutido, hook de início, hook de fim, skill
+- [ ] `session_handle`, episódios e `handoff_save`
+- [ ] Tratamento de duplicatas e contradições no `remember`
+- [ ] `ingest` e os roteiros (prompts)
+- [ ] `lint`
+- [ ] `consolidate` com ponto de restauração
+- [ ] `forget` com confirmação em duas chamadas e elicitação quando houver
+- [ ] `schedule` nos três sistemas
 
-## M5 · Daemon (`0.5`)
-- [ ] `cabecao serve`: watcher, fila de embeddings, sync agendado
-- [ ] MCP HTTP *stateless* em `127.0.0.1` + token + proxy no adaptador stdio
-- [ ] Serviço do sistema (launchd/systemd/Task Scheduler)
-- [ ] Extensão **Tasks** para `sync`/`lint`/`consolidate`
-- [ ] `snapshot` local/Release + bootstrap em máquina nova
-- [ ] Consolidação agendada via agente não interativo
-
-## M6 · Distribuição e Obsidian (`0.6`)
-- [ ] Bundle **MCPB** para o Claude Desktop (via Releases)
-- [ ] `install-client` (Codex, Cursor, genérico)
-- [ ] `cabecao obsidian setup` (grafo, Bases, templates, Web Clipper)
-- [ ] `upgrade` com migrações + snapshot automático
-- [ ] Publicação no npm com *provenance*
-
-## M7 · Visual e avançado (`0.7`)
-- [ ] **MCP App** `ui://cabecao/graph` e `ui://cabecao/inspector`
-- [ ] Comunidades (Leiden) + resumos em `wiki/_communities/`
-- [ ] Multi-salto (Personalized PageRank)
-- [ ] Rerank local opcional
+## M5 · Obsidian e distribuição (`0.5`)
+- [ ] `cabecao obsidian setup` com mesclagem segura
+- [ ] Painéis `.base` e modelo do Web Clipper
 - [ ] `export canvas`
-- [ ] Subscriptions (`subscriptions/listen`)
+- [ ] Pacote `.mcpb` para o Claude Desktop
+- [ ] `install-client` para Codex, Cursor, VS Code e Gemini CLI
+- [ ] `upgrade` com migrações
+- [ ] Publicação no npm com proveniência
 
-## 1.0 · Estável
-- [ ] Documentação completa em inglês (`docs/en/`)
-- [ ] Testes de carga (10k+ notas) e benchmarks publicados
-- [ ] Guia de migração de outros sistemas (Obsidian puro, `CLAUDE.md`)
-- [ ] Política de segurança e processo de *release* documentados
+## M6 · Extras (`0.6`)
+- [ ] Resumos por tema na consolidação
+- [ ] Explorador do grafo dentro do Claude (MCP Apps)
+- [ ] Modo HTTP local (`cabecao serve`)
+- [ ] Provedor de embeddings via Ollama
 
-## Riscos a validar (spike no M0)
+## 1.0
+- [ ] Documentação em inglês
+- [ ] Testes com cérebros reais acima de 10 mil notas
+- [ ] Guia de migração a partir de um vault existente e de arquivos `CLAUDE.md`
 
-Estes pontos estão no desenho mas **ainda não foram testados**. Se algum falhar, o desenho muda antes de escrevermos o resto.
+## O que ainda precisa de prova
 
-| Risco | Como validar | Plano B |
+Estes pontos estão no plano com base em documentação ou em teste parcial. Cada um está ligado ao marco em que será validado.
+
+| Ponto | Situação | Marco |
 |---|---|---|
-| `merge=union` em shards de embeddings durante `pull --rebase` com duas máquinas | Script com dois clones escrevendo em paralelo | Um arquivo por máquina por shard (sem linhas concorrentes) |
-| Crescimento do repositório git com embeddings (histórico + `compact`) | Simular 6 meses de edições em 2 mil notas e medir o `.git` | Embeddings numa branch órfã com histórico achatado periodicamente |
-| `sqlite-vec` + `better-sqlite3` com binários prontos em macOS/Linux/Windows via `npx` | Instalar em CI nas 3 plataformas | `node:sqlite` nativo, ou busca vetorial em memória para cérebros pequenos |
-| Tempo de download e carga do modelo local de embeddings na primeira execução | Medir em máquina limpa | Iniciar só com busca por palavra-chave e gerar embeddings em segundo plano |
-| Suporte real dos clientes à spec 2026-07-28, Tasks, MCP Apps e elicitação | Testar Claude Code, Claude Desktop, Codex e Cursor com um servidor mínimo | Tudo tem caminho 2025-era e fallback sem extensão |
-| Qualidade da busca em português com modelo pequeno | `cabecao eval` com perguntas reais | Modelo maior via Ollama como padrão recomendado |
+| Provedores git reais | Só simulado com remoto local | M1 |
+| Falha de chave SSH e gerenciadores de credencial | Não testado | M1 |
+| Commits assinados | Não testado | M1 |
+| Sync em Windows e Linux | A PoC de sync rodou só no macOS | M1 |
+| Scanner de segredos | Não implementado | M1 |
+| Vetores de arquiteturas diferentes na mesma busca | Não medido | M2 |
+| Licença do modelo padrão | Decisão sua; há alternativa Apache-2.0 | M2 |
+| Busca medida num cérebro real | Só conjuntos sintéticos e públicos | M2 |
+| Plugin instalado a partir do repositório público | Só marketplace local | M4 |
+| Sessões interativas do Claude Code | Só modo não interativo | M4 |
+| Instalação do `.mcpb` no Claude Desktop | Só gerado e validado | M5 |
+| Modelo do Web Clipper na extensão | Não importado | M5 |
+| macOS com processador Intel e Windows 10 | Sem máquina de teste | 1.0 |
 
-## Depois do 1.0 (ideias)
-- Cérebro de **time** (escopos `org:`, permissões por pasta, revisão obrigatória)
-- Acesso remoto com OAuth, conforme a spec MCP
-- Ingestão de áudio e imagens (transcrição e OCR locais)
-- Plugin nativo do Obsidian (painel "o que o Cabeção sabe")
+## Ideias para depois do 1.0
+- Ingestão de áudio e imagem com transcrição local.
+- Plugin nativo do Obsidian com o painel "o que o Cabeção sabe".
+- Acesso remoto ao servidor.

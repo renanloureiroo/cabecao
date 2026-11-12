@@ -1,107 +1,149 @@
 # 08 · Instalação e operação
 
-> 🚧 Tudo abaixo é o **comportamento planejado**. Os comandos ainda não existem.
+> 🚧 Comportamento planejado. Os comandos ainda não existem; o que está marcado como "testado" foi validado em prova de conceito.
 
-## Pré-requisitos
-| Item | Obrigatório? | Observação |
+## Requisitos
+
+| Item | Versão | Observação |
 |---|---|---|
-| Node.js ≥ 22 | ✅ | `node --version` |
-| git | ✅ | |
-| GitHub CLI (`gh`) | opcional | para criar o repo privado e abrir PRs de consolidação |
-| Obsidian | opcional (recomendado) | para visualizar |
-| Ollama | opcional | para embeddings maiores ou LLM local |
+| Node.js | 22.16 ou superior; recomendado 24 | Versões anteriores não têm busca por texto no SQLite embutido |
+| git | 2.38 ou superior | Necessário para integrar sem tocar na pasta de trabalho |
+| Um repositório git | Qualquer provedor, ou nenhum | De preferência privado |
+| Obsidian | Opcional | Para visualizar |
 
-## Caminho 1: `npx` (recomendado)
+Nada mais: sem Python, sem Docker, sem banco, sem compilador, sem conta em serviço.
+
+## Instalar
 
 ```bash
-npx cabecao@latest init
+npx cabecao init <url-do-repositório>
 ```
 
-O assistente pergunta:
-1. **Onde fica o cérebro?** Pasta nova (padrão `~/cabecao`) ou um **vault do Obsidian já existente** (o Cabeção adota sem mover nada).
-2. **Sincronizar com o GitHub?** → `gh repo create <nome> --private` + *remote* + primeiro push.
-3. **Embeddings:** local (padrão) / Ollama / API.
-4. **Clientes:** detecta Claude Code, Claude Desktop, Codex e Cursor e registra o MCP nos que você escolher.
-5. **Obsidian:** aplica a configuração recomendada (cores do grafo, dashboards).
-6. **Daemon:** instalar como serviço do sistema? (launchd no macOS, systemd `--user` no Linux, Task Scheduler no Windows)
+Exemplos de URL: `git@github.com:voce/cerebro.git`, `https://gitlab.com/voce/cerebro.git`, `git@bitbucket.org:voce/cerebro.git`, `ssh://servidor/git/cerebro.git`, `/Volumes/backup/cerebro.git`.
 
-No fim, roda `cabecao doctor`.
+O que o `init` faz, sem perguntar mais nada:
 
-### Instalação global (opcional)
+1. Clona para `~/cabecao` (mude com `--dir`).
+2. Reconhece o que há no repositório e age conforme a tabela de [04 · Sincronização](04-sincronizacao.md): cria, baixa ou adota.
+3. Monta o índice local.
+4. Registra o servidor MCP nos clientes encontrados.
+5. Roda o `doctor` e mostra o resultado.
+
+Sem URL, `npx cabecao init` cria um cérebro só local. Você liga o remoto depois com `cabecao remote <url>`.
+
+O pacote tem cerca de 160 KB e nenhuma dependência. Primeiro `npx` medido: perto de 1 s no Linux e no macOS, de 6 a 11 s no Windows.
+
+### Ativar a busca por significado
+
 ```bash
-npm install -g cabecao
-cabecao init
+cabecao embeddings on
 ```
 
-## Caminho 2: plugin do Claude Code
+Baixa o runtime e o modelo (cerca de 310 MB no total) para o diretório de dados do usuário e calcula os embeddings do que ainda não tem. Numa segunda máquina, os embeddings já vêm do repositório; ela só precisa do modelo para embutir as perguntas e as notas novas. Antes disso, a busca por palavra-chave já funciona.
 
+### Segunda máquina
+
+O mesmo comando, com a mesma URL:
+
+```bash
+npx cabecao init git@gitlab.com:voce/meu-cerebro.git
+```
+
+## Clientes
+
+### Claude Code: plugin
 ```text
 /plugin marketplace add renanloureiroo/cabecao
 /plugin install cabecao@cabecao
 ```
-O plugin inclui:
-- o **servidor MCP** (`.mcp.json` com `npx -y cabecao mcp`);
-- **hooks:** `SessionStart` (injeta o briefing com `cabecao recall --hook`) e `SessionEnd` (`cabecao sync`);
-- **skills:** `/cabecao:ingest`, `/cabecao:review`, `/cabecao:consolidate`.
+O plugin traz o servidor MCP embutido, o hook de início (briefing), o hook de fim (sync) e uma skill de referência. A pasta do cérebro é perguntada na instalação.
 
-Na primeira execução, se não existir um cérebro, o plugin sugere rodar `cabecao init`.
+Testado com marketplace local; a instalação a partir do repositório público ainda não.
 
-## Caminho 3: Claude Desktop (MCPB)
-Baixe `cabecao.mcpb` na página de *Releases* e dê dois cliques. O `manifest.json` declara um `user_config` para escolher a pasta do cérebro numa tela gerada pelo Claude Desktop.
+### Claude Code: sem plugin
+`cabecao install-client claude-code` registra só o servidor MCP, com `claude mcp add-json`. Sem os hooks, as regras de uso chegam pelas instruções do servidor.
 
-## Outros clientes
+### Claude Desktop
+Baixe `cabecao.mcpb` na página de versões do projeto e abra com dois cliques. Uma tela pede a pasta do cérebro. O pacote foi gerado e validado (242 KB); a instalação no aplicativo ainda não foi testada.
+
+### Outros
 ```bash
 cabecao install-client codex
 cabecao install-client cursor
-cabecao install-client --print   # só mostra o JSON para colar manualmente
+cabecao install-client vscode
+cabecao install-client gemini
+cabecao install-client --print     # só mostra a configuração
 ```
 
-## Comandos do dia a dia
+## Comandos
 
 | Comando | O que faz |
 |---|---|
-| `cabecao status` | Resumo: notas, último sync, conflitos, backlog de embeddings |
-| `cabecao doctor` | Diagnóstico completo com sugestão de correção para cada problema |
-| `cabecao sync` | Sincroniza tudo (ver [04](04-sincronizacao.md)) |
-| `cabecao search "<consulta>"` | Busca pelo terminal |
+| `cabecao init [url]` | Instala ou conecta uma máquina |
+| `cabecao status` | Notas, último sync, conflitos, fila de embeddings |
+| `cabecao doctor` | Diagnóstico com a correção sugerida para cada problema |
+| `cabecao sync` | Sincroniza tudo |
+| `cabecao search "<pergunta>"` | Busca pelo terminal |
 | `cabecao ingest <arquivo>` | Registra uma fonte em `raw/` |
+| `cabecao undo [--session\|--op]` | Desfaz |
 | `cabecao lint` | Relatório de saúde |
-| `cabecao consolidate` | Chama um agente não interativo (ex.: `claude -p`) para preparar um PR de consolidação |
-| `cabecao purge <id>` | Apaga definitivamente, reescrevendo o histórico |
-| `cabecao reindex [--full]` | Reconstrói os índices |
-| `cabecao compact` | Limpa embeddings órfãos e duplicados |
-| `cabecao snapshot [--push]` | Snapshot do índice (local ou Release) |
-| `cabecao serve` | Roda o daemon em primeiro plano |
-| `cabecao mcp` | Adaptador MCP stdio (usado pelos clientes) |
-| `cabecao upgrade` | Atualiza e aplica migrações do schema |
-| `cabecao uninstall` | Remove serviço e registros dos clientes, sem **nunca** apagar o cérebro |
+| `cabecao consolidate` | Chama um agente não interativo para consolidar |
+| `cabecao embeddings on\|off\|status` | Busca por significado |
+| `cabecao schedule on\|off` | Sync periódico pelo agendador do sistema |
+| `cabecao compact` | Reduz o índice e inicia uma geração nova |
+| `cabecao reindex [--full]` | Reconstrói o banco local |
+| `cabecao obsidian setup` | Configura o vault para visualização |
+| `cabecao eval` | Mede a busca com as suas perguntas |
+| `cabecao remote <url>` | Liga ou troca o remoto |
+| `cabecao upgrade` | Aplica migrações do esquema |
+| `cabecao purge <id>` | Apaga definitivamente |
+| `cabecao mcp` | Servidor MCP (usado pelos clientes) |
+| `cabecao serve` | Servidor MCP por HTTP local |
 
-## `cabecao doctor` verifica
-- versões de Node, git e gh;
-- se a pasta é um repo git, se tem *remote* e se o *remote* é **privado**;
-- se os *merge drivers* e o `.gitattributes` estão instalados;
-- se o schema está na versão atual;
-- se o índice está consistente (`last_indexed_commit` igual a `HEAD`);
-- se o modelo de embeddings está disponível;
-- se o daemon está rodando e se há lock órfão;
-- se os clientes MCP estão registrados e respondem a `server/discover`;
-- se o `AGENTS.md` cabe no orçamento recomendado;
-- se há conflitos pendentes.
+## Sync automático
 
-## Atualização e manutenção
-- `cabecao upgrade` atualiza o pacote, roda as **migrações** em ordem (um commit por migração), faz `reindex --incremental` e por fim `doctor`.
-- Antes de cada migração, faz `snapshot` automático.
-- Política de versões: **SemVer**. Mudanças de schema só em *minor* (com migração automática) ou *major*.
+Não há daemon. O sync acontece:
+
+- no fim de cada sessão do Claude Code, pelo hook do plugin;
+- periodicamente, se você rodar `cabecao schedule on`, que registra uma tarefa no agendador do seu sistema, sem permissão de administrador:
+
+| Sistema | Mecanismo |
+|---|---|
+| macOS | LaunchAgent |
+| Linux | timer do `systemd --user` |
+| Windows | Agendador de Tarefas (`schtasks`) |
+
+Os três foram registrados, executados e removidos em teste automatizado.
+
+## O que o `doctor` verifica
+
+- Versões de Node e git.
+- Se a pasta é um cérebro (`.cabecao.json`) e a versão do esquema.
+- Remoto: alcançável, credencial funcionando sem terminal, visibilidade pública (só em HTTPS).
+- `.gitignore` e `.gitattributes` corretos.
+- Banco local em dia com o último commit.
+- Runtime e modelo de embeddings; trechos sem embedding.
+- Travas órfãs e operações interrompidas.
+- Conflitos pendentes.
+- Clientes MCP registrados e respondendo.
+- `commit.gpgsign` ativo (pode travar o sync sem terminal).
+- No Windows, caminho do cérebro perto do limite de 260 caracteres.
+
+## Atualizar
+
+- `npx cabecao@latest` sempre traz a versão nova; o plugin e o `.mcpb` trazem o servidor embutido e se atualizam pelos próprios canais.
+- Quando o esquema muda, `cabecao upgrade` cria um ponto de restauração e aplica as migrações, um commit por migração.
+- Versionamento semântico: mudança de esquema só em versão menor (com migração automática) ou maior.
 
 ## Onde ficam as coisas
+
 | Item | Caminho |
 |---|---|
-| Cérebro | onde você escolher (ex.: `~/cabecao`) |
-| Config da máquina | `~/.config/cabecao/machine.json` (Windows: `%APPDATA%\cabecao`) |
-| Token do daemon | `~/.config/cabecao/token` (permissão 600) |
-| Logs | `<cérebro>/.cabecao/cache/logs/` |
-| Índice | `<cérebro>/.cabecao/cache/cabecao.db` |
-| Modelos de embedding | `~/.cache/cabecao/models/` |
+| Cérebro | `~/cabecao`, ou onde você escolher |
+| Banco e cópia local do índice | `<cérebro>/.cabecao/` |
+| Configuração da máquina (nome, cérebro padrão) | `~/.config/cabecao/` · Windows: `%APPDATA%\cabecao` |
+| Runtime e modelo de embeddings | `~/.cache/cabecao/` · Windows: `%LOCALAPPDATA%\cabecao` |
 
-## Backup
-O cérebro **é** um repositório git: o *remote* já é o backup. Para segurança extra, `cabecao snapshot --push` guarda o índice numa Release do repo privado.
+## Desinstalar
+
+`cabecao uninstall` remove os registros nos clientes, a tarefa agendada e os diretórios de configuração e cache. **Nunca** apaga o cérebro.

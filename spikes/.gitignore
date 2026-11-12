@@ -1,0 +1,11 @@
+# Só os relatórios e os scripts pequenos são versionados; código, modelos e saídas das PoCs ficam locais.
+*
+!.gitignore
+!*/
+!/README.md
+!/01-node-sqlite.mjs
+!/02-vector-bruteforce.mjs
+!/03-git-segments.sh
+!*/RESULTS.md
+/16-team-brain/
+/04-embeddings/

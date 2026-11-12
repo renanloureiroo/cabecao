@@ -1,63 +1,49 @@
 <p align="center">
   <strong>🧠 Cabeção</strong><br/>
-  <em>A local-first second brain for you and your AI agents, served over MCP.</em>
+  <em>Your personal second brain, in Markdown and git, for you and your AI agents.</em>
 </p>
 
 <p align="center">
   <strong>English</strong> · <a href="README.md">Português</a>
 </p>
 
-> **Status: 🚧 planning.** The architecture, decisions and roadmap are public in [`docs/`](docs/) (Portuguese for now; English docs are on the roadmap). There is no installable release yet.
+> **Status: 🚧 validated plan, no code yet.** Every architecture decision was tested in a proof of concept before entering the plan. See the [evidence](docs/11-evidencias.md) and [roadmap](docs/10-roadmap.md) (Portuguese for now).
 
 ---
 
-*Cabeção* ("big head") is a nod to a well-known character from the Brazilian TV show *Malhação*, the one who knows and remembers everything. That is the idea: an external brain that **remembers for you and for your agents** across sessions, tools and machines.
+*Cabeção* ("big head") is a nod to a character from the Brazilian TV show *Malhação* who knows and remembers everything.
 
 ## What it is
 
-Cabeção is a **second brain stored as Markdown in a git repository**, on your machine and optionally in a private GitHub repo. It exposes that brain to any AI agent (Claude Code, Claude Desktop, Codex, Cursor...) through an **MCP server**.
+A **personal second brain** that lives in **a git repository you own**, on any host (GitHub, GitLab, Bitbucket, Gitea, your own server), exposed to any AI agent over **MCP**. Use it on as many machines as you like: everything syncs, embeddings and graph included.
 
-- 📝 **Markdown is the source of truth.** Read and edit everything in Obsidian (or any editor).
-- 🔎 **Hybrid search:** keyword (BM25) + semantic (embeddings) + link-graph expansion, under a token budget.
-- 🕸️ **Knowledge graph:** wikilinks, typed relations, entities and **time-bounded facts**.
-- 🧠 **Agent memory:** `remember`/`recall` with scope, type, provenance and conflict resolution (ADD/UPDATE/SUPERSEDE).
-- 🔄 **Syncs everything**, including **embeddings, graph and indexes**, through git, so nothing computed on one machine has to be recomputed on another.
-- 🧹 **Self-maintaining:** lint, consolidation and forgetting. Changes arrive as **Pull Requests** for you to review.
-- 🔒 **Local-first and private:** local embeddings by default, a secret scanner, and external content marked as untrusted.
-- 🔌 **Modern MCP:** targets spec **2026-07-28** (stateless core) and stays compatible with 2025-era clients.
-- 🖥️ **Visual:** Obsidian (graph, Bases, Canvas) plus an **MCP App** graph explorer inside Claude.
-
-## How it works
-
-```
- Claude Code · Claude Desktop · Codex · Cursor            Obsidian
-             │ MCP (stdio / local HTTP)                      │
-             ▼                                               ▼
- ┌───────────────────── cabecao (daemon + MCP) ─────────────────────┐
- │ search · read · write · remember · recall · graph · facts ·      │
- │ ingest · handoff · lint · consolidate · sync                     │
- └──────────┬──────────────────────────────────────┬───────────────┘
-            ▼                                      ▼
-  Your brain's git repository             .cabecao/cache/cabecao.db
-  ├─ raw/  wiki/  memory/   (content)     (SQLite: FTS5 + sqlite-vec +
-  └─ .cabecao/ embeddings/ graph/          graph tables; rebuilt
-     (synced derived data)                  incrementally)
-            │
-            ▼ cabecao sync (pull → incremental reindex → push)
-     GitHub (your PRIVATE brain repo)
-```
+- 📝 **Markdown is the source of truth.** Read and edit in Obsidian or any editor.
+- 🔗 **Any git remote.** No provider API, pull requests or CI required.
+- 🔄 **Everything syncs.** A machine never recomputes an embedding another machine already computed.
+- 🔎 **Hybrid search** by keyword and by meaning, with a local model (nothing leaves your machine).
+- 🕸️ **A wiki with a graph:** wikilinks, typed relations and time-bounded facts the agent can navigate.
+- 🧠 **Agent memory:** what you taught in one session is there in the next, in any client.
+- ↩️ **Reversible:** every operation is a commit, with an undo command.
+- 🪶 **Light:** a ~160 KB package with no native dependencies. The embedding model is downloaded only when you turn on semantic search.
 
 ## Planned install
 
+You only provide the repository URL:
+
 ```bash
-npx cabecao@latest init
+npx cabecao init git@gitlab.com:you/my-brain.git
 ```
 
-The wizard scaffolds the brain, sets up git and (optionally) a private GitHub repo, configures local embeddings, registers the MCP server with your clients, sets up Obsidian, and runs `cabecao doctor`.
+| The repository... | What happens |
+|---|---|
+| is empty | scaffolds the brain, makes the first commit and pushes |
+| already holds a Cabeção brain | downloads it and builds the index without recomputing anything |
+| holds an Obsidian vault or plain Markdown | adopts it without moving any file |
+| holds something else (code, for example) | refuses and explains |
 
-Also planned: a **Claude Code plugin** (`/plugin marketplace add renanloureiroo/cabecao`) and a one-click **MCPB** bundle for Claude Desktop.
+Requirements: Node.js 22.16+ (24 recommended) and git 2.38+.
 
-> ⚠️ **Cabeção's code is public; your brain should not be.** Keep your brain repository **private**.
+> ⚠️ **Cabeção's code is public; your brain should not be.** Use a **private** repository.
 
 ## License
 

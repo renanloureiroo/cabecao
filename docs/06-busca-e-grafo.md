@@ -1,76 +1,120 @@
 # 06 · Busca e grafo
 
-## Pipeline de recuperação
+> **É só uma wiki ou é um GraphRAG?** É uma **wiki com grafo**. O grafo existe e é útil, mas quem navega por ele é o agente. O pipeline completo de GraphRAG (extração de entidades por LLM, relatórios de comunidade, PageRank no ranking) foi medido e não se pagou.
+
+## Busca híbrida
 
 ```mermaid
 flowchart LR
-    Q[Consulta] --> N[Normaliza<br/>+ filtros: escopo, tipo,<br/>as_of, trust]
-    N --> K[BM25<br/>FTS5 top 50]
-    N --> V[Vetor<br/>sqlite-vec top 50]
-    N --> E[Entidades citadas<br/>na consulta]
-    K --> R[Fusão RRF]
-    V --> R
-    E --> G[Expansão no grafo<br/>vizinhos 1–2 saltos]
-    R --> G
-    G --> RR[Rerank opcional<br/>cross-encoder local]
-    RR --> P[Ajustes:<br/>recência · confiança · validade]
-    P --> B[Corte por orçamento<br/>de tokens + dedupe por nota]
-    B --> O[Resultado com motivo<br/>e proveniência]
+    Q[Pergunta] --> F[Filtros: escopo, tipo]
+    F --> K[Palavra-chave<br/>FTS5, top 30]
+    F --> V[Significado<br/>embeddings, top 30]
+    K --> U[Fusão convexa<br/>com cobertura]
+    V --> U
+    U --> T[Marca cada resultado:<br/>vigente ou vencido]
+    T --> B[Corte por orçamento de tokens]
+    B --> H[hits]
+    H --> G[+ bloco separado: related<br/>5 vizinhos no grafo]
 ```
 
-### Etapas
-1. **Filtros antes da busca:** escopo, tipo, `as_of` (ignora fatos fora da validade), `superseded_by` vazio e nível mínimo de confiança.
-2. **BM25 (FTS5):** termos exatos (nomes, códigos de erro, IDs), com `unicode61 remove_diacritics` para o português.
-3. **Vetor (sqlite-vec):** similaridade de cosseno com embeddings multilíngues.
-4. **RRF (*Reciprocal Rank Fusion*):** `score = Σ 1/(k + rank_i)`, com `k = 60`.
-5. **Expansão no grafo:** inclui vizinhos fortes dos melhores resultados (wikilinks, relações e fatos), com peso decrescente por salto.
-6. **Rerank (opcional):** um *cross-encoder* local reordena os ~30 primeiros.
-7. **Ajustes finais:** bônus para **recência** (`confirmed`/`updated`), **confiança** (`trust`) e notas do tipo `rule`/`decision` quando a consulta pede orientação.
-8. **Orçamento:** junta trechos até `budget_tokens`, no máximo N trechos por nota, sempre com cabeçalho de proveniência.
+### Palavra-chave
+- FTS5 do SQLite, com remoção de acentos, sobre o texto e o título.
+- A pergunta é limpa de palavras vazias ("de", "que", "para"...), o que derrubou uma busca longa de 280–520 ms para 14 ms.
+- Sozinha, acerta 95% das buscas por termo exato (IDs, nomes de função, códigos de erro) e 0% das paráfrases.
 
-### Chunking
-- Quebra por **cabeçalhos Markdown** (seções), depois por parágrafos, com alvo de ~350 tokens e 15% de sobreposição.
-- **Contextual retrieval:** antes do embedding, cada trecho recebe um prefixo `Título › Seção › Subseção`. Resolve o problema do "ele aumentou 20%" (quem é "ele"?). Tipo, escopo e tags **não** entram no prefixo: são filtros, e mudá-los não deve recalcular vetores.
-- `chunk_key` é o hash do texto **com** o prefixo. Mudar o título da nota recalcula os trechos dela; mover o arquivo ou mudar o frontmatter não recalcula nada (ver [03](03-modelo-de-dados.md)).
-- Modelos da família E5 exigem os prefixos `query:` e `passage:`; isso faz parte do `embedding_spec`.
+### Significado
+- **Modelo:** EmbeddingGemma 300m, ONNX q4, 768 dimensões, rodando na sua máquina.
+- **Contexto no trecho:** cada trecho é embutido com o prefixo `Título › Seção`. Isso levou o acerto de 0,825 para 0,872, e de 17–33% para 75–92% nas perguntas que dependem do título.
+- **Trechos:** divisão por seções do Markdown, com cerca de 350 tokens.
+- **Busca:** força bruta em JavaScript; 100 mil vetores em 31 a 70 ms.
 
-### Embeddings
-| Provedor | Padrão? | Observação |
+### Fusão
+
+```
+score = α · minmax(cosseno) + (1 − α) · min(1, bm25 / Σ idf dos termos da pergunta)      α = 0,5
+```
+
+A fusão usual (RRF) **piorou** o resultado: o acerto em paráfrases caiu de 67% para 15%, porque um trecho que casava por uma palavra solta aparecia nas duas listas e passava na frente. A fusão acima manteve o ganho dos dois lados.
+
+| Conjunto de teste | Só vetor | RRF | Fusão adotada |
+|---|---|---|---|
+| Sintético em português (MRR) | 0,872 | 0,708 | 0,857 |
+| Belebele (MRR) | 0,935 | 0,928 | 0,952 |
+| Quati (nDCG@10) | 0,583 | 0,564 | 0,580 |
+
+### Por que este modelo
+
+Treze modelos foram medidos em português. Os principais:
+
+| Modelo | Tamanho | Acerto no sintético (MRR) | Paráfrases certas | Licença |
+|---|---|---|---|---|
+| **EmbeddingGemma 300m q4** | 197 MB | **0,872** | **67%** | Gemma Terms of Use |
+| bge-m3 q8 | 570 MB | 0,836 | 48% | MIT |
+| EmbeddingGemma 2 q4 | 175 MB | 0,802 | 40% | Apache-2.0 |
+| multilingual-e5-base q8 | 279 MB | 0,763 | 40% | MIT |
+| multilingual-e5-small q8 | 118 MB | 0,693 | 17% | MIT |
+
+- Nenhum modelo maior superou o escolhido, então não há um "modo qualidade".
+- Um modelo pequeno com palavra-chave não alcança o escolhido (0,699 contra 0,857).
+- **Licença:** a do EmbeddingGemma 300m não é uma licença de código aberto reconhecida. O Cabeção não redistribui o modelo; ele é baixado do Hugging Face na sua máquina. Para quem exige só Apache ou MIT, `cabecao config embedding embeddinggemma-2` troca pelo EmbeddingGemma 2, com perda em paráfrases.
+
+### Reranker
+Fora do padrão. O `bge-reranker-v2-m3` (571 MB) não melhorou o modelo escolhido e levou cerca de 8,5 s para reordenar 30 candidatos. Um reranker pequeno piorou o resultado.
+
+### Runtime de embeddings
+- O núcleo não tem nenhuma dependência de aprendizado de máquina; a busca por palavra-chave funciona logo após instalar.
+- `cabecao embeddings on` baixa o runtime (`onnxruntime-node` + tokenizador) e o modelo para o diretório de dados do usuário. Testado em 15 combinações de sistema e versão de Node.
+- No Linux Alpine, o runtime nativo não carrega; o caminho alternativo em WebAssembly funciona, de 3 a 10 vezes mais lento.
+
+## Validade no tempo
+
+Foi o recurso que mais rendeu na medição.
+
+- `search` e `facts` aceitam `as_of` (uma data). O padrão é hoje.
+- Cada resultado vem marcado como **vigente** ou **vencido**. Resultados vencidos são rebaixados, **nunca escondidos**.
+- `as_of` precisa ser um parâmetro: fixá-lo em "hoje" zerou as perguntas sobre o passado.
+- Efeito medido: a versão vencida aparecia acima da correta em 50–70% dos casos; com o filtro, 0%.
+
+## Grafo
+
+### De onde vêm as arestas
+
+| Origem | Como é criada | Usa LLM? |
 |---|---|---|
-| `transformers.js` (ONNX, local) | ✅ | Zero instalação externa; modelo multilíngue pequeno (família *multilingual-e5*) |
-| Ollama | opcional | Modelos maiores (ex.: `bge-m3`) se o Ollama estiver instalado |
-| APIs (Voyage, OpenAI, etc.) | opcional | O texto sai da máquina, por isso exige *opt-in* explícito |
+| `wikilink` | `[[Nota]]` no texto | Não |
+| `relation` | Propriedades de relação no frontmatter (`uses`, `part_of`...) | O agente escreve ao gravar a nota |
+| `fact` | Sujeito e objeto das notas de fato | O agente escreve |
+| `supersedes` | Decisão ou fato novo substituindo o antigo | O agente escreve |
+| `mention` | Título ou apelido de outra nota citado sem link | Não (dicionário; precisão de 0,94 no teste) |
 
-## Grafo de conhecimento
+Tudo é reconstruível a partir do Markdown. Relações escritas pelo agente custam cerca de 56 tokens por nota.
 
-### Tipos de aresta
-| Origem | Exemplo | Peso inicial |
-|---|---|---|
-| `wikilink` | `[[PostgreSQL]]` no corpo | 1.0 |
-| `relation` | `relations: [{type: usa, target: "[[SQS]]"}]` | 1.5 |
-| `fact` | `subject → predicate → object` em `memory/facts/` | 1.5, com validade |
-| `supersedes` | decisão nova → decisão antiga | 0.5 (navegação histórica) |
-| `inferred` | co-ocorrência forte ou similaridade alta (gerada, **nunca** escrita no Markdown sem aprovação) | 0.3 |
+### Como é usado
 
-### Entidades
-- Uma entidade é uma nota em `wiki/entities/` com `aliases` no frontmatter.
-- A resolução de nomes ("Postgres", "PG", "PostgreSQL" → mesma entidade) usa aliases + similaridade, e **sugere** fusões no `lint`.
+| Uso | Resultado na medição |
+|---|---|
+| Tool `graph`: o agente pede os vizinhos de uma nota, por tipo | O caminho completo até a resposta existe no grafo em 93% das perguntas de vários saltos (54% só com wikilinks) |
+| Bloco `related` na busca: 5 vizinhos dos melhores resultados, **separado** do ranking | Acerto em perguntas de vários saltos sobe de 54% para 61–68%, sem prejudicar as outras |
+| `lint` sugere transformar menções em links | — |
 
-### Fatos temporais
-- Consultas com `as_of` respondem "o que era verdade naquela data".
-- Um fato novo que contradiz outro **não apaga** o antigo: o antigo ganha `valid_until` e `superseded_by`.
+Misturar o grafo no ranking principal foi testado e descartado: derrubou a busca por termo exato de 83% para 72–78%.
 
-### Comunidades (estilo GraphRAG)
-- Algoritmo de **Leiden** sobre o grafo ponderado, em níveis hierárquicos.
-- Cada comunidade relevante ganha uma nota de resumo em `wiki/_communities/`, gerada pelo agente ou por um LLM local, com `trust: medium`.
-- Uso: perguntas **globais** ("quais os grandes temas do meu cérebro?") com *map-reduce* sobre os resumos.
-- Também viram **cores** no grafo do Obsidian e regiões no MCP App.
+### O que não entra
 
-### Multi-salto (estilo HippoRAG)
-- Para perguntas que ligam fatos distantes: as entidades da consulta viram sementes de um **Personalized PageRank** no grafo, e os nós "ponte" entram como candidatos.
+| Item | Motivo |
+|---|---|
+| Extração de entidades por LLM em cada trecho | Parte mais cara do GraphRAG; o servidor não tem LLM |
+| Relatórios de comunidade automáticos | Gerados sem LLM, pioraram as respostas (cobertura de 0,21) |
+| Arestas por semelhança de embedding | Não ajudaram |
+| PageRank no ranking | Derrubou as perguntas temporais |
+| Banco de grafos | SQLite resolve em milissegundos com 100 mil arestas |
 
-## Avaliação
+### Resumos por tema (depois)
+Resumos escritos por um agente ajudaram em perguntas globais (cobertura de 0,81 contra 0,61). Entram como notas comuns em `wiki/syntheses/`, escritas numa rotina de consolidação. Não são pré-requisito de nada.
 
-- **Conjunto de perguntas douradas** por cérebro (`.cabecao/eval/questions.yaml`) com respostas esperadas.
-- `cabecao eval` mede *recall@k*, MRR e a taxa de citações corretas, comparando os modos (keyword, semantic, hybrid, hybrid+graph).
-- Regressões de busca entram no CI do projeto com um vault de *fixtures*.
+## Limites desta medição
+
+- Os conjuntos sintéticos foram escritos pelos próprios agentes que rodaram os testes. Valem como ordem de grandeza.
+- O Quati (português nativo) foi usado só em parte e em 6 modelos.
+- A navegação do agente pelo grafo foi simulada, sem um LLM respondendo.
+- Falta medir com um cérebro real. O comando `cabecao eval` existe para isso: você escreve perguntas com gabarito e ele mede a busca no seu acervo.

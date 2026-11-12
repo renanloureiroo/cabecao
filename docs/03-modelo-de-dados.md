@@ -1,69 +1,84 @@
 # 03 · Modelo de dados
 
-> **Convenção:** nomes de pastas, tipos e campos do schema são em **inglês** (como as tools do MCP), para o projeto servir a qualquer público. O **conteúdo** das notas fica no idioma do usuário. Ver [ADR-0008](adr/0008-identificadores-em-ingles.md).
+> Nomes de pastas, tipos e campos são em **inglês**. O **conteúdo** das notas fica no seu idioma.
 
-## Estrutura do cérebro (repositório do usuário)
+## Estrutura do cérebro
 
 ```
 meu-cerebro/                      ← repositório git (privado)
-├── AGENTS.md                     ← schema/regras para qualquer agente
-├── CLAUDE.md                     ← importa AGENTS.md (@AGENTS.md) + extras do Claude
-├── index.md                      ← catálogo gerado (1 linha por página)
-├── log.md                        ← diário append-only (ingest, lint, sync)
-├── raw/                          ← FONTES IMUTÁVEIS
+├── .cabecao.json                 ← marca a pasta como cérebro e guarda a configuração compartilhada
+├── .gitattributes                ← log.md com merge por união
+├── .gitignore                    ← ignora .cabecao/
+├── AGENTS.md                     ← regras do cérebro para qualquer agente
+├── CLAUDE.md                     ← importa o AGENTS.md
+├── index.md                      ← catálogo gerado (derivado; regenerado a cada sync)
+├── log.md                        ← diário append-only
+├── raw/                          ← fontes imutáveis
 │   ├── articles/  meetings/  pdfs/  assets/
-├── wiki/                         ← conhecimento compilado (escrito pela IA, revisado por você)
-│   ├── sources/  concepts/  entities/  decisions/  syntheses/
-│   └── _communities/             ← resumos de comunidades do grafo (gerados)
-├── memory/                       ← memória de agente
-│   ├── rules/                    ← regras (só o humano cria ou aprova)
+├── wiki/                         ← conhecimento sobre o mundo
+│   └── sources/  concepts/  entities/  decisions/  syntheses/
+├── memory/                       ← o que os agentes precisam saber para trabalhar com você
+│   ├── rules/                    ← só você cria
 │   ├── preferences/  gotchas/  procedures/
-│   ├── facts/                    ← fatos atômicos com validade temporal
-│   ├── episodes/AAAA/MM/         ← observações e eventos de sessões
+│   ├── facts/                    ← fatos atômicos com validade no tempo
+│   ├── episodes/AAAA/MM/         ← o que aconteceu nas sessões
 │   ├── handoffs/                 ← passagem de bastão entre sessões
-│   └── _archive/                 ← memórias esquecidas (fora do índice ativo)
-├── dashboards/                   ← arquivos .base e .canvas para o Obsidian
-└── .cabecao/                     ← DERIVADOS (o Obsidian ignora pastas ocultas)
-    ├── manifest.json             ← versão do schema, modelos, último commit indexado
-    ├── config.json               ← configuração compartilhada entre máquinas
-    ├── embeddings/<modelo>/      ← vetores endereçados por conteúdo (sincronizados)
-    ├── graph/                    ← nodes.jsonl, edges.jsonl, communities.jsonl (sincronizados)
-    └── cache/                    ← cabecao.db, locks, logs (NÃO versionado)
+│   └── _archive/                 ← memórias esquecidas
+├── dashboards/                   ← painéis (.base) e mapas (.canvas) para o Obsidian
+└── .cabecao/                     ← LOCAL, fora do git, invisível no Obsidian
+    ├── index/                    ← cópia local da branch de índice
+    ├── cabecao.db                ← banco de consulta
+    └── locks/  logs/
 ```
 
-**Wiki ou memory?** `wiki/` é conhecimento sobre o mundo (o que você estuda e decide). `memory/` é o que os agentes precisam saber para trabalhar com você (como agir). Decisões ficam **só** em `wiki/decisions/`.
+### `.cabecao.json`
+
+Único arquivo de configuração versionado. Ele permite adotar um vault que já existe sem mover nada.
+
+```json
+{
+  "schemaVersion": 1,
+  "noteDirs": ["wiki", "memory", "raw"],
+  "indexMd": "index.md",
+  "embedding": { "model": "embeddinggemma-300m", "variant": "q4", "dims": 768, "recipe": 1 }
+}
+```
 
 ## Frontmatter
 
-Todo arquivo em `wiki/` e `memory/` segue um schema validado (Zod). Campos comuns:
-
 ```yaml
 ---
-id: 01JD3K8Y6Z9W2T4N5P7Q8R0S1V      # ULID estável (sobrevive a renomeações)
-type: decision                      # source | concept | entity | decision | synthesis |
-                                    # rule | preference | gotcha | procedure | fact | episode | handoff
+id: 01JD3K8Y6Z9W2T4N5P7Q8R0S1V     # ULID estável; sobrevive a renomeações
+type: decision                     # source | concept | entity | decision | synthesis |
+                                   # rule | preference | gotcha | procedure | fact | episode | handoff
 title: Usar SQS para filas
-scope: project:atlas                # global | user | project:<slug> | org:<slug>
+scope: project:atlas               # global | project:<slug>
 tags: [infra, filas]
 sources: ["[[raw/meetings/2026-05-03-arquitetura]]"]
-trust: high                         # high (humano) | medium (agente) | low (conteúdo externo)
-origin: agent:claude-code           # human | agent:<client> | ingest:<source>
+trust: high                        # high (você) | medium (agente) | low (conteúdo externo)
+origin: agent:claude-code          # human | agent:<client> | ingest:<source>
 created: 2026-05-03
 updated: 2026-11-12
-confirmed: 2026-11-12               # última vez que alguém confirmou que ainda vale
-valid_from: 2026-05-03              # validade temporal (opcional)
-valid_until:                        # vazio = ainda válido
+confirmed: 2026-11-12
+valid_from: 2026-05-03             # validade no tempo
+valid_until:                       # vazio = ainda vale
 supersedes: ["[[usar-rabbitmq-para-filas]]"]
-superseded_by:
-expires_at:                         # TTL (opcional; ex.: memórias de sessão)
-relations:                          # arestas tipadas do grafo
-  - { type: uses, target: "[[SQS]]" }
-  - { type: decided_by, target: "[[Ana]]" }
+superseded_by: []
+expires_at:
+# relações tipadas: UMA PROPRIEDADE POR TIPO, cada uma com uma lista de wikilinks
+uses: ["[[SQS]]"]
+decided_by: ["[[Ana]]"]
+part_of: ["[[Projeto Atlas]]"]
 ---
 ```
 
+### Por que uma propriedade por tipo de relação
+
+O rascunho anterior usava uma lista de objetos (`relations: [{type, target}]`). No Obsidian real, isso aparece como JSON cru, não é editável e não é pesquisável. Com uma propriedade por relação, cada uma vira um campo de lista editável, os wikilinks viram arestas no grafo e backlinks, e os painéis conseguem filtrar por elas.
+
+O conjunto inicial de relações é pequeno e fixo: `uses`, `part_of`, `depends_on`, `decided_by`, `works_on`, `related_to`, além de `supersedes`. Você pode acrescentar outras no `.cabecao.json`.
+
 ### Fatos atômicos (`memory/facts/`)
-Fatos são pequenos e temporais, ideais para perguntas do tipo "o que era verdade em março?":
 
 ```yaml
 ---
@@ -76,76 +91,74 @@ valid_from: 2026-05-03
 valid_until:
 supersedes: ["[[fato-atlas-usa-rabbitmq]]"]
 trust: high
-sources: ["[[raw/meetings/2026-05-03-arquitetura]]"]
 ---
 O Projeto Atlas migrou de RabbitMQ para SQS em maio de 2026 por custo operacional.
 ```
 
-> **Por que fatos e relações extraídos por LLM ficam em Markdown e não num banco?** Porque são **caros de gerar** e **valiosos para auditar**. Em Markdown eles sincronizam pelo git, aparecem no Obsidian e podem ser corrigidos à mão.
+Um fato novo que contradiz outro **não apaga** o antigo: o antigo recebe `valid_until` e `superseded_by`. Na medição, usar essas datas na busca derrubou de 50–70% para 0% os casos em que a versão vencida aparecia acima da correta.
 
-## Índice local (SQLite)
+## Branch de índice (`cabecao/index`)
 
-`.cabecao/cache/cabecao.db` é uma **visão materializada**, reconstruída de forma incremental a partir do repositório. Roda em modo WAL, que permite vários processos lendo e escrevendo ao mesmo tempo.
+Fica no mesmo repositório, numa branch separada e sem histórico em comum com as notas. Só o Cabeção escreve nela.
 
-```sql
--- documentos e trechos
-notes(id TEXT PK, path TEXT UNIQUE, type, title, scope, trust, origin,
-      created, updated, confirmed, valid_from, valid_until, superseded_by,
-      content_hash TEXT, frontmatter JSON)
-chunks(id INTEGER PK, note_id, ord, heading_path, text, token_count,
-       chunk_key TEXT)
-
--- texto completo (BM25); heading_path já inclui o título da nota
-CREATE VIRTUAL TABLE chunks_fts USING fts5(text, heading_path,
-       content='chunks', content_rowid='id',
-       tokenize='unicode61 remove_diacritics 2');
-
--- vetores (sqlite-vec); uma tabela por modelo ativo
-CREATE VIRTUAL TABLE vec_<modelo> USING vec0(chunk_id INTEGER PRIMARY KEY,
-       embedding float[<dim>] distance_metric=cosine);
-
--- grafo
-edges(src_note, dst_note, type,
-      origin,            -- wikilink | relation | fact | supersedes | inferred
-      valid_from, valid_until, weight)
-entities(id, name, aliases JSON, note_id)
-communities(id, level, parent, summary_note_id)
-community_members(community_id, note_id)
-
--- operação
-index_state(key PK, value)  -- last_indexed_commit, schema_version...
+```
+embeddings/<modelo>-<variante>-r<receita>/
+    seg-<hash>.bin        ← segmentos imutáveis
+graph/
+    nodes.jsonl  edges.jsonl
+manifest.json             ← versão, modelo, commit de conteúdo indexado
 ```
 
-## Endereçamento por conteúdo
+### Segmento de embeddings
 
-| Chave | Fórmula | Uso |
+Um segmento é um arquivo **imutável**, nomeado pelo hash do próprio conteúdo. Cada registro tem:
+
+| Campo | Tamanho | Conteúdo |
 |---|---|---|
-| `content_hash` | `sha256(arquivo)` | Detectar mudança de nota |
-| `chunk_key` | `sha256(texto que vai para o embedding)` = prefixo de contexto (`Título › Seção`) + texto normalizado do trecho | Reaproveitar o embedding quando o trecho não mudou |
-| `embedding_key` | `sha256(embedding_spec + ":" + chunk_key)` | Chave no armazenamento sincronizado de embeddings |
+| chave | 16 bytes | hash do texto que foi embutido |
+| escala | 4 bytes | fator para reconstruir o vetor |
+| vetor | 768 bytes | 768 dimensões em `int8` |
 
-`embedding_spec` identifica tudo que muda o vetor: modelo, quantização, dimensões e a versão da receita de prefixos.
+O arquivo termina com um checksum; um segmento incompleto é ignorado.
 
-O que recalcula embeddings e o que não:
+Formato escolhido por medição: `int8` com escala por vetor manteve a qualidade do `float32` (0,872 nos dois) com um quarto do tamanho. Dez mil trechos ocupam cerca de 7 MB no git.
+
+Como nenhum arquivo é alterado depois de criado, duas máquinas nunca editam o mesmo arquivo, e não existe conflito por construção.
+
+### O que recalcula um embedding
+
+A chave é o hash do texto embutido: o prefixo de contexto (`Título › Seção`) mais o texto do trecho.
 
 | Mudança | Recalcula? |
 |---|---|
-| Mover ou renomear o **arquivo** (mesmo título) | Não |
-| Mudar frontmatter (tags, scope, trust, datas) | Não |
+| Mover ou renomear o arquivo | Não |
+| Mudar frontmatter (tags, datas, relações) | Não |
 | Editar um parágrafo | Só os trechos afetados |
-| Mudar o **título** da nota | Todos os trechos da nota (o título faz parte do prefixo) |
-| Renomear uma seção | Os trechos daquela seção |
+| Mudar o título da nota | Os trechos da nota |
+| Trocar o modelo ou a receita | Tudo, em outra pasta; os dois convivem durante a troca |
 
-## Versionamento do schema
+## Banco local (`.cabecao/cabecao.db`)
 
-`manifest.json`:
-```json
-{
-  "schemaVersion": 1,
-  "cabecaoVersion": "0.1.0",
-  "embedding": { "active": "multilingual-e5-small@onnx-q8", "dims": 384 },
-  "lastIndexedCommit": "a1b2c3d",
-  "createdAt": "2026-11-12"
-}
+SQLite embutido do Node, em modo WAL. É uma visão materializada, reconstruída em segundos.
+
+```sql
+notes(id TEXT PRIMARY KEY, path TEXT UNIQUE, type, title, scope, trust, origin,
+      created, updated, confirmed, valid_from, valid_until,
+      content_hash, mtime, size, frontmatter JSON)
+chunks(id INTEGER PRIMARY KEY, note_id, ord, heading_path, text, token_count, chunk_key)
+
+CREATE VIRTUAL TABLE chunks_fts USING fts5(text, title_path,
+       content='chunks', content_rowid='id',
+       tokenize='unicode61 remove_diacritics 2');
+
+edges(src_note, dst_note, type, origin,   -- wikilink | relation | fact | supersedes | mention
+      valid_from, valid_until)
+facts(note_id, subject, predicate, object, valid_from, valid_until)
+state(key PRIMARY KEY, value)             -- último commit indexado, versão do esquema
 ```
-`cabecao upgrade` aplica as migrações em sequência (`schemaVersion` N → N+1) e faz um commit separado para cada uma.
+
+Os vetores não ficam em tabela de busca vetorial: são carregados dos segmentos para um `Int8Array` em memória (100 mil vetores carregam em 18 a 44 ms).
+
+## Versionamento do esquema
+
+`schemaVersion` fica no `.cabecao.json`. `cabecao upgrade` aplica as migrações em ordem, um commit por migração, com um ponto de restauração antes.
