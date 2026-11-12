@@ -30,7 +30,8 @@ export type SyncStep = (typeof SYNC_STEPS)[number];
 /**
  * - `ok`: terminou; com remoto, local e remoto ficaram iguais. Sem remoto, as mudanças estão em commits locais.
  * - `busy`: outro sync segurava a trava; nada foi feito.
- * - `blocked`: o sync se recusou a continuar (segredo, operação do git em andamento, HEAD solto). Nada foi enviado.
+ * - `blocked`: o sync se recusou a continuar (segredo, arquivo que não deu para escanear, arquivo local que seria
+ *   sobrescrito, operação do git em andamento, HEAD solto). Nada foi enviado.
  * - `offline`: o remoto não respondeu, não existe ou recusou a credencial. O que era local foi feito.
  * - `error`: falha inesperada ou envio recusado repetidas vezes.
  */
@@ -39,19 +40,31 @@ export type SyncStatus = 'ok' | 'busy' | 'blocked' | 'offline' | 'error';
 /** Como o conteúdo remoto entrou: não entrou, avanço simples, reaplicação linear dos commits locais, ou merge. */
 export type SyncIntegration = 'none' | 'fast-forward' | 'replay' | 'merge';
 
-/** Motivo de um `blocked`. */
-export type SyncBlockReason = 'secrets' | 'git-operation' | 'detached-head';
+/**
+ * Motivo de um `blocked`.
+ *
+ * - `secrets`: o scanner achou um possível segredo no que seria commitado ou enviado.
+ * - `unscannable`: um arquivo que seria commitado não pôde ser lido pelo scanner (permissão, arquivo travado).
+ * - `local-file`: aplicar o remoto sobrescreveria um arquivo desta máquina que o sync não versiona (ignorado pelo
+ *   `.gitignore` ou dentro de `.cabecao/`). Nada foi aplicado.
+ * - `git-operation`: operação do git pela metade, deixada por outro programa.
+ * - `detached-head`: HEAD fora de uma branch.
+ */
+export type SyncBlockReason = 'secrets' | 'unscannable' | 'local-file' | 'git-operation' | 'detached-head';
 
-/** Uma nota editada nas duas máquinas. Nada foi resolvido em silêncio: as duas versões continuam no cérebro. */
+/**
+ * Um arquivo (nota, anexo ou configuração) editado nas duas máquinas. Nada foi resolvido em silêncio: as duas
+ * versões continuam no cérebro.
+ */
 export interface SyncConflict {
-  /** Caminho da nota. Em `content`, fica com a versão do remoto. */
+  /** Caminho do arquivo. Em `content`, fica com a versão do remoto. */
   readonly path: string;
   /**
    * - `content`: editada nos dois lados; a versão local foi para `copy`.
    * - `delete`: editada de um lado e apagada do outro; a edição foi mantida em `path`.
    */
   readonly kind: 'content' | 'delete';
-  /** Em `content`: a cópia com a versão local, ao lado da nota (`nota.conflict-<máquina>-<data>.md`). */
+  /** Em `content`: a cópia com a versão local, ao lado do arquivo (`nota.conflict-<máquina>-<data>.md`). */
   readonly copy?: string;
   /** Em `delete`: de que lado veio a edição mantida. */
   readonly kept?: 'remote' | 'local';
@@ -160,7 +173,10 @@ export interface SyncStatusInfo {
   unpushed: number | null;
   /** Commits do remoto já buscados e ainda não integrados; `null` sem essa informação. */
   unpulled: number | null;
-  /** Arquivos alterados nas pastas do cérebro que o próximo sync vai pôr num commit. */
+  /**
+   * Arquivos alterados que o próximo sync vai pôr num commit: tudo o que o git lista como mudado (respeitando o
+   * `.gitignore`), menos `.cabecao/` e os temporários da escrita atômica. Mesmo critério do sync.
+   */
   pendingChanges: number;
   conflicts: number;
   lastSync: { at: string; status: SyncStatus; message: string } | null;

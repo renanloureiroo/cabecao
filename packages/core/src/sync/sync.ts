@@ -4,7 +4,7 @@
 //                          ↑                                                                  │
 //                          └──────────── envio recusado ou arquivo editado no meio ◀──────────┘
 import { existsSync } from 'node:fs';
-import { readFile, realpath, rm, stat } from 'node:fs/promises';
+import { lstat, readFile, readlink, realpath, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { commitPaths, GitError, headSha, statusPorcelain } from '../git/index.ts';
@@ -21,11 +21,11 @@ import {
 import { readBrainConfig, VaultError, writeIndexMd } from '../vault/index.ts';
 import { CatalogCache, isCatalogNote, type NoteMeta, noteMetaFromText, renderCatalog } from './catalog.ts';
 import { commitMessage, type SyncContext } from './context.ts';
-import { countCommits, diffNames, git, gitText, handleGitLockError, isAncestor, listTree, revParse } from './git.ts';
+import { countCommits, git, gitText, handleGitLockError, isAncestor, listTree, revParse } from './git.ts';
 import { integrateDiverged, UnrelatedHistoriesError, withCatalogCommit } from './integrate.ts';
 import { atomicTempOwner, isSyncablePath, syncLayout } from './layout.ts';
 import { fetchRemote, MissingRemoteError, pushRefs, RemoteError, type RemoteTarget, resolveRemote } from './remote.ts';
-import { scanFile, scanOutgoing } from './secrets.ts';
+import { SMALL_FILE_BYTES, scanFile, scanOutgoing, scanWorktreeFile } from './secrets.ts';
 import { clearJournal, readState, recover, type SyncState, writeJournal, writeState } from './state.ts';
 import type {
   SecretLocation,
@@ -71,11 +71,28 @@ async function machineName(option: string | undefined): Promise<string> {
 interface PendingFile {
   readonly path: string;
   readonly change: SyncChange['change'];
-  /** Conteúdo atual (arquivos que existem). */
+  /** O arquivo existe (não foi apagado). */
+  readonly present: boolean;
+  /**
+   * Conteúdo já lido: arquivos pequenos e links simbólicos (o git guarda o destino do link, não o arquivo apontado).
+   * Arquivos grandes ficam `null` e são lidos aos pedaços pelo scanner.
+   */
   readonly data: Buffer | null;
+  /** Não deu para ler o arquivo (permissão, arquivo travado por outro programa): mensagem do sistema. */
+  readonly unreadable?: string;
 }
 
-/** Mudanças na pasta de trabalho que o sync põe no commit de edições feitas fora do Cabeção. */
+const isMissing = (error: unknown): boolean => {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+};
+
+const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/**
+ * Mudanças na pasta de trabalho que o sync põe no commit de edições feitas fora do Cabeção: tudo o que o git lista
+ * (ele já respeita o `.gitignore`), menos `.cabecao/` e os temporários da escrita atômica (`isSyncablePath`).
+ */
 async function collectPending(ctx: SyncContext, notes: string[]): Promise<PendingFile[]> {
   const entries = await statusPorcelain(ctx.root, { timeoutMs: ctx.timeoutMs });
   const seen = new Set<string>();
@@ -95,23 +112,77 @@ async function collectPending(ctx: SyncContext, notes: string[]): Promise<Pendin
         }
         continue;
       }
-      if (!isSyncablePath(path, ctx.config)) continue;
-      let data: Buffer | null = null;
+      if (!isSyncablePath(path)) continue;
+      const file = join(ctx.root, ...path.split('/'));
+      const change: SyncChange['change'] = added && path === entry.path ? 'added' : 'modified';
+      let info: Awaited<ReturnType<typeof lstat>> | null;
       try {
-        const file = join(ctx.root, ...path.split('/'));
-        if ((await stat(file)).isFile()) data = await readFile(file);
-      } catch {
-        // apagado
+        info = await lstat(file);
+      } catch (error) {
+        if (!isMissing(error)) {
+          files.push({ path, change, present: true, data: null, unreadable: errorText(error) });
+          continue;
+        }
+        info = null;
       }
-      if (data === null && untracked) continue; // sumiu desde o `git status`
-      files.push({
-        path,
-        change: data === null ? 'deleted' : added && path === entry.path ? 'added' : 'modified',
-        data,
-      });
+      if (info === null) {
+        if (!untracked) files.push({ path, change: 'deleted', present: false, data: null });
+        continue; // não rastreado que sumiu desde o `git status`
+      }
+      // pasta (submódulo, repositório embutido) e arquivos especiais não são conteúdo do cérebro
+      if (!info.isFile() && !info.isSymbolicLink()) continue;
+      try {
+        const data = info.isSymbolicLink()
+          ? await readlink(file, { encoding: 'buffer' })
+          : info.size <= SMALL_FILE_BYTES
+            ? await readFile(file)
+            : null;
+        files.push({ path, change, present: true, data });
+      } catch (error) {
+        if (isMissing(error)) {
+          if (!untracked) files.push({ path, change: 'deleted', present: false, data: null });
+        } else {
+          files.push({ path, change, present: true, data: null, unreadable: errorText(error) });
+        }
+      }
     }
   }
   return files;
+}
+
+/** Scanner de segredos nas edições pendentes: todos os arquivos, de qualquer tipo e tamanho. */
+async function scanPending(
+  ctx: SyncContext,
+  files: readonly PendingFile[],
+): Promise<{ secrets: SecretLocation[]; unscannable: { path: string; reason: string }[] }> {
+  const secrets: SecretLocation[] = [];
+  const unscannable: { path: string; reason: string }[] = [];
+  for (const file of files) {
+    if (!file.present) continue;
+    if (file.unreadable !== undefined) {
+      unscannable.push({ path: file.path, reason: file.unreadable });
+      continue;
+    }
+    if (file.data !== null) {
+      secrets.push(...scanFile(file.path, file.data, 'pending').map(stripLine));
+      continue;
+    }
+    const scanned = await scanWorktreeFile(join(ctx.root, ...file.path.split('/')), file.path, 'pending');
+    if ('unscannable' in scanned) unscannable.push({ path: file.path, reason: scanned.unscannable });
+    else secrets.push(...scanned.hits.map(stripLine));
+  }
+  return { secrets, unscannable };
+}
+
+function stripLine(hit: SecretLocation & { lineText?: string }): SecretLocation {
+  return {
+    path: hit.path,
+    line: hit.line,
+    column: hit.column,
+    rule: hit.rule,
+    description: hit.description,
+    where: hit.where,
+  };
 }
 
 function editMessage(ctx: SyncContext, files: readonly PendingFile[]): string {
@@ -147,7 +218,7 @@ async function commitEdits(
   ctx: SyncContext,
   state: SyncState,
   files: readonly PendingFile[],
-): Promise<{ sha: string } | null | 'retry'> {
+): Promise<{ sha: string } | null | { retry: string }> {
   return withLock(
     ctx.layout.worktreeLock,
     async () => {
@@ -155,7 +226,12 @@ async function commitEdits(
       const overrides = new Map<string, NoteMeta | null>();
       for (const file of files) {
         if (!isCatalogNote(file.path, ctx.config)) continue;
-        overrides.set(file.path, file.data === null ? null : noteMetaFromText(file.data.toString('utf8')));
+        if (!file.present) {
+          overrides.set(file.path, null);
+          continue;
+        }
+        const data = file.data ?? (await readFile(join(ctx.root, ...file.path.split('/'))).catch(() => null));
+        overrides.set(file.path, data === null ? null : noteMetaFromText(data.toString('utf8')));
       }
       const catalog = await renderCatalog(ctx, head === null ? [] : await listTree(ctx, head), overrides);
       await writeIndexMd(ctx.root, ctx.config, catalog);
@@ -168,15 +244,38 @@ async function commitEdits(
       } catch (error) {
         if (!(error instanceof GitError) || error.timedOut) throw error;
         // outro git segurando o índice, ou um arquivo que sumiu entre o `status` e o `add`: o ciclo recomeça
-        if (await handleGitLockError(ctx, error.stderr)) await sleep(50);
-        return 'retry';
+        if (await handleGitLockError(ctx, error.stderr)) {
+          await sleep(50);
+          return { retry: 'outro programa git segurava o índice do repositório' };
+        }
+        const detail = error.stderr.trim().split('\n')[0] ?? '';
+        return { retry: `o git recusou o commit das edições${detail === '' ? '' : ` (${detail})`}` };
       }
     },
     { timeoutMs: WORKTREE_LOCK_TIMEOUT_MS },
   );
 }
 
-type ApplyOutcome = { kind: 'applied' } | { kind: 'refused'; detail: string };
+type ApplyOutcome =
+  | { kind: 'applied' }
+  | { kind: 'refused'; detail: string; paths: string[] }
+  | { kind: 'moved'; detail: string };
+
+/** Caminhos que o `git reset --keep` (ou o `read-tree -m -u`) recusou sobrescrever, lidos da mensagem de erro. */
+export function refusedPaths(stderr: string): string[] {
+  const out = new Set<string>();
+  for (const match of stderr.matchAll(/Entry '([^'\n]+)'/g)) if (match[1] !== undefined) out.add(match[1]);
+  let listing = false;
+  for (const line of stderr.split('\n')) {
+    if (/would be (?:overwritten|removed|lost)/i.test(line) && line.trimEnd().endsWith(':')) {
+      listing = true;
+      continue;
+    }
+    if (listing && /^\t/.test(line)) out.add(line.trim());
+    else listing = false;
+  }
+  return [...out];
+}
 
 /**
  * Leva a branch e a pasta de trabalho de `from` para `to` de uma vez (`git reset --keep`). O `reset --keep`
@@ -191,7 +290,7 @@ async function applyTarget(ctx: SyncContext, branch: string, from: string | null
     async (): Promise<ApplyOutcome> => {
       if ((await revParse(ctx, 'HEAD^{commit}')) !== from) {
         await clearJournal(ctx.layout);
-        return { kind: 'refused', detail: 'a branch local mudou durante o sync' };
+        return { kind: 'moved', detail: 'a branch local recebeu commits durante o sync' };
       }
       const result =
         from === null
@@ -200,7 +299,11 @@ async function applyTarget(ctx: SyncContext, branch: string, from: string | null
       if (result.exitCode !== 0) {
         await clearJournal(ctx.layout);
         if (/not uptodate|would be overwritten|Cannot merge|Could not reset index file/i.test(result.stderr)) {
-          return { kind: 'refused', detail: result.stderr.trim().split('\n')[0] ?? '' };
+          return {
+            kind: 'refused',
+            detail: result.stderr.trim().split('\n')[0] ?? '',
+            paths: refusedPaths(result.stderr),
+          };
         }
         throw new GitError({ args: result.args, exitCode: result.exitCode, stderr: result.stderr });
       }
@@ -213,16 +316,98 @@ async function applyTarget(ctx: SyncContext, branch: string, from: string | null
   );
 }
 
-async function changesBetween(ctx: SyncContext, from: string | null, to: string): Promise<SyncChange[]> {
+interface TreeChange extends SyncChange {
+  /** Blob (ou commit de submódulo) do lado de `to`; `null` quando o caminho sai. */
+  readonly oid: string | null;
+}
+
+async function changesBetween(ctx: SyncContext, from: string | null, to: string): Promise<TreeChange[]> {
   if (from === null) {
-    return (await listTree(ctx, to)).map((entry) => ({ path: entry.path, change: 'added', origin: 'remote' }));
+    return (await listTree(ctx, to)).map((entry) => ({
+      path: entry.path,
+      change: 'added',
+      origin: 'remote',
+      oid: entry.oid,
+    }));
   }
-  const kinds: Record<string, SyncChange['change']> = { A: 'added', D: 'deleted' };
-  return (await diffNames(ctx, from, to)).map((entry) => ({
-    path: entry.path,
-    change: kinds[entry.status] ?? 'modified',
-    origin: 'remote',
-  }));
+  const { stdout } = await git(ctx, ['diff', '--raw', '-z', '--no-renames', '--no-abbrev', from, to]);
+  const tokens = stdout.split('\0');
+  const out: TreeChange[] = [];
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
+    const meta = tokens[i] ?? '';
+    const path = tokens[i + 1];
+    if (!meta.startsWith(':') || path === undefined) continue;
+    // ":<modo antigo> <modo novo> <sha antigo> <sha novo> <status>"
+    const [, , , oid = '', status = ''] = meta.slice(1).split(' ');
+    const kind = status.charAt(0);
+    out.push({
+      path,
+      change: kind === 'A' ? 'added' : kind === 'D' ? 'deleted' : 'modified',
+      origin: 'remote',
+      oid: kind === 'D' ? null : oid,
+    });
+  }
+  return out;
+}
+
+/**
+ * Arquivos locais que a aplicação sobrescreveria sem perguntar: caminhos que o remoto passa a versionar e que aqui
+ * existem com outro conteúdo SEM estar no git. O `reset --keep` (e o `read-tree -m -u`) recusa sobrescrever um
+ * arquivo não rastreado comum, mas sobrescreve sem aviso um arquivo IGNORADO; e um arquivo em `.cabecao/` o sync
+ * nunca commita. Esses vão em `blocking`. Os não rastreados comuns (criados depois do commit das edições) vão em
+ * `fresh`: o próximo ciclo os commita e a integração preserva as duas versões.
+ */
+async function localFilesInTheWay(
+  ctx: SyncContext,
+  changes: readonly TreeChange[],
+): Promise<{ blocking: string[]; fresh: string[] }> {
+  const none = { blocking: [], fresh: [] };
+  const existing: TreeChange[] = [];
+  for (const change of changes) {
+    if (change.change !== 'added' || change.oid === null) continue;
+    try {
+      const info = await lstat(join(ctx.root, ...change.path.split('/')));
+      if (info.isFile() || info.isSymbolicLink()) existing.push(change);
+    } catch {
+      // não existe aqui: nada a sobrescrever
+    }
+  }
+  if (existing.length === 0) return none;
+  const hashed = await git(ctx, ['hash-object', '--stdin-paths'], {
+    input: `${existing.map((change) => change.path).join('\n')}\n`,
+    allowFailure: true,
+  });
+  const oids = hashed.exitCode === 0 ? hashed.stdout.split('\n') : [];
+  const differing = existing.filter((change, i) => oids[i] !== change.oid).map((change) => change.path);
+  if (differing.length === 0) return none;
+  const checked = await git(ctx, ['check-ignore', '-z', '--stdin'], {
+    input: `${differing.join('\0')}\0`,
+    allowFailure: true,
+  });
+  const ignored = new Set(checked.stdout.split('\0').filter(Boolean));
+  const blocking: string[] = [];
+  const fresh: string[] = [];
+  for (const path of differing) (ignored.has(path) || !isSyncablePath(path) ? blocking : fresh).push(path);
+  return { blocking, fresh };
+}
+
+function listPaths(paths: readonly string[]): string {
+  const shown = paths.slice(0, 5).join(', ');
+  return paths.length > 5 ? `${shown} e mais ${paths.length - 5}` : shown;
+}
+
+/** Por que um ciclo recomeçou, e o que o usuário faz se isso se repetir até o limite de tentativas. */
+interface RetryCause {
+  readonly cause: string;
+  readonly action: string;
+}
+
+function editedDuringApply(paths: readonly string[]): RetryCause {
+  const one = paths.length === 1;
+  return {
+    cause: `${listPaths(paths)} ${one ? 'foi alterado' : 'foram alterados'} nesta máquina enquanto o sync aplicava as mudanças do remoto, a cada tentativa`,
+    action: `Feche (ou espere terminar) o programa que está gravando ${one ? 'nesse arquivo' : 'nesses arquivos'} e rode o sync de novo.`,
+  };
 }
 
 function uniqueSecrets(list: readonly SecretLocation[]): SecretLocation[] {
@@ -413,7 +598,7 @@ async function runSync(
   const maxAttempts = Math.max(1, options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
   const startHead = await revParse(ctx, 'HEAD^{commit}');
   const conflicts = new Map<string, SyncConflict>();
-  let lastRetry = '';
+  let lastRetry: RetryCause | null = null;
   /** Registra o que mudou num ciclo e avisa quem reindexa. Chamado também quando o ciclo recomeça. */
   const flush = async (cycle: SyncChange[]): Promise<void> => {
     if (cycle.length === 0) return;
@@ -430,7 +615,19 @@ async function runSync(
     const pending = await collectPending(ctx, notes);
     if (notes.length > 0) result.recovered = [...(result.recovered ?? []), ...notes];
     if (pending.length > 0) {
-      const secrets = pending.flatMap((file) => (file.data === null ? [] : scanFile(file.path, file.data, 'pending')));
+      const { secrets, unscannable } = await scanPending(ctx, pending);
+      if (unscannable.length > 0) {
+        stop({
+          status: 'blocked',
+          reason: 'unscannable',
+          message: `Não consegui ler ${plural(unscannable.length, 'arquivo', 'arquivos')} para procurar segredos (${unscannable
+            .slice(0, 5)
+            .map((item) => `${item.path}: ${item.reason}`)
+            .join(
+              '; ',
+            )}${unscannable.length > 5 ? `; e mais ${unscannable.length - 5}` : ''}). Nada foi commitado nem enviado. Feche o programa que está usando o arquivo ou corrija a permissão dele (ou, se ele não deve ir para o remoto, ponha-o no .gitignore) e rode o sync de novo.`,
+        });
+      }
       if (secrets.length > 0) {
         stop({
           status: 'blocked',
@@ -440,11 +637,15 @@ async function runSync(
         });
       }
       const edit = await commitEdits(ctx, state, pending);
-      if (edit === 'retry') {
-        lastRetry = 'a pasta de trabalho mudou enquanto as edições eram commitadas';
+      if (edit !== null && 'retry' in edit) {
+        lastRetry = {
+          cause: `${edit.retry}, a cada tentativa`,
+          action:
+            'Se algum programa está gravando no cérebro sem parar (sincronizador de nuvem, editor com salvamento contínuo, outro cliente git), espere ele terminar ou feche-o e rode o sync de novo.',
+        };
         continue;
       }
-      if (edit !== null) {
+      if (edit !== null && 'sha' in edit) {
         result.committed++;
         cycle.push(...pending.map((file) => ({ path: file.path, change: file.change, origin: 'local' as const })));
       }
@@ -495,13 +696,52 @@ async function runSync(
 
     // 4. Aplicação única.
     if (target !== null && target !== head) {
-      const applied = await applyTarget(ctx, branch, head, target);
-      if (applied.kind === 'refused') {
-        lastRetry = applied.detail;
+      const changes = await changesBetween(ctx, head, target);
+      const inTheWay = await localFilesInTheWay(ctx, changes);
+      if (inTheWay.blocking.length > 0) {
+        await flush(cycle);
+        stop({
+          status: 'blocked',
+          reason: 'local-file',
+          message: `O remoto passou a versionar ${listPaths(inTheWay.blocking)}, que nesta máquina ${inTheWay.blocking.length === 1 ? 'existe' : 'existem'} com outro conteúdo fora do git (ignorado pelo .gitignore ou dentro de .cabecao/). Para não sobrescrever ${inTheWay.blocking.length === 1 ? 'esse arquivo' : 'esses arquivos'}, nada do remoto foi aplicado e nada foi enviado. Renomeie ou mova o arquivo local (ou apague-o, se for descartável) e rode o sync de novo.`,
+        });
+      }
+      if (inTheWay.fresh.length > 0) {
+        lastRetry = editedDuringApply(inTheWay.fresh);
         await flush(cycle);
         continue;
       }
-      cycle.push(...(await changesBetween(ctx, head, target)));
+      const applied = await applyTarget(ctx, branch, head, target);
+      if (applied.kind === 'refused') {
+        await flush(cycle);
+        const stuck = applied.paths.filter((path) => !isSyncablePath(path));
+        if (stuck.length > 0) {
+          stop({
+            status: 'blocked',
+            reason: 'local-file',
+            message: `O remoto mudou ${listPaths(stuck)}, que nesta máquina tem uma alteração que o sync não versiona (dentro de .cabecao/ ou .git/). Nada do remoto foi aplicado e nada foi enviado. Mova essa alteração para fora daí (ou desfaça-a) e rode o sync de novo.`,
+          });
+        }
+        lastRetry =
+          applied.paths.length > 0
+            ? editedDuringApply(applied.paths)
+            : {
+                cause: `o git recusou atualizar a pasta de trabalho a cada tentativa (${applied.detail})`,
+                action:
+                  'Rode "git status" no cérebro para ver o arquivo em uso, feche o programa que o usa e rode o sync de novo.',
+              };
+        continue;
+      }
+      if (applied.kind === 'moved') {
+        lastRetry = {
+          cause: `${applied.detail}, a cada tentativa`,
+          action:
+            'Espere as escritas em andamento terminarem (agentes gravando, outro cliente git) e rode o sync de novo.',
+        };
+        await flush(cycle);
+        continue;
+      }
+      cycle.push(...changes.map(({ path, change, origin }) => ({ path, change, origin })));
     }
     result.committed += created;
     if (integration !== 'none' && up !== null) {
@@ -550,7 +790,10 @@ async function runSync(
       return;
     }
     if (pushed.race) {
-      lastRetry = 'outra máquina enviou antes, a cada tentativa';
+      lastRetry = {
+        cause: 'outra máquina enviou antes desta, a cada tentativa',
+        action: 'Rode o sync de novo daqui a pouco, quando a outra máquina terminar de enviar.',
+      };
       continue;
     }
     result.remoteError = { category: pushed.error.category, detail: pushed.error.detail };
@@ -559,8 +802,12 @@ async function runSync(
       message: `O envio para ${remote.name} falhou: ${OFFLINE_HINT[pushed.error.category] ?? OFFLINE_HINT.unknown} (${pushed.error.detail}). As mudanças ficaram em commits locais.`,
     });
   }
+  const last = lastRetry ?? {
+    cause: 'o cérebro mudou a cada ciclo',
+    action: 'Espere os programas que gravam no cérebro terminarem e rode o sync de novo.',
+  };
   stop({
     status: 'error',
-    message: `Desisti depois de ${plural(maxAttempts, 'tentativa', 'tentativas')}: ${lastRetry || 'o cérebro mudou a cada ciclo'}. Nada se perdeu; rode o sync de novo.`,
+    message: `Desisti depois de ${plural(maxAttempts, 'tentativa', 'tentativas')}: ${last.cause}. Nada se perdeu: as edições daqui estão em commits locais. ${last.action}`,
   });
 }

@@ -133,6 +133,98 @@ export async function gitBytes(ctx: GitContext, args: readonly string[], input?:
   });
 }
 
+/**
+ * Lê a saída de um comando git aos pedaços, sem juntá-la na memória (blobs de centenas de MB). `onChunk` devolve
+ * `false` para parar cedo (o processo é encerrado). O tempo limite é de inatividade: renova a cada pedaço.
+ * Devolve `true` se o comando terminou bem (ou foi parado de propósito), `false` se saiu com erro.
+ */
+export async function gitStream(
+  ctx: GitContext,
+  args: readonly string[],
+  onChunk: (chunk: Buffer) => boolean | undefined,
+): Promise<boolean> {
+  const env = await buildGitEnv(args, { cwd: ctx.root });
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.platform === 'win32' ? 'git.exe' : 'git', [...args], {
+      cwd: ctx.root,
+      env,
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const stderr: Buffer[] = [];
+    let settled = false;
+    let stopped = false;
+    let timer: NodeJS.Timeout | undefined;
+    const fail = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      reject(error);
+    };
+    const arm = (): void => {
+      clearTimeout(timer);
+      timer = setTimeout(
+        () =>
+          fail(
+            new GitError({
+              args,
+              exitCode: null,
+              signal: 'SIGKILL',
+              stderr: Buffer.concat(stderr).toString(),
+              timedOut: true,
+            }),
+          ),
+        ctx.timeoutMs,
+      );
+    };
+    arm();
+    child.stdout?.on('data', (chunk: Buffer) => {
+      if (settled || stopped) return;
+      arm();
+      try {
+        if (onChunk(chunk) === false) {
+          stopped = true;
+          child.kill('SIGKILL');
+        }
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
+    child.on('error', (cause) =>
+      fail(new GitError({ args, exitCode: null, summary: `não foi possível iniciar o git: ${cause.message}`, cause })),
+    );
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(stopped || code === 0);
+    });
+  });
+}
+
+/** Tamanho e tipo de vários objetos (`git cat-file --batch-check`); os que não existem ficam de fora. */
+export async function objectSizes(
+  ctx: GitContext,
+  names: Iterable<string>,
+): Promise<Map<string, { type: string; size: number }>> {
+  const list = [...new Set(names)].filter((name) => !name.includes('\n'));
+  const out = new Map<string, { type: string; size: number }>();
+  if (list.length === 0) return out;
+  const { stdout } = await git(ctx, ['cat-file', '--batch-check=%(objecttype) %(objectsize)'], {
+    input: `${list.join('\n')}\n`,
+  });
+  const lines = stdout.split('\n');
+  list.forEach((name, i) => {
+    // objeto que não existe vem como "<nome> missing", que nunca casa com o formato pedido
+    const match = /^(blob|tree|commit|tag) (\d+)$/.exec(lines[i] ?? '');
+    if (match) out.set(name, { type: match[1] as string, size: Number(match[2]) });
+  });
+  return out;
+}
+
 /** SHA do objeto, ou `null` se não existe. Exemplos: `HEAD^{commit}`, `abc123:wiki/x.md`. */
 export async function revParse(ctx: GitContext, spec: string): Promise<string | null> {
   const result = await git(ctx, ['rev-parse', '-q', '--verify', '--end-of-options', spec], { allowFailure: true });

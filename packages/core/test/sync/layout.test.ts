@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { conflictCopyPath, isSyncablePath, parseConflictCopyPath } from '../../src/sync/index.ts';
 import { unionLines } from '../../src/sync/integrate.ts';
 
-const CONFIG = { noteDirs: ['wiki', 'memory', 'raw'], indexMd: 'index.md' };
-
 describe('nomes de cópia de conflito', () => {
   const date = new Date(2026, 10, 12, 14, 32, 10);
 
@@ -29,8 +27,8 @@ describe('nomes de cópia de conflito', () => {
   });
 });
 
-describe('isSyncablePath', () => {
-  it('aceita o que está nas pastas de notas e os arquivos do cérebro na raiz', () => {
+describe('isSyncablePath (tudo sincroniza, menos .git/, .cabecao/ e temporários)', () => {
+  it('aceita qualquer arquivo do cérebro: notas, configuração, pastas novas, pastas ocultas', () => {
     for (const path of [
       'wiki/a.md',
       'memory/sub/b.md',
@@ -38,32 +36,33 @@ describe('isSyncablePath', () => {
       'log.md',
       'index.md',
       'AGENTS.md',
+      'CLAUDE.md',
       '.cabecao.json',
       '.gitattributes',
       '.gitignore',
-    ]) {
-      expect(isSyncablePath(path, CONFIG), path).toBe(true);
-    }
-  });
-
-  it('recusa pastas ocultas e o que está fora das pastas de notas', () => {
-    for (const path of [
-      '.obsidian/app.json',
-      '.cabecao/sync/state.json',
-      'wiki/.trash/x.md',
-      'fora/x.md',
+      'dashboards/Painel.canvas',
+      'Projetos/Plano 2027.md',
       'README.md',
-      'wikinho/x.md',
+      '.obsidian/app.json',
+      'wiki/.trash/x.md',
+      'AGENTS.conflict-pc-20261112-143210.md',
     ]) {
-      expect(isSyncablePath(path, CONFIG), path).toBe(false);
+      expect(isSyncablePath(path), path).toBe(true);
     }
   });
 
-  it('vault adotado (noteDirs ["."]): tudo que não é oculto', () => {
-    const adopted = { noteDirs: ['.'], indexMd: 'index.md' };
-    expect(isSyncablePath('qualquer/x.md', adopted)).toBe(true);
-    expect(isSyncablePath('README.md', adopted)).toBe(true);
-    expect(isSyncablePath('.obsidian/app.json', adopted)).toBe(false);
+  it('recusa .git/, .cabecao/ (em qualquer nível), temporários da escrita atômica e pastas', () => {
+    for (const path of [
+      '.cabecao/sync/state.json',
+      'sub/.cabecao/cabecao.db',
+      '.git/config',
+      'embutido/.git',
+      'wiki/.cabecao-123-abcdef.tmp',
+      'embutido/',
+      '',
+    ]) {
+      expect(isSyncablePath(path), path).toBe(false);
+    }
   });
 });
 

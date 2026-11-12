@@ -95,8 +95,10 @@ type ConflictPolicy = 'copies' | 'derived-only';
  *
  * - `index.md`: qualquer lado; o catálogo é regenerado depois.
  * - `log.md`: união de linhas.
- * - Nota editada nos dois lados: o caminho fica com a versão remota e a local vai para a cópia `.conflict-*`.
- * - Editada de um lado e apagada do outro: a edição fica.
+ * - Qualquer outro arquivo (nota, anexo, configuração como `.gitignore`, `.cabecao.json`, `CLAUDE.md`,
+ *   `.obsidian/*`) editado nos dois lados em regiões que o git não junta sozinho: o caminho fica com a versão remota e
+ *   a local vai para a cópia `.conflict-*`, com a extensão original. Nada é reescrito nem reformatado.
+ * - Editado de um lado e apagado do outro: a edição fica.
  *
  * Com `derived-only` (reaplicação linear), qualquer conflito fora do catálogo e do diário devolve `null`: o
  * chamador desiste da reaplicação e faz um merge, que registra o conflito com dois pais.
@@ -225,15 +227,20 @@ function mergeMessage(ctx: SyncContext, conflicts: readonly SyncConflict[]): str
   if (conflicts.length === 0) {
     return commitMessage(ctx, { action: 'sync', body: ['sync: integra as mudanças de outra máquina'] });
   }
-  const lines = conflicts.map((c) =>
-    c.kind === 'content'
-      ? `- ${c.path}: editada nas duas máquinas; a versão daqui está em ${c.copy}`
-      : `- ${c.path}: editada ${c.kept === 'local' ? 'aqui' : 'na outra máquina'} e apagada ${c.kept === 'local' ? 'na outra' : 'aqui'}; a edição foi mantida`,
-  );
+  // nota (`.md`) no feminino, qualquer outro arquivo (anexo, configuração) no masculino
+  const isNote = (path: string): boolean => path.toLowerCase().endsWith('.md');
+  const lines = conflicts.map((c) => {
+    const a = isNote(c.path) ? 'a' : 'o';
+    return c.kind === 'content'
+      ? `- ${c.path}: editad${a} nas duas máquinas; a versão daqui está em ${c.copy}`
+      : `- ${c.path}: editad${a} ${c.kept === 'local' ? 'aqui' : 'na outra máquina'} e apagad${a} ${c.kept === 'local' ? 'na outra' : 'aqui'}; a edição foi mantida`;
+  });
   const n = conflicts.length;
+  const notes = conflicts.every((c) => isNote(c.path));
+  const noun = notes ? (n === 1 ? 'nota' : 'notas') : n === 1 ? 'arquivo' : 'arquivos';
   return commitMessage(ctx, {
     action: 'conflict',
-    body: [`conflict: ${n} ${n === 1 ? 'nota com conflito preservado' : 'notas com conflito preservado'}`, ...lines],
+    body: [`conflict: ${n} ${noun} com conflito preservado`, ...lines],
     numFiles: n,
   });
 }
