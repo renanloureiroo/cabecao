@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { syncStatus } from '../../src/sync/index.ts';
 import { fake } from '../security/corpus.ts';
+import { deadPid } from '../util/helpers.ts';
 import {
   contentKept,
   createWorld,
@@ -196,6 +197,21 @@ describe('syncBrain: remoto, travas e segredos', { timeout: TEST_TIMEOUT_MS }, (
     writeFileSync(lock, JSON.stringify({ pid: 999_999, host: hostname(), at: Date.now() - 1000, token: 'morto' }));
     const ra = await a.sync();
     expect(ra).toMatchObject({ status: 'ok', committed: 1, pushed: 1 });
+    expect(exists(a.dir, '.cabecao/locks/sync.lock')).toBe(false);
+  });
+
+  it('trava órfã com o prazo já esgotado (lockTimeoutMs: 0): é tomada na mesma chamada, sem "busy" falso', async () => {
+    // Sob carga, os 250 ms padrão acabavam durante a remoção da trava morta e o sync respondia `busy` depois de uma
+    // queda. Prazo zero reproduz isso sem depender de carga.
+    const created = await createWorld();
+    world = created.world;
+    const { a } = created;
+    write(a.dir, 'wiki/pendente.md', note('Pendente'));
+    const lock = join(a.dir, '.cabecao', 'locks', 'sync.lock');
+    const pid = await deadPid();
+    writeFileSync(lock, JSON.stringify({ pid, host: hostname(), at: Date.now(), token: 'morto' }));
+    const ra = await a.sync({ lockTimeoutMs: 0 });
+    expect(ra, ra.message).toMatchObject({ status: 'ok', committed: 1, pushed: 1 });
     expect(exists(a.dir, '.cabecao/locks/sync.lock')).toBe(false);
   });
 

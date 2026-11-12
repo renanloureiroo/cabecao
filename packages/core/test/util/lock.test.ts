@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { acquireLock, LockTimeoutError, withLock } from '../../src/util/index.ts';
-import { makeTempDir, runChild, spawnChild, waitChild, waitForOutput } from './helpers.ts';
+import { deadPid, makeTempDir, runChild, spawnChild, waitChild, waitForOutput } from './helpers.ts';
 
 let dir: string;
 let lockPath: string;
@@ -91,6 +91,24 @@ describe('acquireLock', () => {
     await lock.release();
     expect(await readdir(join(dir, 'locks'))).toEqual([]);
   }, 30_000);
+
+  it('prazo vencido durante o roubo: ainda toma, na mesma chamada, a trava de um morto', async () => {
+    // `timeoutMs: 0` é o caso extremo de "o prazo acabou enquanto a trava morta era removida" (sob carga, os 250 ms
+    // do sync acabavam já na primeira tentativa). Antes, a chamada desistia com o caminho livre: "ocupado" falso.
+    await acquireLock(lockPath).then((lock) => lock.release()); // só para criar a pasta
+    const pid = await deadPid();
+    await writeFile(lockPath, JSON.stringify({ pid, host: hostname(), at: Date.now(), token: 'morto' }));
+    const lock = await acquireLock(lockPath, { timeoutMs: 0, staleMs: 3_600_000 });
+    expect(JSON.parse(await readFile(lockPath, 'utf8'))).toMatchObject({ pid: process.pid });
+    await lock.release();
+    expect(await readdir(join(dir, 'locks'))).toEqual([]);
+
+    // a tolerância depois do prazo vale só para trava livre: dono vivo continua sendo esperado só até o prazo
+    const held = await acquireLock(lockPath);
+    const error = await acquireLock(lockPath, { timeoutMs: 0, staleMs: 3_600_000 }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: 'ELOCKTIMEOUT', owner: { pid: process.pid } });
+    await held.release();
+  });
 
   it('não toma a trava nova de outra máquina, mas toma a que passou de staleMs', async () => {
     const foreign = JSON.stringify({ pid: 1, host: 'outra-maquina.exemplo', at: Date.now(), token: 'x' });

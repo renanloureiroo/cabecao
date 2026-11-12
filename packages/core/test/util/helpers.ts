@@ -70,3 +70,18 @@ export function waitForOutput(child: ChildProcess, marker: string): Promise<void
     child.once('close', () => reject(new Error(`o processo filho terminou sem escrever "${marker}": ${seen}`)));
   });
 }
+
+/**
+ * PID de um processo que acabou de terminar e já foi colhido (o evento `close` só chega depois do `waitpid`): serve
+ * de dono morto para uma trava, sem depender de um número "improvável" que pode existir em outra máquina.
+ */
+export async function deadPid(): Promise<number> {
+  const child = spawn(process.execPath, ['-e', ''], { stdio: 'ignore', windowsHide: true });
+  const pid = child.pid;
+  await new Promise<void>((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', () => resolve());
+  });
+  if (pid === undefined) throw new Error('o processo filho não recebeu PID');
+  return pid;
+}
