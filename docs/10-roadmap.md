@@ -2,13 +2,15 @@
 
 Cada marco entrega uma versão instalável e útil. Tudo em TypeScript.
 
-## M0 · Fundação ✅ quase completa
+## M0 · Fundação ✅ falta só publicar o nome no npm
 - [x] Provas de conceito de todas as decisões de arquitetura ([evidências](11-evidencias.md))
 - [x] Plano e documentação reescritos com base nos resultados
-- [ ] Monorepo pnpm + tsdown + Vitest + Biome + Changesets
-- [ ] CI do projeto: Linux, macOS e Windows × Node 22, 24 e 26
-- [ ] Reservar `cabecao` no npm
-- [ ] Vault de exemplo para testes
+- [x] Monorepo pnpm + tsdown + Vitest + Biome + Changesets, com os pacotes `core`, `server`, `cli` e `embeddings`
+- [x] CLI `cabecao --version`, com a checagem da versão do Node antes de tudo
+- [x] CI do projeto: Linux, macOS e Windows × Node 22, 24 e 26 ([como funciona](13-publicacao.md#ci))
+- [x] Vault de exemplo para testes ([`fixtures/vault`](../fixtures/README.md))
+- [ ] Reservar `cabecao` no npm: o pacote `0.0.1` está pronto e validado com `npm publish --dry-run`; falta a [primeira publicação](13-publicacao.md#primeira-publicação-reserva-do-nome)
+- [ ] Ligar a publicação pelo GitHub Actions (depois da primeira publicação)
 
 ## M1 · Núcleo: instalar com a URL e sincronizar (`0.1`)
 Ao final: `npx cabecao init <url>` funciona em duas máquinas, com busca por palavra-chave, no Claude Code.
@@ -95,6 +97,7 @@ Estes pontos estão no plano com base em documentação ou em teste parcial. Cad
 | Instalação do `.mcpb` no Claude Desktop | Só gerado e validado | M5 |
 | Modelo do Web Clipper na extensão | Não importado | M5 |
 | macOS com processador Intel e Windows 10 | Sem máquina de teste | 1.0 |
+| Publicação pelo GitHub Actions com proveniência | Só `--dry-run`; nunca executada | M0 |
 
 ## Ideias para depois do 1.0
 - Ingestão de áudio e imagem com transcrição local.
