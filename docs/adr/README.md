@@ -33,7 +33,7 @@ Cada decisão traz o motivo e a evidência. Os números e os detalhes estão em 
 | 27 | Relações tipadas: uma propriedade de lista por relação | Lista de objetos aparece como JSON cru no Obsidian | `relations: [{type, target}]` |
 | 28 | Identificadores do esquema em inglês; conteúdo no idioma do usuário | Projeto público; tools em inglês | Tudo em português |
 | 29 | Manutenção direta, com ponto de restauração e `undo` | Sem Pull Request, por requisito | Revisão por PR |
-| 30 | Commits com ação, tipo da nota e rodapés de operação, sessão, máquina e cliente | Auditar e desfazer por operação e por sessão | Data no assunto; um commit por sync |
+| 30 | Commits no estilo do Obsidian Git (`vault backup: <data e hora com milissegundos>`), com a operação no corpo e rodapés de operação, sessão, máquina e cliente | Histórico uniforme com o do Obsidian; auditar e desfazer por operação e por sessão pelos rodapés | Assunto no estilo de commit semântico; um commit por sync |
 | 31 | Regras de uso no hook de início e nas instruções do servidor | 5 de 5 sessões usaram o cérebro; só com as tools, 1 de 5 | Só skill |
 | 32 | Plugin com o servidor embutido | 0,05 s por execução, contra 1,4 s com `npx` | Plugin chamando `npx` |
 | 33 | pnpm, tsdown, Vitest, Biome, Changesets | Build e testes passaram nos três sistemas | — |
