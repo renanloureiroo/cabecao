@@ -41,6 +41,7 @@
     "dev": "node src/bin.ts"
   },
   "devDependencies": {
-    "@cabecao/core": "workspace:*"
+    "@cabecao/core": "workspace:*",
+    "@cabecao/server": "workspace:*"
   }
 }
