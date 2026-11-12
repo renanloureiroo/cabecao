@@ -1,0 +1,29 @@
+{
+  "name": "cabecao-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": "^22.16.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "node scripts/smoke.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "@changesets/cli": "3.0.3",
+    "@types/node": "^22.19.0",
+    "publint": "0.3.25",
+    "tsdown": "0.23.7",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0",
+    "yaml": "2.9.1"
+  }
+}
