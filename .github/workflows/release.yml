@@ -1,0 +1,57 @@
+# Publica o pacote `cabecao` no npm. Só roda quando alguém aperta o botão (workflow_dispatch):
+# nada é publicado por push ou por merge.
+#
+# Não usa NPM_TOKEN. A publicação é por "trusted publishing" (OIDC), que precisa ser ligada uma vez:
+#   1. o pacote já tem de existir no npm (a primeira versão é publicada à mão);
+#   2. em npmjs.com > pacote cabecao > Settings > Trusted Publisher, cadastrar o GitHub Actions com
+#      usuário `renanloureiroo`, repositório `cabecao` e workflow `release.yml`.
+# O passo a passo está em docs/13-publicacao.md.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Só simular (npm publish --dry-run)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency: release
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    name: publicar cabecao no npm
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # OIDC: trusted publishing e atestação de proveniência
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: node -v && npm -v && pnpm -v
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke
+      - name: npm publish
+        working-directory: packages/cli
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            npm publish --dry-run
+          else
+            npm publish
+          fi

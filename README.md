@@ -7,7 +7,7 @@
   <a href="README.en.md">English</a> · <strong>Português</strong>
 </p>
 
-> **Status: 🚧 plano validado, código ainda não escrito.** Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano. Veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
+> **Status: 🚧 fundação pronta, funcionalidades em construção.** O monorepo, o CI e a CLI mínima (`cabecao --version`) existem; os comandos chegam no marco 1. Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano. Veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
 
 ---
 
@@ -85,6 +85,7 @@ Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
 | [10 · Roadmap](docs/10-roadmap.md) | Marcos e entregas |
 | [11 · Evidências](docs/11-evidencias.md) | O que cada prova de conceito testou e concluiu |
 | [12 · Padrão de commits](docs/12-commits.md) | Formato dos commits automáticos |
+| [13 · Desenvolvimento, CI e publicação](docs/13-publicacao.md) | Como rodar o projeto, o que o CI confere e como publicar no npm |
 | [ADRs](docs/adr/) | Registro das decisões de arquitetura |
 
 ## Contribuindo

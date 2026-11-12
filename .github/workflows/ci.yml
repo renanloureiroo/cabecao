@@ -1,0 +1,122 @@
+# CI do projeto. O Cabeção em uso não depende de CI nem do GitHub; isto vale só para este repositório.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: node -v && npm -v && pnpm -v
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: smoke do bundle
+        run: pnpm smoke
+      - uses: actions/upload-artifact@v7
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
+        with:
+          name: cli-dist
+          path: packages/cli/dist/
+          if-no-files-found: error
+          include-hidden-files: true
+
+  node-limits:
+    # Roda o bundle pronto nas bordas da faixa de versões: o piso exato tem de funcionar,
+    # e as versões fora da faixa têm de ser recusadas com a mensagem clara.
+    name: bundle em node ${{ matrix.node }} (${{ matrix.expect }})
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: "22.16.0"
+            expect: supported
+          - node: "20"
+            expect: unsupported
+          - node: "22.15.0"
+            expect: unsupported
+          - node: "23"
+            expect: unsupported
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: cli-dist
+          path: packages/cli/dist
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: node -v
+      - name: smoke do bundle
+        env:
+          SMOKE_EXPECT: ${{ matrix.expect }}
+        run: node scripts/smoke.mjs
+
+  package:
+    # Confere o pacote que vai para o npm, sem publicar nada.
+    name: pacote npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: publint
+        working-directory: packages/cli
+        run: pnpm exec publint --strict
+      - name: npm publish --dry-run sem avisos
+        working-directory: packages/cli
+        run: |
+          npm publish --dry-run 2>&1 | tee "$RUNNER_TEMP/publish.log"
+          # O CI não tem login no npm, de propósito: o aviso de login é o único tolerado.
+          if grep -Ei 'npm (warn|error)' "$RUNNER_TEMP/publish.log" | grep -v 'requires you to be logged in'; then
+            echo "::error::npm publish --dry-run emitiu aviso ou erro"
+            exit 1
+          fi
+      - name: instala o tarball e roda o comando instalado
+        run: |
+          cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP" && cd -
+          mkdir "$RUNNER_TEMP/install" && cd "$RUNNER_TEMP/install"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/cabecao-*.tgz
+          test "$(npx --no-install cabecao --version)" = "$(node -p "require('$GITHUB_WORKSPACE/packages/cli/package.json').version")"
+          test -z "$(ls node_modules | grep -v '^cabecao$')"

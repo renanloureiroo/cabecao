@@ -1,0 +1,46 @@
+{
+  "name": "cabecao",
+  "version": "0.0.1",
+  "description": "Segundo cérebro pessoal em Markdown e git, exposto a agentes de IA por MCP. Personal second brain in Markdown and git, served to AI agents over MCP.",
+  "keywords": [
+    "second-brain",
+    "segundo-cerebro",
+    "mcp",
+    "markdown",
+    "git",
+    "obsidian",
+    "ai-agents",
+    "memory"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "Renan Pereira Loureiro",
+  "homepage": "https://github.com/renanloureiroo/cabecao#readme",
+  "bugs": {
+    "url": "https://github.com/renanloureiroo/cabecao/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renanloureiroo/cabecao.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "cabecao": "dist/cabecao.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.16.0 || >=24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "node src/bin.ts"
+  },
+  "devDependencies": {
+    "@cabecao/core": "workspace:*"
+  }
+}
