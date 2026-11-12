@@ -129,8 +129,9 @@ describe('listNoteFiles', () => {
     const elapsed = performance.now() - started;
     expect(files).toHaveLength(3000);
     // folga larga para os runners do CI; medido localmente: ~15 ms para 3 mil, ~150 ms para 30 mil
-    expect(elapsed).toBeLessThan(1000);
-  });
+    expect(elapsed).toBeLessThan(3000);
+    // o tempo limite cobre a criação dos 3 mil arquivos, que no Windows do CI leva mais de 5 s
+  }, 60_000);
 });
 
 describe('readNote', () => {
