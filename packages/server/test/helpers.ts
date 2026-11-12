@@ -319,6 +319,7 @@ export function startInMemory(
     version: options.version ?? '0.0.0-teste',
     machine: options.machine ?? 'maquina-teste',
     ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
+    ...(options.maxMessageBytes === undefined ? {} : { maxMessageBytes: options.maxMessageBytes }),
     stdin,
     stdout,
   });

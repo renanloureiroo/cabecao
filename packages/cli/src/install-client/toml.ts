@@ -303,6 +303,28 @@ export function tomlTable(
   return `${lines.join(eol)}${eol}`;
 }
 
+/**
+ * Valores simples (texto ou lista de textos) das chaves da tabela `[...path]`, como estão no arquivo. Só os que são
+ * escritos no formato que o `tomlValue` grava (texto básico entre aspas, lista deles) são lidos; os demais ficam de
+ * fora. Serve para mostrar ao usuário o que havia antes de uma troca.
+ */
+export function readTomlTableValues(text: string, path: readonly string[]): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = {};
+  const { main } = locate(text, path);
+  for (const pair of main?.pairs ?? []) {
+    const key = pair.path.length === 1 ? pair.path[0] : undefined;
+    if (key === undefined) continue;
+    try {
+      const value: unknown = JSON.parse(text.slice(pair.valueStart, pair.valueEnd));
+      if (typeof value === 'string') out[key] = value;
+      else if (Array.isArray(value) && value.every((item) => typeof item === 'string')) out[key] = value;
+    } catch {
+      // literal, multilinha, comentário no meio: não é o que o cabecao grava
+    }
+  }
+  return out;
+}
+
 export function hasTomlTable(text: string, path: readonly string[]): boolean {
   const { main, children } = locate(text, path);
   return main !== undefined || children.length > 0;

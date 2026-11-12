@@ -7,11 +7,13 @@
 // (arquivo, catálogo, diário, índice do git e banco voltam ao estado anterior) e o erro é relatado.
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { listNotes } from '../db/index.ts';
 import type { CommitChange } from '../git/index.ts';
 import {
   commitPaths,
   formatCommitMessage,
+  GitError,
   headSha,
   isRepo,
   parseCommitTrailers,
@@ -25,7 +27,9 @@ import {
   appendLogLine,
   assertNotePath,
   createNote,
+  diskCasePath,
   hasErrors,
+  isBrainControlFile,
   isInNoteDirs,
   isNoteType,
   isValidScope,
@@ -33,7 +37,9 @@ import {
   LOG_MD,
   linkListFields,
   localDate,
+  NOTE_TYPE_DIRS,
   patchNote,
+  RAW_DIR,
   readBrainConfig,
   readNote,
   renderIndexMd,
@@ -157,9 +163,81 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Campos que o Cabeção preenche; o que vier do chamador nesses campos é ignorado. */
-const MANAGED_ON_CREATE = ['id', 'created', 'updated', 'origin'] as const;
+const MANAGED_ON_CREATE = ['id', 'created', 'updated', 'origin', 'edited_by'] as const;
+/** Campos que o Cabeção preenche numa alteração; o que vier do chamador nesses campos é ignorado. */
+const MANAGED_ON_UPDATE: ReadonlySet<string> = new Set(['origin', 'created', 'updated', 'edited_by']);
 /** Campos mantidos num `overwrite` mesmo quando o frontmatter enviado não os traz. */
-const KEPT_ON_OVERWRITE = new Set(['id', 'type', 'created', 'updated', 'origin', 'trust']);
+const KEPT_ON_OVERWRITE = new Set(['id', 'type', 'created', 'updated', 'origin', 'trust', 'edited_by']);
+
+/** `type: rule`, com qualquer caixa e espaço em volta (o banco guarda o tipo sem os espaços). */
+const isRuleType = (value: unknown): boolean => typeof value === 'string' && value.trim().toLowerCase() === 'rule';
+/** Texto de um campo para comparar: sem espaços em volta e em minúsculas. */
+const fieldKey = (value: unknown): unknown => (typeof value === 'string' ? value.trim().toLowerCase() : value);
+
+const RULES_DIR_PREFIX = `${NOTE_TYPE_DIRS.rule.toLowerCase()}/`;
+const RAW_DIR_PREFIX = `${RAW_DIR.toLowerCase()}/`;
+
+/**
+ * O que um agente nunca grava, qualquer que seja a tool ou o modo (o usuário, pela CLI, não passa por aqui):
+ *
+ * - os arquivos de controle do cérebro (`AGENTS.md`, `CLAUDE.md`, catálogo, diário...), mesmo com `noteDirs: ["."]`;
+ * - nada em `memory/rules/`: regras só o usuário cria;
+ * - numa alteração (`overwrite`, `append`, `patch_page`), nada em `raw/`, onde ficam as fontes imutáveis.
+ *
+ * `path` já vem canônico, com a grafia do disco.
+ */
+function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'create' | 'update'): void {
+  if (ctx.actor === 'human') return;
+  if (isBrainControlFile(path, ctx.config)) {
+    throw new BrainError(
+      'invalid_path',
+      `${path} é um arquivo de controle do cérebro (instruções dos agentes, catálogo ou diário), não uma nota; um agente não grava nele`,
+      {
+        details: { path },
+        nextStep: 'Grave o conteúdo numa nota (em wiki/ ou memory/). As instruções do cérebro só o usuário altera.',
+      },
+    );
+  }
+  const key = path.toLowerCase();
+  if (key.startsWith(RULES_DIR_PREFIX)) throw ruleRefused();
+  if (kind === 'update' && key.startsWith(RAW_DIR_PREFIX)) {
+    throw new BrainError(
+      'invalid_path',
+      `${path} fica em ${RAW_DIR}/, a pasta das fontes imutáveis: um agente só cria arquivos ali, nunca altera os que existem`,
+      {
+        details: { path },
+        nextStep:
+          'Para registrar algo sobre essa fonte, crie uma nota nova (por exemplo em wiki/sources/) com "sources" apontando para ela.',
+      },
+    );
+  }
+}
+
+/**
+ * Proveniência de uma nota do usuário (`origin: human` ou `trust: high`) que um agente vai alterar: `trust` cai para
+ * `medium` (se era `high`, ou se não havia e a origem é humana) e `edited_by` registra o agente. Sem isso, o texto
+ * escrito pelo agente seria servido com a autoridade do usuário. `null` quando não se aplica.
+ */
+function agentEditProvenance(
+  ctx: BrainContext,
+  before: Readonly<Record<string, unknown>>,
+): { fields: Record<string, unknown>; warning: IssueOutput } | null {
+  if (ctx.actor === 'human') return null;
+  const trust = fieldKey(before.trust);
+  const origin = fieldKey(before.origin);
+  if (trust !== 'high' && origin !== 'human') return null;
+  const lower = trust === 'high' || ((trust === undefined || trust === null || trust === '') && origin === 'human');
+  const editedBy = `agent:${ctx.client}`;
+  const fields: Record<string, unknown> = { ...(lower ? { trust: 'medium' } : {}), edited_by: editedBy };
+  return {
+    fields,
+    warning: warning(
+      'provenance_changed',
+      'trust',
+      `a nota era do usuário (${origin === 'human' ? 'origin: human' : 'trust: high'}); como um agente alterou o conteúdo, ela foi gravada com ${lower ? '"trust: medium" e ' : ''}"edited_by: ${editedBy}"`,
+    ),
+  };
+}
 
 /** `Nota`, `pasta/Nota` ou `[[Nota]]` → `[[Nota]]`; o que não serve de nome de nota (uma URL) fica como veio. */
 function toLink(value: string): string {
@@ -221,7 +299,7 @@ function introducedErrors(before: readonly NoteIssue[], after: readonly NoteIssu
 // Scanner de segredos
 
 interface ScanTarget {
-  readonly where: 'content' | 'frontmatter';
+  readonly where: 'content' | 'frontmatter' | 'path';
   readonly field: string | null;
   readonly text: string;
 }
@@ -232,15 +310,20 @@ const linesOf = (text: string): string[] => text.split('\n').map((line) => line.
  * Possíveis segredos NOVOS em `text`: uma linha que já está na versão commitada do arquivo (`previous`) não é
  * acusada, porque já está no histórico (é o mesmo critério do sync antes de enviar) e porque assim dá para editar
  * uma nota que já tinha uma linha liberada com `cabecao:allow-secret`.
+ *
+ * `honorAllowMarker`: o marcador `cabecao:allow-secret` só vale no texto do USUÁRIO. Num texto enviado por um
+ * agente ele é ignorado: senão, bastaria o agente (ou o conteúdo que o manipula) escrever o marcador ao lado do
+ * segredo. Uma linha marcada que o usuário já gravou continua passando, por estar em `previous`.
  */
 function newSecrets(
   text: string,
   previous: ReadonlySet<string>,
   where: SecretHit['where'],
   field: string | null,
+  honorAllowMarker: boolean,
 ): SecretHit[] {
   const lines = linesOf(text);
-  return scanSecrets(text)
+  return scanSecrets(text, { honorAllowMarker })
     .filter((finding) => !previous.has(lines[finding.line - 1] ?? ''))
     .map((finding) => ({
       where,
@@ -271,7 +354,9 @@ function secretError(hits: readonly SecretHit[]): BrainError {
           ? `conteúdo, linha ${hit.line}`
           : hit.where === 'frontmatter'
             ? `campo "${hit.field}"`
-            : `${hit.field}, linha ${hit.line} (edição feita fora do Cabeção)`;
+            : hit.where === 'path'
+              ? 'caminho da nota'
+              : `${hit.field}, linha ${hit.line} (edição feita fora do Cabeção)`;
       return `${place}: regra ${hit.rule} (${hit.description})`;
     })
     .join('; ');
@@ -279,7 +364,7 @@ function secretError(hits: readonly SecretHit[]): BrainError {
   return new BrainError('secret_detected', `possível segredo encontrado, nada foi gravado: ${where}${more}`, {
     details: { secrets: hits },
     nextStep:
-      'Tire o segredo do texto (nunca grave senhas, tokens ou chaves) e tente de novo. Se não for um segredo, o usuário pode marcar a linha com "cabecao:allow-secret".',
+      'Tire o segredo do texto e do caminho (nunca grave senhas, tokens ou chaves) e tente de novo. Se não for um segredo, só o usuário pode gravar a linha, pelo Obsidian, com o marcador "cabecao:allow-secret" (o marcador não vale em texto enviado por um agente).',
   });
 }
 
@@ -298,9 +383,28 @@ export async function requireHead(ctx: BrainContext): Promise<string> {
   } catch (error) {
     throw toBrainError(error);
   }
+  if (await gitMissing(ctx)) {
+    throw new BrainError('git_failed', 'o programa git não foi encontrado nesta máquina; o Cabeção precisa dele', {
+      nextStep: 'Instale o git (https://git-scm.com/downloads), confira com "git --version" e tente de novo.',
+    });
+  }
   throw new BrainError('not_a_repository', `a pasta ${ctx.root} não é um repositório git com commits`, {
     nextStep: 'Rode "cabecao init" nesta pasta para preparar o repositório do cérebro.',
   });
+}
+
+/** O `isRepo` responde "não" também quando o git nem existe; aqui se separa um caso do outro. */
+async function gitMissing(ctx: BrainContext): Promise<boolean> {
+  try {
+    await runGit(['--version'], { cwd: ctx.root, allowFailure: true });
+    return false;
+  } catch (error) {
+    return (
+      error instanceof GitError &&
+      error.exitCode === null &&
+      (error.cause as NodeJS.ErrnoException | undefined)?.code === 'ENOENT'
+    );
+  }
 }
 
 /** Linhas de um arquivo na versão commitada (`HEAD`); vazio se o arquivo não existe lá. */
@@ -447,14 +551,22 @@ async function executeWrite(
       throw toBrainError(error);
     }
 
-    // 2. Scanner de segredos: no conteúdo, nos campos e nas edições de fora que iriam junto.
-    const previous =
-      prepared.target === null ? new Set<string>() : await committedLines(ctx, head, prepared.target.diskPath);
-    const secrets = prepared.checks.flatMap((check) => newSecrets(check.text, previous, check.where, check.field));
-    const pending = await pendingEdits(ctx, [...(prepared.target === null ? [] : [prepared.target.diskPath]), LOG_MD]);
+    // 2. Scanner de segredos: no conteúdo, nos campos, no caminho e nas edições de fora que iriam junto. As edições
+    // de fora são do usuário (o marcador vale nelas); o texto da operação vale pelo `actor`.
+    const target = prepared.target?.diskPath ?? null;
+    const previous = target === null ? new Set<string>() : await committedLines(ctx, head, target);
+    const secrets: SecretHit[] = [];
+    const pending = await pendingEdits(ctx, [...(target === null ? [] : [target]), LOG_MD]);
     for (const path of pending) {
       const data = await readFile(join(ctx.root, ...path.split('/')), 'utf8').catch(() => null); // apagado: nada a ler
-      if (data !== null) secrets.push(...newSecrets(data, await committedLines(ctx, head, path), 'pending', path));
+      if (data === null) continue;
+      secrets.push(...newSecrets(data, await committedLines(ctx, head, path), 'pending', path, true));
+      // a edição do usuário entra num commit `edit` antes da operação: as linhas dela já não são "novas"
+      if (path === target) for (const line of linesOf(data)) previous.add(line);
+    }
+    const honorAllowMarker = ctx.actor === 'human';
+    for (const check of prepared.checks) {
+      secrets.push(...newSecrets(check.text, previous, check.where, check.field, honorAllowMarker));
     }
     if (secrets.length > 0) throw secretError(secrets);
     if (pending.length > 0) {
@@ -639,7 +751,9 @@ function agentTrust(ctx: BrainContext, value: unknown): { trust: unknown; warnin
 }
 
 async function existingNote(ctx: BrainContext, path: string): Promise<NoteRead> {
-  const canonical = assertNotePath(path);
+  // a grafia do disco (`wiki/entities/sqs.md` → `SQS.md`): é o nome que o git conhece, e é com ele que as
+  // conferências abaixo (raw/, memory/rules/, arquivos de controle) não são contornadas por outra caixa
+  const canonical = (await diskCasePath(ctx.root, assertNotePath(path))).path;
   if (!isInNoteDirs(canonical, ctx.config)) {
     throw new BrainError(
       'invalid_path',
@@ -649,8 +763,9 @@ async function existingNote(ctx: BrainContext, path: string): Promise<NoteRead> 
       },
     );
   }
+  assertAgentMayWrite(ctx, canonical, 'update');
   const read = await readNote(ctx.root, canonical);
-  if (ctx.actor !== 'human' && read.note.frontmatter.type === 'rule') throw ruleRefused();
+  if (ctx.actor !== 'human' && isRuleType(read.note.frontmatter.type)) throw ruleRefused();
   return read;
 }
 
@@ -703,7 +818,7 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
     const warnings: IssueOutput[] = [];
 
     if (input.mode === 'create') {
-      const path = assertNotePath(input.path);
+      const path = (await diskCasePath(ctx.root, assertNotePath(input.path))).path;
       if (!isInNoteDirs(path, config)) {
         throw new BrainError(
           'invalid_path',
@@ -725,6 +840,7 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
         );
       }
       if (type === 'rule' && ctx.actor !== 'human') throw ruleRefused();
+      assertAgentMayWrite(ctx, path, 'create');
       if ((await fileStamp(await resolveVaultPath(ctx.root, path))) !== null) {
         throw new BrainError('already_exists', `já existe uma nota em ${path}`, {
           details: { path },
@@ -757,17 +873,24 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
       const { type: _type, ...scanned } = fields;
       return {
         target: null,
-        checks: [{ where: 'content', field: null, text: input.content }, ...frontmatterTargets(scanned, config)],
+        // o caminho também: ele vai para o nome do arquivo, para o commit e para o index.md
+        checks: [
+          { where: 'content', field: null, text: input.content },
+          { where: 'path', field: 'path', text: path },
+          ...frontmatterTargets(scanned, config),
+        ],
         warnings,
         apply: () => createNote(ctx.root, config, { type, origin, path, body: input.content, frontmatter, now }),
       };
     }
 
+    // regra só o usuário cria: nem trocando o tipo, nem dando tipo a uma nota que não tinha
+    if (ctx.actor !== 'human' && isRuleType(given.type)) throw ruleRefused();
     const read = await existingNote(ctx, input.path);
     const set: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(given)) {
       if (value === undefined) continue;
-      if (key === 'origin' || key === 'created' || key === 'updated') {
+      if (MANAGED_ON_UPDATE.has(key)) {
         if (value !== read.note.frontmatter[key]) {
           warnings.push(
             warning('ignored_field', key, `"${key}" é preenchido pelo Cabeção; o valor enviado foi ignorado`),
@@ -794,11 +917,22 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
       const gap = base === '' || /\r?\n\r?\n$/.test(base) || base.trim() === '' ? '' : eol;
       body = `${base}${gap}${input.content}`;
     }
+    const before = read.note.frontmatter;
+    const sameText = (a: string, b: string): boolean => a.replace(/\r\n/g, '\n') === b.replace(/\r\n/g, '\n');
+    const changes =
+      !sameText(body, read.note.body) ||
+      Object.entries(set).some(([key, value]) => !isDeepStrictEqual(value, before[key])) ||
+      remove.some((key) => key in before);
+    const provenance = changes ? agentEditProvenance(ctx, before) : null;
+    if (provenance !== null) {
+      Object.assign(set, provenance.fields);
+      warnings.push(provenance.warning);
+    }
     checkUpdate(read, set, remove, day, config);
-    const { id: _id, type: _type, ...scanned } = set;
     return {
       target: { path: read.path, diskPath: read.diskPath },
-      checks: [{ where: 'content', field: null, text: body }, ...frontmatterTargets(scanned, config)],
+      // todos os campos enviados (um que não mudou já está commitado e não é acusado)
+      checks: [{ where: 'content', field: null, text: body }, ...frontmatterTargets(set, config)],
       warnings,
       apply: () =>
         updateNote(
@@ -846,15 +980,17 @@ export async function patchPage(ctx: BrainContext, input: PatchPageInput): Promi
     }
     const at = body.indexOf(from);
     const patched = body.slice(0, at) + to + body.slice(at + from.length);
+    const provenance = patched === body ? null : agentEditProvenance(ctx, read.note.frontmatter);
     return {
       target: { path: read.path, diskPath: read.diskPath },
       checks: [{ where: 'content', field: null, text: patched }],
-      warnings: [],
+      warnings: provenance === null ? [] : [provenance.warning],
       apply: () =>
         patchNote(ctx.root, read.diskPath, input.old, input.new, {
           config,
           now: ctx.now(),
           ifUnchangedSince: read.stamp,
+          ...(provenance === null ? {} : { frontmatter: provenance.fields }),
         }),
     };
   });

@@ -25,8 +25,10 @@ export type Actor = 'human' | 'agent';
  * - `written`: a nota foi gravada no disco.
  * - `indexed`: o banco local já tem a nota.
  * - `cataloged`: `index.md` e `log.md` já foram atualizados; falta o commit.
+ * - `reverted` (só no `undo`): o commit de revert foi feito; falta acertar o `index.md` nele. Um teste pode
+ *   commitar ali, como outro programa faria, para conferir que o commit de revert não é reescrito por cima.
  */
-export type WriteStep = 'written' | 'indexed' | 'cataloged';
+export type WriteStep = 'written' | 'indexed' | 'cataloged' | 'reverted';
 
 /** Quanto uma escrita espera pela trava da pasta de trabalho (o sync a segura por milissegundos). */
 export const WORKTREE_LOCK_TIMEOUT_MS = 30_000;

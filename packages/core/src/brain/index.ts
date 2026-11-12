@@ -31,5 +31,6 @@ export type {
   UndoneOperation,
   UndoOutput,
 } from './undo.ts';
+export { MIN_HUMAN_ID_PREFIX } from './undo.ts';
 export type { PatchPageInput, RelationsInput, RememberInput, WriteMode, WriteOutput, WritePageInput } from './write.ts';
 export { WRITE_MODES } from './write.ts';

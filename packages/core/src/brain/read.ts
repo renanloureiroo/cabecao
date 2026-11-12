@@ -7,7 +7,7 @@ import { estimateTokens, HEADING_PATH_SEPARATOR } from '../markdown/index.ts';
 import type { ConflictCopy, SyncStatusInfo } from '../sync/index.ts';
 import { listConflicts, syncStatus } from '../sync/index.ts';
 import { isSafeRelativePath, ulid } from '../util/index.ts';
-import { isNoteType, isValidScope, readNote } from '../vault/index.ts';
+import { isNoteType, isValidScope, NOTE_TYPE_DIRS, readNote } from '../vault/index.ts';
 import type { BrainContext } from './context.ts';
 import { today, withFreshIndex } from './context.ts';
 import type { ContentKind, DataEnvelope, DataItem } from './envelope.ts';
@@ -119,6 +119,18 @@ function cut(text: string, max: number): { text: string; kind: ContentKind } {
 
 const costOf = (value: unknown): number => estimateTokens(JSON.stringify(value));
 
+const RULES_DIR_PREFIX = `${NOTE_TYPE_DIRS.rule.toLowerCase()}/`;
+
+/**
+ * Só é servida como regra a nota que o usuário gravou onde as regras moram: `origin: human` e dentro de
+ * `memory/rules/`. Defesa em profundidade: as escritas já recusam `type: rule` vindo de agente, mas uma nota com
+ * `type: rule` em outro lugar (escrita à mão, chegada pelo sync, gravada por uma versão antiga) não vira autoridade,
+ * e fica fora do briefing (o `search` e o `read` ainda a mostram, com a proveniência).
+ */
+function isUserRule(note: IndexedNote): boolean {
+  return note.origin === 'human' && note.path.toLowerCase().startsWith(RULES_DIR_PREFIX);
+}
+
 export async function recall(ctx: BrainContext, input: RecallInput): Promise<RecallOutput> {
   const task = requireText(input?.task, 'task');
   const scopes = scopesFor(input.scope);
@@ -128,7 +140,9 @@ export async function recall(ctx: BrainContext, input: RecallInput): Promise<Rec
   const scopeFilter = scopes === undefined ? {} : { scope: scopes };
 
   const candidates = await withFreshIndex(ctx, (): Candidate[] => {
-    const rules = listNotes(ctx.index, { types: ['rule'], ...scopeFilter, orderBy: 'path' }).filter(current);
+    const rules = listNotes(ctx.index, { types: ['rule'], ...scopeFilter, orderBy: 'path' }).filter(
+      (note) => current(note) && isUserRule(note),
+    );
     const handoff = listNotes(ctx.index, { types: ['handoff'], ...scopeFilter, limit: 20 }).find(current);
     const preferences = listNotes(ctx.index, { types: ['preference'], ...scopeFilter }).filter(current);
     const gotchas = listNotes(ctx.index, { types: ['gotcha'], ...scopeFilter }).filter(current);
@@ -145,7 +159,10 @@ export async function recall(ctx: BrainContext, input: RecallInput): Promise<Rec
       if (memories.length >= RECALL_MEMORY_LIMIT) break;
       if (hit.validity !== 'current' || shown.has(hit.noteId)) continue;
       const note = getNote(ctx.index, { id: hit.noteId });
-      if (note !== null) memories.push({ section: 'memories', note, snippet: hit.snippet });
+      // uma "regra" que não é do usuário não entra no briefing nem como memória: ela se apresentaria como regra
+      if (note !== null && !(note.type === 'rule' && !isUserRule(note))) {
+        memories.push({ section: 'memories', note, snippet: hit.snippet });
+      }
     }
     return [
       ...rules.map((note) => ({ section: 'rules' as const, note })),
@@ -550,7 +567,9 @@ export async function status(ctx: BrainContext, machine: string): Promise<Status
     problems.push(`o último sync terminou como "${last.status}": ${last.message}`);
   }
   if (index.status.schemaVersion !== index.status.expectedSchemaVersion) {
-    problems.push('o banco local está num esquema diferente do esperado; rode "cabecao reindex"');
+    problems.push(
+      'o banco local está num esquema diferente do esperado; rode "cabecao doctor" (apagar a pasta .cabecao/ é seguro: o banco é refeito a partir das notas)',
+    );
   }
   const steps: string[] = [];
   if (conflicts.length > 0) {

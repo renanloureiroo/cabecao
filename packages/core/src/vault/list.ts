@@ -5,6 +5,7 @@ import { isAbsolute, join, relative } from 'node:path';
 import { ATOMIC_TMP_PREFIX, ATOMIC_TMP_SUFFIX, normalizeNfc } from '../util/index.ts';
 import type { BrainConfig } from './config.ts';
 import { LOG_MD } from './config.ts';
+import { isPrivateTarget } from './paths.ts';
 import { isArchivedPath } from './schema.ts';
 
 export interface NoteFile {
@@ -70,7 +71,7 @@ const gone = (error: unknown): boolean => ['ENOENT', 'ENOTDIR'].includes((error 
  * atômica, o que não for `.md`, e também o catálogo (`indexMd`) e o diário (`log.md`), que não são notas. Uma pasta
  * de `noteDirs` que não existe é ignorada. Arquivos que somem no meio da varredura (edição no Obsidian) são pulados.
  *
- * Links simbólicos: só são seguidos quando o alvo real fica dentro do cérebro. Dentro de uma pasta alcançada por
+ * Links simbólicos: só são seguidos quando o alvo real fica dentro do cérebro e fora de `.git/` e `.cabecao/`. Dentro de uma pasta alcançada por
  * link, outros links para pastas não são seguidos; isso corta qualquer ciclo sem depender da ordem da varredura.
  */
 export async function listNoteFiles(
@@ -148,7 +149,7 @@ export async function listNoteFiles(
         // ficar dentro
         const linked = (await lstat(absolute(task.rel))).isSymbolicLink();
         const real = await realpath(absolute(task.rel));
-        if (!isInside(await getRealRoot(), real)) return;
+        if (!isInside(await getRealRoot(), real) || isPrivateTarget(await getRealRoot(), real)) return;
         if ((await stat(real)).isDirectory()) await readDir(task.rel, linked);
         return;
       }
@@ -158,7 +159,8 @@ export async function listNoteFiles(
         return;
       }
       const real = await realpath(absolute(task.rel));
-      if (!isInside(await getRealRoot(), real)) return;
+      // um link para dentro de `.git/` ou `.cabecao/` não é nota, nem para ler
+      if (!isInside(await getRealRoot(), real) || isPrivateTarget(await getRealRoot(), real)) return;
       const st = await stat(real);
       if (st.isDirectory()) {
         if (!task.linked) await readDir(task.rel, true);

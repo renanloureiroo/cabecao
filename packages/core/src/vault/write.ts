@@ -10,9 +10,16 @@ import { FileChangedError, fileStamp, ulid, writeFileAtomic } from '../util/inde
 import type { BrainConfig } from './config.ts';
 import { readBrainConfig } from './config.ts';
 import { VaultError } from './errors.ts';
-import { FILE_NAME_STYLES, fileNameKey, fileNameProblem, noteBaseName, uniqueFileName } from './filename.ts';
+import {
+  dirNameProblem,
+  FILE_NAME_STYLES,
+  fileNameKey,
+  fileNameProblem,
+  noteBaseName,
+  uniqueFileName,
+} from './filename.ts';
 import { listNoteFiles } from './list.ts';
-import { assertNotePath, isInNoteDirs, resolveVaultPath } from './paths.ts';
+import { assertNotePath, diskCasePath, isBrainControlFile, isInNoteDirs, resolveVaultPath } from './paths.ts';
 import { serializeWrites } from './queue.ts';
 import type { NoteRead } from './read.ts';
 import { readNote } from './read.ts';
@@ -108,7 +115,8 @@ function invalid(path: string, issues: readonly NoteIssue[]): VaultError {
 async function takenNames(root: string, dir: string): Promise<Set<string>> {
   const taken = new Set<string>();
   try {
-    for (const name of await readdir(await resolveVaultPath(root, dir))) {
+    // `dir` vazio: a raiz do cérebro (nota solta num vault adotado com `noteDirs: ["."]`)
+    for (const name of await readdir(dir === '' ? root : await resolveVaultPath(root, dir))) {
       if (/\.md$/i.test(name)) taken.add(fileNameKey(stemOf(name)));
     }
   } catch (error) {
@@ -215,7 +223,9 @@ export async function createNote(
     const text = serializeNote(frontmatter, input.body ?? '', config);
     const write = async (path: string): Promise<FileStamp | null> => {
       try {
-        return await writeFileAtomic(await resolveVaultPath(root, path), text, { ifUnchangedSince: null });
+        return await writeFileAtomic(await resolveVaultPath(root, path, { write: true }), text, {
+          ifUnchangedSince: null,
+        });
       } catch (error) {
         if (error instanceof FileChangedError) return null;
         throw error;
@@ -223,13 +233,22 @@ export async function createNote(
     };
 
     if (input.path !== undefined) {
-      const path = assertNotePath(input.path);
+      // a grafia do disco: `WIKI/Entities/x.md` cai em `wiki/entities/x.md` quando essas pastas já existem
+      const { path, existing } = await diskCasePath(root, assertNotePath(input.path));
       if (!isInNoteDirs(path, config)) {
         throw new VaultError(
           'invalid_note_path',
           `${path} fica fora das pastas de notas do cérebro (${config.noteDirs.join(', ')})`,
           { path },
         );
+      }
+      assertNotControlFile(path, config);
+      const segments = path.split('/');
+      for (const [i, segment] of segments.slice(0, -1).entries()) {
+        const problem = dirNameProblem(segment, { existing: i < existing });
+        if (problem !== null) {
+          throw new VaultError('invalid_file_name', `pasta recusada (${path}): ${problem}`, { path });
+        }
       }
       const problem = fileNameProblem(baseName(path));
       if (problem !== null)
@@ -267,6 +286,18 @@ export async function createNote(
     }
     throw new VaultError('note_exists', `não consegui um nome livre em ${dir} para "${base}"`, { path: dir });
   });
+}
+
+/** Recusa gravar como nota um arquivo de controle do cérebro (`AGENTS.md`, `CLAUDE.md`, `index.md`, `log.md`...). */
+function assertNotControlFile(path: string, config: unknown): void {
+  const indexMd = (config as { indexMd?: unknown } | undefined)?.indexMd;
+  if (isBrainControlFile(path, typeof indexMd === 'string' ? { indexMd } : {})) {
+    throw new VaultError(
+      'invalid_note_path',
+      `${path} é um arquivo de controle do cérebro (instruções, catálogo ou diário), não uma nota; ele não é gravado por aqui`,
+      { path },
+    );
+  }
 }
 
 export interface NoteChanges {
@@ -389,7 +420,10 @@ async function withConfig(root: string, options: UpdateNoteOptions): Promise<Upd
 }
 
 async function readForWrite(root: string, relPath: string, options: UpdateNoteOptions): Promise<NoteRead> {
-  const read = await readNote(root, assertNotePath(relPath));
+  // a grafia do disco: a escrita e o commit têm de usar o nome que o git conhece (`SQS.md`, não `sqs.md`)
+  const { path } = await diskCasePath(root, assertNotePath(relPath));
+  assertNotControlFile(path, options.config);
+  const read = await readNote(root, path);
   if (options.ifUnchangedSince !== undefined && !sameStamp(options.ifUnchangedSince, read.stamp)) {
     throw new FileChangedError(read.path, options.ifUnchangedSince, read.stamp);
   }
@@ -404,7 +438,7 @@ async function applyUpdate(
 ): Promise<WriteResult> {
   const rendered = render(read, changes, options);
   if (!rendered.changed) return resultOf('update', read.path, rendered.frontmatter, false, read.stamp, rendered.issues);
-  const stamp = await writeFileAtomic(await resolveVaultPath(root, read.diskPath), rendered.text, {
+  const stamp = await writeFileAtomic(await resolveVaultPath(root, read.diskPath, { write: true }), rendered.text, {
     ifUnchangedSince: read.stamp,
   });
   return resultOf('update', read.path, rendered.frontmatter, true, stamp, rendered.issues);
@@ -450,12 +484,20 @@ function countOccurrences(text: string, needle: string): number {
  * é erro (`patch_not_found`, `patch_ambiguous`), e nada é gravado. Num arquivo com CRLF, um trecho escrito com LF
  * também é achado.
  */
+export interface PatchNoteOptions extends UpdateNoteOptions {
+  /**
+   * Campos do frontmatter a gravar junto com a substituição, no mesmo arquivo e na mesma gravação (a camada de
+   * operações usa para registrar a proveniência quando um agente altera uma nota do usuário).
+   */
+  readonly frontmatter?: Readonly<Record<string, unknown>>;
+}
+
 export async function patchNote(
   root: string,
   relPath: string,
   oldText: string,
   newText: string,
-  options: UpdateNoteOptions = {},
+  options: PatchNoteOptions = {},
 ): Promise<WriteResult> {
   return serializeWrites(root, async () => {
     const opts = await withConfig(root, options);
@@ -486,7 +528,13 @@ export async function patchNote(
     }
     const at = body.indexOf(from);
     const patched = body.slice(0, at) + to + body.slice(at + from.length);
-    return applyUpdate(root, read, { body: patched }, opts);
+    const frontmatter = options.frontmatter;
+    return applyUpdate(
+      root,
+      read,
+      frontmatter === undefined ? { body: patched } : { body: patched, frontmatter },
+      opts,
+    );
   });
 }
 
@@ -573,7 +621,7 @@ export async function archiveNote(
     for (let attempt = 0; attempt < 50; attempt++) {
       const name = uniqueFileName(stem, (key) => taken.has(key));
       const path = `${ARCHIVE_DIR}/${name}`;
-      const target = await resolveVaultPath(root, path);
+      const target = await resolveVaultPath(root, path, { write: true });
       let stamp: FileStamp;
       try {
         stamp = await writeFileAtomic(target, rendered.text, { ifUnchangedSince: null });
@@ -582,7 +630,7 @@ export async function archiveNote(
         taken.add(fileNameKey(stemOf(name)));
         continue;
       }
-      const source = await resolveVaultPath(root, read.diskPath);
+      const source = await resolveVaultPath(root, read.diskPath, { write: true });
       const current = await fileStamp(source);
       if (current === null || !sameStamp(current, read.stamp)) {
         await unlink(target).catch(() => {});

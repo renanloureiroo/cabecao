@@ -63,8 +63,16 @@ export interface ListOperationsOutput {
 
 /**
  * Sem `op` nem `session`: desfaz a última operação do Cabeção (que pode ser um `undo`: desfazer um `undo` refaz a
- * operação). Com `op`: aquela operação (aceita o começo do ULID). Com `session`: tudo que a sessão gravou e que
- * ainda vale, num commit só.
+ * operação). Com `op`: aquela operação. Com `session`: tudo que a sessão gravou e que ainda vale, num commit só.
+ *
+ * Quem pede importa (`actor` do cérebro):
+ * - o usuário (CLI) desfaz qualquer operação e pode dar só o começo do ULID, com pelo menos
+ *   `MIN_HUMAN_ID_PREFIX` caracteres e sem ambiguidade;
+ * - um agente (MCP) informa o ULID COMPLETO (o `op` devolvido pela escrita, o `session_handle` do `recall`) e só
+ *   desfaz operações de agentes: nunca as do usuário (`Cabecao-Client: cli`) nem edições de fora (`manual`). Sem
+ *   argumento, um agente desfaz a operação de agente mais recente que ainda vale.
+ *
+ * Em nenhum caso alcança o que não é operação do Cabeção (edições de fora, sync, conflito, init).
  */
 export interface UndoInput {
   readonly op?: string;
@@ -107,6 +115,16 @@ const isOperation = (commit: LoggedCommit): boolean =>
   commit.trailers.op !== undefined &&
   commit.trailers.client !== 'manual' &&
   OPERATION_ACTIONS.has(commit.action);
+
+/** Clientes que não são agentes: o usuário na CLI e as edições feitas fora do Cabeção. */
+const HUMAN_CLIENTS: ReadonlySet<string> = new Set(['cli', 'manual']);
+
+/** Um agente só desfaz operações de agentes; o usuário desfaz qualquer uma. */
+const mayUndo = (ctx: BrainContext, commit: LoggedCommit): boolean =>
+  ctx.actor === 'human' || (commit.trailers.client !== undefined && !HUMAN_CLIENTS.has(commit.trailers.client));
+
+/** Menor começo de ULID que a CLI aceita em `--op` e `--session` (um agente sempre dá o ULID inteiro). */
+export const MIN_HUMAN_ID_PREFIX = 8;
 
 /** Linhas do corpo: tudo entre o assunto e o parágrafo de rodapés. */
 function bodyLines(message: string): string[] {
@@ -178,19 +196,47 @@ function operationInfo(commit: LoggedCommit): OperationInfo {
   };
 }
 
-function identifier(value: unknown, name: string): string | undefined {
+/**
+ * Identificador de operação ou de sessão. `prefix`: quantos caracteres, no mínimo, valem como começo do ULID; `null`
+ * exige o ULID inteiro (26 caracteres).
+ */
+function identifier(value: unknown, name: string, prefix: number | null): string | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value !== 'string' || !/^[0-9A-Za-z]{1,26}$/.test(value.trim())) {
-    throw new BrainError('invalid_argument', `"${name}" deveria ser um ULID (ou o começo dele)`);
+  const text = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  if (prefix === null) {
+    if (!isUlid(text)) {
+      throw new BrainError(
+        'invalid_argument',
+        `"${name}" deveria ser o identificador completo (ULID de 26 caracteres), como foi devolvido`,
+        {
+          nextStep:
+            name === 'op'
+              ? 'Use o "op" devolvido pela escrita (remember, write_page, patch_page) ou pelo undo, inteiro.'
+              : 'Use o "session_handle" devolvido pelo recall, inteiro.',
+        },
+      );
+    }
+    return text;
   }
-  return value.trim().toUpperCase();
+  if (!new RegExp(`^[0-9A-Z]{${prefix},26}$`).test(text)) {
+    throw new BrainError(
+      'invalid_argument',
+      `"${name}" deveria ser um ULID ou o começo dele, com pelo menos ${prefix} caracteres`,
+    );
+  }
+  return text;
 }
+
+/** O identificador casa com `full`: igual, para um agente; começo, para o usuário. */
+const matchesId = (ctx: BrainContext, full: string | undefined, id: string): boolean =>
+  full !== undefined && (ctx.actor === 'human' ? full.startsWith(id) : full === id);
 
 export async function listOperations(
   ctx: BrainContext,
   input: ListOperationsInput = {},
 ): Promise<ListOperationsOutput> {
-  const session = identifier(input.session, 'session');
+  // só leitura, e só na CLI: aceita qualquer começo
+  const session = identifier(input.session, 'session', 1);
   const limit = input.limit ?? 20;
   if (!Number.isInteger(limit) || limit < 1)
     throw new BrainError('invalid_argument', '"limit" deveria ser um inteiro positivo');
@@ -241,8 +287,9 @@ async function revertEnv(dir: string, indexMd: string): Promise<Record<string, s
 }
 
 export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<UndoOutput> {
-  const op = identifier(input.op, 'op');
-  const session = identifier(input.session, 'session');
+  const prefix = ctx.actor === 'human' ? MIN_HUMAN_ID_PREFIX : null;
+  const op = identifier(input.op, 'op', prefix);
+  const session = identifier(input.session, 'session', prefix);
   if (op !== undefined && session !== undefined) {
     throw new BrainError('invalid_argument', 'informe "op" ou "session", não os dois');
   }
@@ -268,16 +315,19 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
       throw toBrainError(error);
     }
 
+    const listHint =
+      ctx.actor === 'human'
+        ? 'Veja as operações que podem ser desfeitas com "cabecao undo --list".'
+        : 'Use o "op" devolvido pela escrita, inteiro; o usuário vê todas as operações com "cabecao undo --list".';
     let targets: LoggedCommit[];
     if (op !== undefined) {
-      targets = commits.filter((commit) => commit.trailers.op?.startsWith(op));
+      targets = commits.filter((commit) => matchesId(ctx, commit.trailers.op, op));
       const ops = new Set(targets.map((commit) => commit.trailers.op));
       if (targets.length === 0) {
-        throw new BrainError('not_found', `nenhuma operação ${op} no histórico deste cérebro`, {
-          nextStep: 'Veja as operações que podem ser desfeitas com listOperations (cabecao undo --list).',
-        });
+        throw new BrainError('not_found', `nenhuma operação ${op} no histórico deste cérebro`, { nextStep: listHint });
       }
       if (ops.size > 1) {
+        // só acontece com o começo de um ULID, que só o usuário pode dar
         throw new BrainError(
           'invalid_argument',
           `"${op}" é o começo de ${ops.size} operações; informe mais caracteres`,
@@ -288,6 +338,20 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
       }
       if (targets.some((commit) => commit.parents.length > 1)) {
         throw new BrainError('conflict', `a operação ${op} é um merge do sync; ela não é desfeita por revert`);
+      }
+      if (!targets.every(isOperation)) {
+        throw new BrainError(
+          'not_found',
+          `${op} não é uma operação do Cabeção que possa ser desfeita (edições feitas fora do Cabeção, sync, conflitos e o init não são desfeitos por aqui)`,
+          { nextStep: listHint },
+        );
+      }
+      if (!targets.every((commit) => mayUndo(ctx, commit))) {
+        throw new BrainError(
+          'invalid_argument',
+          `a operação ${op} foi feita pelo usuário (${targets[0]?.trailers.client ?? '?'}); um agente só desfaz operações de agentes`,
+          { nextStep: `Se for o caso, peça ao usuário para rodar "cabecao undo --op ${op}".` },
+        );
       }
       const undone = targets.find((commit) => commit.undone);
       if (undone !== undefined) {
@@ -302,15 +366,26 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
       }
     } else if (session !== undefined) {
       targets = commits.filter(
-        (commit) => isOperation(commit) && !commit.undone && commit.trailers.session?.startsWith(session),
+        (commit) =>
+          isOperation(commit) &&
+          !commit.undone &&
+          matchesId(ctx, commit.trailers.session, session) &&
+          mayUndo(ctx, commit),
       );
       if (targets.length === 0) {
         throw new BrainError('nothing_to_undo', `a sessão ${session} não tem operação que ainda valha`, {
-          nextStep: 'Veja as operações com listOperations({ session }).',
+          nextStep:
+            ctx.actor === 'human'
+              ? `Veja as operações da sessão com "cabecao undo --list --session ${session}".`
+              : 'Confira se o session_handle é o devolvido pelo recall desta tarefa, inteiro.',
         });
       }
     } else {
-      const last = commits.find(isOperation);
+      // o usuário desfaz a última operação, qualquer que seja; um agente, a última operação de agente que ainda vale
+      const last =
+        ctx.actor === 'human'
+          ? commits.find(isOperation)
+          : commits.find((commit) => isOperation(commit) && !commit.undone && mayUndo(ctx, commit));
       if (last === undefined) throw new BrainError('nothing_to_undo', 'não há operação do Cabeção para desfazer');
       targets = [last];
     }
@@ -380,25 +455,42 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
       };
     }
 
-    // O catálogo do commit de revert vem da mesclagem por união; o certo sai do banco, no mesmo commit.
+    // O catálogo do commit de revert vem da mesclagem por união; o certo sai do banco, no mesmo commit. O `--amend`
+    // só reescreve o commit do revert: se outro programa (o Obsidian Git, por exemplo) commitou no intervalo, o HEAD
+    // já é outro, e nada é reescrito (o próximo sync ou a próxima escrita leva o catálogo).
+    const headMoved = async (): Promise<boolean> => (await headSha(ctx.root)) !== sha;
+    const movedWarning: IssueOutput = {
+      severity: 'warning',
+      code: 'catalog_not_updated',
+      field: null,
+      message:
+        'outro programa fez um commit logo depois do undo; o commit do undo não foi reescrito, e o index.md fica para o próximo sync',
+    };
     try {
       const catalog = await withFreshIndex(ctx, () => catalogFromIndex(ctx));
-      if (await writeIndexMd(ctx.root, ctx.config, catalog)) {
-        await runGit(
-          [
-            '--literal-pathspecs',
-            'commit',
-            '--amend',
-            '--no-edit',
-            '--no-verify',
-            '--no-gpg-sign',
-            '--only',
-            '--',
-            ctx.config.indexMd,
-          ],
-          { cwd: ctx.root },
-        );
-        sha = (await headSha(ctx.root)) ?? sha;
+      await ctx.faultAt?.('reverted');
+      if (await headMoved()) {
+        warnings.push(movedWarning);
+      } else if (await writeIndexMd(ctx.root, ctx.config, catalog)) {
+        if (await headMoved()) {
+          warnings.push(movedWarning);
+        } else {
+          await runGit(
+            [
+              '--literal-pathspecs',
+              'commit',
+              '--amend',
+              '--no-edit',
+              '--no-verify',
+              '--no-gpg-sign',
+              '--only',
+              '--',
+              ctx.config.indexMd,
+            ],
+            { cwd: ctx.root },
+          );
+          sha = (await headSha(ctx.root)) ?? sha;
+        }
       }
     } catch (error) {
       // o undo valeu; só o catálogo ficou para o próximo sync regenerar

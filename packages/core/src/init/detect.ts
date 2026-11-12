@@ -10,7 +10,13 @@ import { join, relative, sep } from 'node:path';
 import { runGit } from '../git/index.ts';
 import { isSafeRelativePath, normalizeNfc } from '../util/index.ts';
 import type { BrainConfig } from '../vault/index.ts';
-import { BRAIN_CONFIG_FILE, DEFAULT_NOTE_DIRS, VaultError, validateBrainConfig } from '../vault/index.ts';
+import {
+  BRAIN_CONFIG_FILE,
+  DEFAULT_NOTE_DIRS,
+  ROOT_CONTROL_FILE_RE,
+  VaultError,
+  validateBrainConfig,
+} from '../vault/index.ts';
 import { isRepoRoot } from './shared.ts';
 
 export type RepoKind = 'empty' | 'brain' | 'markdown-vault' | 'other';
@@ -241,8 +247,11 @@ export async function detectRepoKind(dir: string, options: DetectOptions = {}): 
   return classifyTree(paths, { hasCommits: true, brainConfigText: configText });
 }
 
-/** Arquivos da raiz de um vault que não são notas do usuário. */
-const ROOT_NON_NOTES = /^(readme|license|licence|copying|changelog|contributing|agents|claude|index|log)\.md$/i;
+/**
+ * Arquivos da raiz de um vault que não são notas do usuário. É a mesma lista que o vault usa para recusar a escrita
+ * de agente nesses arquivos quando `noteDirs` é `["."]`.
+ */
+const ROOT_NON_NOTES = ROOT_CONTROL_FILE_RE;
 
 export interface VaultLayout {
   /** Pastas de notas para o `.cabecao.json`: as padrão do Cabeção e as que já têm `.md`. */

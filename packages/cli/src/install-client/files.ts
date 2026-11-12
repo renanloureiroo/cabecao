@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { copyFile, readFile, stat } from 'node:fs/promises';
+import { access, copyFile, readFile, stat } from 'node:fs/promises';
 import { FileChangedError, fileStamp, writeFileAtomic } from '@cabecao/core';
 import { CliError } from '../errors.ts';
 import type { Env } from '../types.ts';
@@ -15,12 +15,30 @@ function isErrno(error: unknown, code: string): boolean {
 }
 
 /**
+ * O arquivo existe e está marcado como somente leitura (sem permissão de escrita para ninguém, ou sem permissão
+ * para este usuário). A gravação atômica troca o arquivo inteiro por um novo e passaria por cima da proteção: quem
+ * marcou o arquivo assim não quer que ele seja alterado.
+ */
+async function isReadOnly(path: string): Promise<boolean> {
+  try {
+    const info = await stat(path);
+    if ((info.mode & 0o222) === 0) return true;
+    await access(path, constants.W_OK);
+    return false;
+  } catch (error) {
+    return isErrno(error, 'EACCES') || isErrno(error, 'EPERM');
+  }
+}
+
+/**
  * Lê o arquivo, aplica `edit` e grava o resultado de forma atômica. `edit` recebe `undefined` quando o arquivo
  * não existe e devolve o texto novo, ou `undefined` para não mexer. Um erro lançado por `edit` sobe sem que
  * nada tenha sido gravado.
  *
  * Na primeira alteração de um arquivo que já existia, o original é copiado para `<arquivo>.bak`; se a cópia já
  * existe, ela é mantida: guarda o estado de antes do cabecao, não o da última execução.
+ *
+ * Um arquivo somente leitura não é alterado: a edição falha com um erro claro e nada é gravado.
  */
 export async function editFile(
   path: string,
@@ -30,6 +48,12 @@ export async function editFile(
   const current = stamp === null ? undefined : await readFile(path, 'utf8');
   const next = edit(current);
   if (next === undefined || next === current) return { status: 'unchanged' };
+  if (current !== undefined && (await isReadOnly(path))) {
+    throw new CliError(`${path} está marcado como somente leitura; nada foi gravado.`, {
+      code: 'ECLIENTCONFIG',
+      hint: 'Libere a escrita no arquivo (por exemplo, "chmod u+w" no macOS e no Linux) e rode de novo, ou use --print e cole a configuração à mão.',
+    });
+  }
 
   let backup: string | undefined;
   if (current !== undefined) {

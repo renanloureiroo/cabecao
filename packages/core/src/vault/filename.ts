@@ -143,6 +143,35 @@ export function uniqueFileName(base: string, taken: (key: string) => boolean, se
   }
 }
 
+// Só os proibidos no Windows (sem os de wikilink).
+// biome-ignore lint/suspicious/noControlCharactersInRegex: os caracteres de controle são justamente o alvo
+const WINDOWS_FORBIDDEN_RE = /[<>:"/\\|?*\u0000-\u001f\u007f]/;
+
+/**
+ * Por que o nome de uma PASTA do caminho de uma nota não serve, ou `null`. Uma pasta inválida no Windows (`aux`,
+ * `a:b`, `pasta. `, `x|y?`) quebra o checkout naquela máquina e, com ele, o sync do cérebro inteiro.
+ *
+ * - Pasta que ainda não existe (`existing: false`, o padrão): as mesmas regras do nome de arquivo
+ *   (`fileNameProblem`), inclusive `#`, `^`, `[` e `]`, que quebram o wikilink com caminho (`[[pasta/Nota]]`).
+ * - Pasta que já existe: só as regras do Windows. Uma pasta do usuário como `C#` continua aceita; uma que já não
+ *   funciona no Windows, não (gravar mais nela só aumenta o estrago).
+ */
+export function dirNameProblem(name: string, options: { readonly existing?: boolean } = {}): string | null {
+  if (name === '') return 'o nome da pasta está vazio';
+  if (name !== normalizeNfc(name)) return 'o nome da pasta não está em NFC';
+  if (options.existing !== true) {
+    FORBIDDEN_RE.lastIndex = 0;
+    if (FORBIDDEN_RE.test(name)) return 'o nome da pasta tem caracteres que não funcionam no Windows ou em wikilinks';
+  } else if (WINDOWS_FORBIDDEN_RE.test(name)) {
+    return 'o nome da pasta tem caracteres que não funcionam no Windows';
+  }
+  if (/^[\s.]|[\s.]$/.test(name)) return 'o nome da pasta começa ou termina com espaço ou ponto';
+  if (WINDOWS_RESERVED_RE.test((name.split('.')[0] ?? '').trim())) return 'o nome da pasta é reservado no Windows';
+  const length = checkFileNameLength(name);
+  if (!length.ok) return `o nome da pasta tem ${length.bytes} bytes; o limite é ${length.limit}`;
+  return null;
+}
+
 /** Por que um nome de arquivo dado pelo chamador não serve, ou `null` se serve em Windows, macOS e Linux. */
 export function fileNameProblem(name: string): string | null {
   const stem = name.replace(/\.md$/i, '');

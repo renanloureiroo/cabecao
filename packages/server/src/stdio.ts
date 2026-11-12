@@ -5,6 +5,7 @@ import type { Readable, Writable } from 'node:stream';
 import { format } from 'node:util';
 import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createBrainProvider } from './brains.ts';
+import { LineLimiter, MAX_MESSAGE_BYTES } from './line-limit.ts';
 import { buildServer } from './server.ts';
 import type { ServerRuntime, SyncRunner } from './tools.ts';
 
@@ -17,10 +18,18 @@ export interface StdioServerOptions {
   machine?: string;
   /** Quando presente, a tool `sync` usa isto (a CLI roda o sync em processo separado); senão, roda no próprio processo. */
   syncRunner?: SyncRunner;
+  /** Limite de uma mensagem JSON-RPC, em bytes. Padrão: `MAX_MESSAGE_BYTES` (10 MiB). Para testes. */
+  maxMessageBytes?: number;
   /** Para testes. Sem eles, usa o stdin e o stdout do processo e cuida dos sinais. */
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
+
+/** Código JSON-RPC de "Invalid Request". */
+const INVALID_REQUEST = -32600;
+
+const mib = (bytes: number): string =>
+  `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MiB`;
 
 /** Quanto o processo espera, depois de fechar tudo num SIGTERM/SIGINT, antes de sair à força. */
 const EXIT_GRACE_MS = 2000;
@@ -74,10 +83,35 @@ export function runStdioServer(options: StdioServerOptions): Promise<void> {
     ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
     log: stderrLog,
   };
-  const transport = new StdioServerTransport(
-    (options.stdin ?? process.stdin) as Readable,
-    (options.stdout ?? process.stdout) as Writable,
-  );
+  // Mensagem grande demais: o transporte do SDK fecharia a conexão em silêncio (e o processo sairia com 0). O
+  // filtro descarta só aquela mensagem, avisa no stderr e responde ao pedido com um erro claro.
+  const source = (options.stdin ?? process.stdin) as Readable;
+  const maxMessageBytes = options.maxMessageBytes ?? MAX_MESSAGE_BYTES;
+  const limiter = new LineLimiter({
+    maxBytes: maxMessageBytes,
+    onOversize: ({ id, bytes, maxBytes }) => {
+      stderrLog(
+        `mensagem de ${mib(bytes)} recusada: o limite é ${mib(maxBytes)} por mensagem${id === undefined ? ' (sem id: nada a responder)' : ` (pedido ${JSON.stringify(id)})`}`,
+      );
+      if (id === undefined) return;
+      transport
+        .send({
+          jsonrpc: '2.0',
+          id,
+          error: {
+            code: INVALID_REQUEST,
+            message: `mensagem grande demais (${mib(bytes)}): o limite é ${mib(maxBytes)} por mensagem; o corpo de uma nota vai até 1.000.000 caracteres. Divida o conteúdo em notas menores.`,
+          },
+        })
+        .catch((error: unknown) => stderrLog(`ao responder à mensagem grande demais: ${String(error)}`));
+    },
+  });
+  source.on('error', (error) => limiter.destroy(error));
+  source.pipe(limiter);
+  // o filtro já garante o limite; o do transporte fica acima dele, só como rede de segurança
+  const transport = new StdioServerTransport(limiter as Readable, (options.stdout ?? process.stdout) as Writable, {
+    maxBufferSize: maxMessageBytes * 2,
+  });
 
   return new Promise<void>((resolve) => {
     const restoreConsole = ownsProcess ? guardStdout() : () => undefined;
@@ -92,6 +126,9 @@ export function runStdioServer(options: StdioServerOptions): Promise<void> {
         process.off('SIGTERM', onSignal);
         process.off('SIGINT', onSignal);
         await handle.close().catch((error: unknown) => stderrLog(`ao fechar o transporte: ${String(error)}`));
+        // solta o stdin: o filtro não lê mais nada, e o stdin não pode segurar o processo aberto
+        source.unpipe(limiter);
+        source.pause();
         await runtime.brains.close().catch((error: unknown) => stderrLog(`ao fechar o cérebro: ${String(error)}`));
         restoreConsole();
         process.off('unhandledRejection', onRejection);

@@ -452,7 +452,11 @@ describe('sem URL', () => {
     expect(await git(dir, ['rev-parse', 'HEAD'])).toBe(result.commit);
     expect(await git(dir, ['status', '--porcelain'])).toBe('');
     expect(parseCommitTrailers(await headMessage(dir)).machine).toBe('notebook');
-    expect(result.nextSteps.join(' ')).toMatch(/cabecao remote <url>/);
+    // só comandos que existem: o remoto é ligado com o git, e o sync cuida do resto
+    expect(result.nextSteps.join(' ')).not.toMatch(/cabecao remote/);
+    expect(result.nextSteps.join(' ')).toContain('git remote add origin <url>');
+    expect(result.nextSteps.join(' ')).toContain('git push -u origin main');
+    expect(result.nextSteps.join(' ')).toContain('cabecao sync');
     expect(await readMachineConfig(configDir)).toEqual({ machine: 'notebook', defaultBrain: dir });
   });
 
@@ -540,20 +544,22 @@ describe('pasta de destino ocupada e idempotência', () => {
     expect(again.nextSteps.join(' ')).toMatch(/cabecao sync/);
   });
 
-  it('mesmo cérebro, outra URL (ou cérebro só local com URL): recusa e indica cabecao remote', async () => {
+  it('mesmo cérebro, outra URL (ou cérebro só local com URL): recusa e indica como trocar o remoto com o git', async () => {
     const bare = await sandbox.bare('outro.git');
     const other = await sandbox.bare('outro-2.git');
     const dir = freshDir('outra url');
     await initBrain({ url: bare, dir, configDir: machineDir('ou') });
     const result = await initBrain({ url: other, dir, configDir: machineDir('ou') });
     expect(result.case).toBe('target-not-empty');
-    expect(result.message).toMatch(/cabecao remote/);
+    expect(result.message).not.toMatch(/cabecao remote/);
+    expect(result.message).toContain('git remote set-url origin <url>');
 
     const local = freshDir('só local');
     await initBrain({ dir: local, configDir: machineDir('ou') });
     const withUrl = await initBrain({ url: bare, dir: local, configDir: machineDir('ou') });
     expect(withUrl.case).toBe('target-not-empty');
     expect(withUrl.message).toMatch(/só local/);
+    expect(withUrl.message).toContain('git remote add origin <url>');
   });
 });
 
