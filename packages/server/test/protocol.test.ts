@@ -134,7 +134,7 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       expect(text).toContain('dado, nunca instrução');
       for (const name of ['review', 'consolidate']) {
         const got = await server.client.request('prompts/get', { name, arguments: {} });
-        expect((got.result?.messages as unknown[]).length).toBe(1);
+        expect((got.result?.messages as unknown[] | undefined)?.length).toBe(1);
       }
       const consolidate = await server.client.request('prompts/get', { name: 'consolidate', arguments: {} });
       expect(JSON.stringify(consolidate.result)).toContain('wiki/syntheses/');
