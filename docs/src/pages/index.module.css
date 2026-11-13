@@ -1,120 +1,527 @@
-/* Página inicial: a folha pautada com a margem vermelha fica só atrás do herói. */
+/* Página inicial: o herói é peça de marca (color.brand.ground com a grade de pontos), o resto segue o tema. */
 
 .hero {
   position: relative;
+  background-color: var(--color-bg);
+  color: var(--color-text-default);
   overflow: hidden;
-  padding: 4rem 0 4.5rem;
-  background-color: var(--cb-paper);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0 2.4rem,
-    var(--cb-rule) 2.4rem calc(2.4rem + 1px)
-  );
+  border-bottom: var(--border-default) solid var(--color-border);
+}
+
+/* A grade de pontos fica do lado da arte e some antes do texto, para não disputar com a leitura. */
+.dots {
+  position: absolute;
+  inset: 0;
+  mask-image: linear-gradient(90deg, transparent 0, transparent 38%, #000 72%);
 }
 
 .heroInner {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   align-items: center;
-  gap: 2rem;
+  gap: var(--space-12);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 96px var(--space-6) 104px;
 }
 
-.heroInner::before {
-  content: "";
-  position: absolute;
-  inset-block: -4rem -4.5rem;
-  inset-inline-start: -1.25rem;
-  width: 2px;
-  background: var(--cb-margin);
-  opacity: 0.7;
+.heroText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
 }
 
-.title {
-  font-size: clamp(2.2rem, 5vw, 3.6rem);
+.kicker {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.heroTitle {
+  margin: 0 0 var(--space-6);
+  max-width: 12.5em;
+  font-size: 64px;
+  line-height: 64px;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  margin-bottom: 1.25rem;
+  letter-spacing: -0.03em;
+  color: var(--color-text-default);
+  text-wrap: balance;
 }
 
-.tagline {
-  font-size: 1.2rem;
-  max-width: 36rem;
-  margin-bottom: 2rem;
+/* O _ vermelho fecha o título, na proporção 2:1 do cursor do símbolo. Uma vez por peça. */
+.cursor {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.16em;
+  margin-left: 0.1em;
+  background: var(--color-brand-cursor);
+  vertical-align: baseline;
+}
+
+.lead {
+  max-width: 34em;
+  margin: 0 0 var(--space-8);
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-text-muted);
+}
+
+.heroText > div:first-of-type {
+  width: min(100%, 28rem);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
 }
 
-.mark {
-  justify-self: center;
-  width: min(100%, 18rem);
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 0 var(--space-6);
+  border: var(--border-strong) solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 20px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button:hover {
+  text-decoration: none;
+}
+
+.buttonPrimary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.buttonPrimary:hover {
+  background: var(--color-primary-pressed);
+  color: var(--color-on-primary);
+}
+
+.buttonSecondary {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-default);
+}
+
+.buttonSecondary:hover {
+  background: var(--color-container);
+  color: var(--color-text-default);
+}
+
+.heroMeta {
+  margin: var(--space-6) 0 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.heroArt {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* O símbolo grande, tom sobre tom (color.border sobre o preto), só o cursor em vermelho. */
+.heroHead {
+  --cb-head: var(--color-border);
+  --cb-cursor: var(--color-brand-cursor);
+  width: 100%;
+  max-width: 384px;
   height: auto;
+  image-rendering: pixelated;
+}
+
+/* ---------- Seções ---------- */
+
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
 }
 
 .section {
-  padding: 2.5rem 0 0;
-  max-width: 60rem;
+  padding-top: 112px;
 }
 
-.features {
+.last {
+  padding-bottom: 112px;
+}
+
+.sectionHeader {
+  margin-bottom: var(--space-12);
+}
+
+.sectionHeader .kicker {
+  margin-bottom: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  max-width: 22em;
+  font-size: 44px;
+  line-height: 48px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sectionLead {
+  max-width: 40em;
+  margin: calc(-1 * var(--space-6)) 0 var(--space-8);
+  font-size: 20px;
+  line-height: 30px;
+  color: var(--color-text-muted);
+}
+
+/* O que é: quatro ideias lado a lado, cada uma sob um traço de 2 px. Sem cartões. */
+.ideas {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 1.5rem 0 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-8);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.feature {
-  border: 1px solid var(--ifm-toc-border-color);
-  border-inline-start: 3px solid var(--cb-ink);
-  border-radius: 4px;
-  padding: 1.25rem 1.5rem;
-  background: var(--ifm-background-surface-color);
-}
-
-.feature h3 {
-  margin-bottom: 0.5rem;
-}
-
-.feature p {
+.idea {
   margin: 0;
+  padding-top: var(--space-4);
+  border-top: var(--border-strong) solid var(--color-text-default);
 }
 
-.last {
-  padding-bottom: 4rem;
+.ideaTitle {
+  margin: 0 0 var(--space-2);
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.ideaBody {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--color-text-default);
+}
+
+/* Na prática: três passos, o texto à esquerda e a saída real à direita. */
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.9fr);
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
+  border-top: var(--border-default) solid var(--color-border);
+}
+
+.step + .step {
+  margin-top: 0;
+}
+
+.stepText {
+  min-width: 0;
+}
+
+.stepNumber {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.stepTitle {
+  margin: 0 0 var(--space-2);
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.stepBody {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.stepCode {
+  min-width: 0;
+}
+
+.stepCode :global(.theme-code-block) {
+  margin-bottom: 0;
+}
+
+/* Na página inicial a saída quebra linha, para nada ficar escondido atrás da rolagem. */
+.stepCode pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Como funciona. */
+.diagram {
+  padding: var(--space-8);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Para quem é. */
+.audience {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--space-12);
+  align-items: end;
+}
+
+.audience .sectionLead {
+  margin-bottom: var(--space-6);
+}
+
+.audience :global(.theme-admonition) {
+  margin-bottom: 0;
+}
+
+.tagsLabel {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--color-text-muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tags .tag {
+  margin: 0;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-container);
+  color: var(--color-text-default);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Começar: os três comandos e os cartões para a documentação. */
+.quick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-12);
+  align-items: start;
+}
+
+.quickBody {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cards li {
+  margin: 0;
+  display: flex;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-default);
+  text-decoration: none;
+  transition:
+    transform 80ms steps(2, end),
+    box-shadow 80ms steps(2, end);
+}
+
+.card:hover,
+.card:focus-visible {
+  color: var(--color-text-default);
+  text-decoration: none;
+  transform: translate(-4px, -4px);
+  box-shadow: var(--shadow-hard);
+}
+
+.cardKicker {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+}
+
+.cardArrow {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.card:hover .cardArrow {
+  color: var(--color-primary);
+}
+
+.cardBody {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Telas menores ---------- */
+
+@media (max-width: 1100px) {
+  .ideas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quick {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 996px) {
   .heroInner {
-    grid-template-columns: 1fr;
-    text-align: center;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+    padding-top: var(--space-12);
+    padding-bottom: var(--space-16);
   }
 
-  .heroInner::before {
-    inset-inline-start: -0.6rem;
-  }
-
-  .mark {
+  .heroArt {
     order: -1;
-    width: 9rem;
+    justify-content: flex-start;
   }
 
-  .tagline {
-    margin-inline: auto;
+  .heroHead {
+    max-width: 128px;
   }
 
-  .actions {
-    justify-content: center;
+  .dots {
+    mask-image: linear-gradient(180deg, #000 0, transparent 260px);
   }
 
-  .features {
-    grid-template-columns: 1fr;
+  .step,
+  .audience {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+@media (max-width: 576px) {
+  .heroInner,
+  .main {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .heroTitle {
+    font-size: 40px;
+    line-height: 44px;
+  }
+
+  .lead,
+  .sectionLead {
+    font-size: 17px;
+    line-height: 28px;
+  }
+
+  .section {
+    padding-top: var(--space-16);
+  }
+
+  .last {
+    padding-bottom: var(--space-16);
+  }
+
+  .sectionHeader {
+    margin-bottom: var(--space-8);
+  }
+
+  .sectionLead {
+    margin-top: calc(-1 * var(--space-4));
+  }
+
+  .sectionTitle {
+    font-size: 32px;
+    line-height: 36px;
+  }
+
+  .ideas,
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+
+  .diagram {
+    padding: var(--space-4);
+  }
+
+  .actions,
+  .actions .button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+
+  .card:hover,
+  .card:focus-visible {
+    transform: none;
   }
 }

@@ -1,0 +1,97 @@
+.figure {
+  margin: 0;
+}
+
+.wide,
+.narrow {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.narrow {
+  display: none;
+  max-width: 420px;
+}
+
+@media (max-width: 720px) {
+  .wide {
+    display: none;
+  }
+
+  .narrow {
+    display: block;
+  }
+}
+
+.group {
+  fill: var(--color-container);
+  stroke: none;
+}
+
+.box {
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+}
+
+.line {
+  fill: none;
+  stroke: var(--color-text-default);
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+.node {
+  fill: var(--color-text-default);
+  shape-rendering: crispEdges;
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 16px;
+  fill: var(--color-text-default);
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  fill: var(--color-text-muted);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--color-text-muted);
+}
+
+.slash {
+  fill: var(--color-primary);
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  fill: var(--color-text-default);
+}
+
+.commit {
+  fill: var(--color-surface);
+  stroke: var(--color-text-default);
+  stroke-width: 2;
+}
+
+.commitHead {
+  fill: var(--color-primary);
+  stroke: var(--color-primary);
+  stroke-width: 2;
+}

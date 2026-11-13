@@ -1,106 +1,1089 @@
 /*
- * Tema do site do Cabeção: um caderno pautado.
- * Tinta azul nos links e na marca, a margem vermelha como único acento quente, papel frio (nunca creme)
- * e, no modo escuro, o mesmo caderno à noite. As cores são as dos arquivos em assets/.
+ * Tema do site do Cabeção, no registro Dev do design system "Renan Loureiro":
+ * creme no claro, preto no escuro, Bricolage Grotesque no texto, JetBrains Mono em rótulos e código,
+ * vermelho só no cursor, nos rótulos //, nos links, no botão principal e no foco.
+ * Toda cor vem de tokens.css; aqui o Infima e o Docusaurus apontam para ela.
  */
 
-:root {
-  --cb-ink: #1c3d8f;
-  --cb-margin: #d92e45;
-  --cb-rule: #d3e0f2;
-  --cb-paper: #f7f9fc;
-  --cb-text: #16203a;
+/* ---------- Infima -> tokens ---------- */
 
-  --ifm-font-family-base: "Atkinson Hyperlegible Next Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --ifm-font-family-monospace: "Atkinson Hyperlegible Mono Variable", ui-monospace, "SFMono-Regular", monospace;
-  --ifm-heading-font-weight: 750;
-  --ifm-code-font-size: 90%;
-  --ifm-line-height-base: 1.7;
-
-  --ifm-color-primary: #1c3d8f;
-  --ifm-color-primary-dark: #193781;
-  --ifm-color-primary-darker: #18347a;
-  --ifm-color-primary-darkest: #142b64;
-  --ifm-color-primary-light: #1f439d;
-  --ifm-color-primary-lighter: #2046a4;
-  --ifm-color-primary-lightest: #2551bb;
-
-  --ifm-background-color: var(--cb-paper);
-  --ifm-background-surface-color: #eef3fa;
-  --ifm-font-color-base: var(--cb-text);
-  --ifm-heading-color: var(--cb-text);
-  --ifm-navbar-background-color: #eef3fa;
-  --ifm-footer-background-color: #eef3fa;
-  --ifm-toc-border-color: #dbe4f2;
-  --ifm-hr-border-color: #dbe4f2;
-  --ifm-code-background: #e7edf7;
-  --docusaurus-highlighted-code-line-bg: rgb(28 61 143 / 12%);
-}
-
+:root,
 :root[data-theme="dark"] {
-  --cb-ink: #a9c1ff;
-  --cb-margin: #ff7385;
-  --cb-rule: #1e3059;
-  --cb-paper: #0f1a33;
-  --cb-text: #eef2fa;
+  --ifm-font-family-base: var(--font-sans);
+  --ifm-heading-font-family: var(--font-sans);
+  --ifm-font-family-monospace: var(--font-mono);
+  --ifm-font-size-base: 17px;
+  --ifm-line-height-base: 28px;
+  --ifm-font-weight-bold: 700;
+  --ifm-heading-font-weight: 800;
+  --ifm-heading-line-height: 1.15;
+  --ifm-heading-margin-bottom: var(--space-4);
+  --ifm-h1-font-size: 44px;
+  --ifm-h2-font-size: 30px;
+  --ifm-h3-font-size: 22px;
+  --ifm-h4-font-size: 17px;
+  --ifm-paragraph-margin-bottom: var(--space-4);
+  --ifm-spacing-horizontal: var(--space-6);
+  --ifm-leading: var(--space-4);
 
-  --ifm-color-primary: #a9c1ff;
-  --ifm-color-primary-dark: #85a6ff;
-  --ifm-color-primary-darker: #7398ff;
-  --ifm-color-primary-darkest: #3d6eff;
-  --ifm-color-primary-light: #cddcff;
-  --ifm-color-primary-lighter: #dfe8ff;
-  --ifm-color-primary-lightest: #ffffff;
+  --ifm-color-primary: var(--color-primary);
+  --ifm-color-primary-dark: var(--color-primary-pressed);
+  --ifm-color-primary-darker: var(--color-primary-pressed);
+  --ifm-color-primary-darkest: var(--color-primary-pressed);
+  --ifm-color-primary-light: var(--color-primary-pressed);
+  --ifm-color-primary-lighter: var(--color-primary-pressed);
+  --ifm-color-primary-lightest: var(--color-primary-pressed);
+  --ifm-color-primary-contrast-background: var(--color-container);
+  --ifm-color-primary-contrast-foreground: var(--color-text-default);
 
-  --ifm-background-color: var(--cb-paper);
-  --ifm-background-surface-color: #16244a;
-  --ifm-font-color-base: #d6deee;
-  --ifm-heading-color: var(--cb-text);
-  --ifm-navbar-background-color: #16244a;
-  --ifm-footer-background-color: #16244a;
-  --ifm-toc-border-color: #2b3a64;
-  --ifm-hr-border-color: #2b3a64;
-  --ifm-code-background: #1c2c5c;
-  --docusaurus-highlighted-code-line-bg: rgb(169 193 255 / 14%);
+  --ifm-background-color: var(--color-bg);
+  --ifm-background-surface-color: var(--color-surface);
+  --ifm-font-color-base: var(--color-text-default);
+  --ifm-font-color-secondary: var(--color-text-muted);
+  --ifm-color-content: var(--color-text-default);
+  --ifm-color-content-secondary: var(--color-text-muted);
+  --ifm-heading-color: var(--color-text-default);
+  --ifm-color-emphasis-0: var(--color-bg);
+  --ifm-color-emphasis-100: var(--color-container);
+  --ifm-color-emphasis-200: var(--color-border);
+  --ifm-color-emphasis-300: var(--color-border);
+  --ifm-color-emphasis-400: var(--color-border-strong);
+  --ifm-color-emphasis-500: var(--color-text-muted);
+  --ifm-color-emphasis-600: var(--color-text-muted);
+  --ifm-color-emphasis-700: var(--color-text-muted);
+  --ifm-color-emphasis-800: var(--color-text-default);
+  --ifm-color-emphasis-900: var(--color-text-default);
+  --ifm-color-emphasis-1000: var(--color-text-default);
+
+  --ifm-link-color: var(--color-primary);
+  --ifm-link-hover-color: var(--color-primary-pressed);
+  --ifm-link-decoration: none;
+  --ifm-link-hover-decoration: underline;
+
+  --ifm-global-radius: var(--radius-md);
+  --ifm-global-shadow-lw: none;
+  --ifm-global-shadow-md: none;
+  --ifm-global-shadow-tl: none;
+  --ifm-hr-background-color: var(--color-border);
+  --ifm-hr-height: 1px;
+  --ifm-toc-border-color: var(--color-border);
+  --ifm-table-border-color: var(--color-border);
+  --ifm-table-border-width: 1px;
+  --ifm-table-head-background: transparent;
+  --ifm-table-stripe-background: transparent;
+  --ifm-table-cell-padding: var(--space-3);
+
+  --ifm-code-font-size: 0.875em;
+  --ifm-code-background: var(--color-container);
+  --ifm-code-border-radius: var(--radius-sm);
+  --ifm-code-padding-horizontal: 0.35em;
+  --ifm-code-padding-vertical: 0.1em;
+  --ifm-pre-background: var(--code-bg);
+  --ifm-pre-color: var(--code-text);
+  --ifm-pre-padding: var(--space-4);
+  --ifm-pre-line-height: 22px;
+  --docusaurus-highlighted-code-line-bg: var(--code-highlight);
+
+  --ifm-navbar-height: 64px;
+  --ifm-navbar-background-color: var(--color-bg);
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-link-color: var(--color-text-default);
+  --ifm-navbar-link-hover-color: var(--color-primary);
+  --ifm-navbar-link-active-color: var(--color-text-default);
+  --ifm-navbar-padding-horizontal: var(--space-6);
+  --ifm-navbar-item-padding-horizontal: var(--space-3);
+  --ifm-dropdown-background-color: var(--color-surface);
+  --ifm-dropdown-link-color: var(--color-text-default);
+  --ifm-dropdown-hover-background-color: var(--color-container);
+
+  --ifm-menu-color: var(--color-text-default);
+  --ifm-menu-color-active: var(--color-text-default);
+  --ifm-menu-color-background-active: var(--color-container);
+  --ifm-menu-color-background-hover: var(--color-container);
+  --ifm-menu-link-padding-vertical: 6px;
+  --ifm-menu-link-padding-horizontal: var(--space-3);
+
+  --ifm-footer-background-color: var(--color-bg);
+  --ifm-footer-color: var(--color-text-muted);
+  --ifm-footer-link-color: var(--color-text-default);
+  --ifm-footer-link-hover-color: var(--color-primary);
+  --ifm-footer-title-color: var(--color-text-muted);
+  --ifm-footer-padding-vertical: var(--space-12);
+
+  --ifm-breadcrumb-item-background-active: transparent;
+  --ifm-breadcrumb-color-active: var(--color-text-default);
+  --ifm-tabs-color: var(--color-text-muted);
+  --ifm-tabs-color-active: var(--color-text-default);
+  --ifm-tabs-color-active-border: var(--color-primary);
+  --ifm-card-background-color: var(--color-surface);
+  --ifm-button-border-radius: var(--radius-md);
+  --ifm-alert-border-radius: var(--radius-md);
+  --ifm-container-width-xl: 1280px;
+
+  --search-local-modal-background: var(--color-surface);
+  --search-local-modal-shadow: none;
+  --search-local-hit-background: var(--color-bg);
+  --search-local-hit-shadow: none;
+  --search-local-hit-color: var(--color-text-default);
+  --search-local-highlight-color: var(--color-container);
+  --search-local-muted-color: var(--color-text-muted);
+  --search-local-input-active-border-color: var(--color-focus);
+  --search-local-hit-active-color: var(--color-text-default);
+  --search-local-icon-stroke-width: 2;
 }
 
-/* O título de cada página ganha a margem vermelha do caderno à esquerda. */
-.theme-doc-markdown > header > h1,
-.theme-doc-markdown > h1:first-child {
-  border-inline-start: 3px solid var(--cb-margin);
-  padding-inline-start: 0.75rem;
+/* ---------- Base ---------- */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-default);
+  font-optical-sizing: auto;
+}
+
+::selection {
+  background: var(--color-container);
+  color: var(--color-text-default);
+}
+
+/* Foco: anel de 2 px em color.focus, afastado 2 px, em tudo que recebe foco. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--border-strong) solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+.markdown h1,
+h1 {
+  font-size: var(--ifm-h1-font-size);
+  line-height: 48px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.markdown h2,
+h2 {
+  font-size: var(--ifm-h2-font-size);
+  line-height: 36px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+.markdown h3,
+h3 {
+  font-size: var(--ifm-h3-font-size);
+  line-height: 28px;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 
-/* Links do texto sublinhados como à caneta: fino, com folga. */
-.theme-doc-markdown a {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
+.markdown h4,
+h4 {
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 700;
 }
 
-/* Blocos de terminal: saída real, sem ligaduras. */
-pre code {
+/* Ritmo da página de documentação: densidade baixa, uma ideia por bloco. */
+.markdown {
+  --ifm-h1-vertical-rhythm-bottom: 1;
+  --ifm-h2-vertical-rhythm-top: 2;
+  --ifm-h3-vertical-rhythm-top: 1.5;
+  max-width: 46rem;
+}
+
+.markdown > h2 {
+  margin-top: var(--space-12);
+}
+
+.markdown > h3 {
+  margin-top: var(--space-8);
+}
+
+/* A descrição da página (primeiro parágrafo) não muda; o título ganha respiro embaixo. */
+.markdown header h1,
+.markdown > h1:first-child {
+  margin-bottom: var(--space-6);
+}
+
+.markdown p,
+.markdown li {
+  text-wrap: pretty;
+}
+
+.markdown li + li {
+  margin-top: var(--space-1);
+}
+
+/* Links: vermelho, sublinhado no hover. */
+a {
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+
+.markdown a {
+  font-weight: 500;
+}
+
+.markdown a code {
+  color: inherit;
+}
+
+hr {
+  border: 0;
+  border-top: var(--border-default) solid var(--color-border);
+}
+
+blockquote {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-default);
+  padding: var(--space-4) var(--space-6);
+}
+
+blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+mark {
+  background: var(--color-container);
+  color: var(--color-text-default);
+  border-radius: 2px;
+  box-shadow: inset 0 -2px 0 var(--color-primary);
+}
+
+/* Grade de pontos da marca: pontos de 4 px no passo space.4, em color.border. */
+.cb-dot-grid {
+  background-image: conic-gradient(at 4px 4px, transparent 75%, var(--color-border) 0);
+  background-size: 16px 16px;
+  background-position: 6px 6px;
+}
+
+/* O cursor pisca em degrau a cada 1,06 s; com "reduzir movimento", fica aceso. */
+@keyframes cb-pisca {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.cb-blink {
+  animation: cb-pisca 1.06s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-blink {
+    animation: none;
+  }
+}
+
+/* ---------- Código ---------- */
+
+/* Código inline: color.container, raio pequeno, mono. */
+code {
+  border: 0;
+  font-weight: 500;
+  vertical-align: baseline;
   font-variant-ligatures: none;
 }
 
-.navbar__title {
-  font-weight: 750;
-  color: var(--cb-ink);
+:not(pre) > code {
+  background: var(--color-container);
+  color: var(--color-text-default);
 }
 
-.footer--light {
-  border-top: 1px solid var(--ifm-toc-border-color);
+/* Bloco de código: sempre escuro, com a barra da linguagem como o CodeBlock do design system. */
+.theme-code-block {
+  --ifm-pre-background: var(--code-bg);
+  background: var(--code-bg);
+  border: var(--border-default) solid var(--code-rule);
+  color: var(--code-text);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  margin-bottom: var(--space-6);
+  overflow: hidden;
 }
 
-/* Títulos de aviso sem caixa alta, como o resto do texto. */
+.theme-code-block pre,
+.theme-code-block code {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 22px;
+  font-variant-ligatures: none;
+}
+
+.theme-code-block pre {
+  background: var(--code-bg);
+  padding: 0;
+}
+
+.theme-code-block pre > code {
+  padding: var(--space-4);
+}
+
+.theme-code-block [class*="codeBlockTitle"] {
+  background: var(--code-bg);
+  color: var(--code-comment);
+  border-bottom: var(--border-default) solid var(--code-rule);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px var(--space-4);
+}
+
+/* Sem título: a barra mostra a linguagem, em mono, na cor de comentário. */
+.theme-code-block:not(:has([class*="codeBlockTitle"]))::before {
+  content: "";
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 56px 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--code-comment);
+  border-bottom: var(--border-default) solid var(--code-rule);
+}
+
+.theme-code-block[class~="language-bash"]:not(:has([class*="codeBlockTitle"]))::before,
+.theme-code-block[class~="language-sh"]:not(:has([class*="codeBlockTitle"]))::before,
+.theme-code-block[class~="language-shell"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "bash";
+}
+
+.theme-code-block[class~="language-json"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "json";
+}
+
+.theme-code-block[class~="language-jsonc"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "jsonc";
+}
+
+.theme-code-block[class~="language-text"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "terminal";
+}
+
+.theme-code-block[class~="language-markdown"]:not(:has([class*="codeBlockTitle"]))::before,
+.theme-code-block[class~="language-md"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "markdown";
+}
+
+.theme-code-block[class~="language-yaml"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "yaml";
+}
+
+.theme-code-block[class~="language-toml"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "toml";
+}
+
+.theme-code-block[class~="language-ts"]:not(:has([class*="codeBlockTitle"]))::before,
+.theme-code-block[class~="language-typescript"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "typescript";
+}
+
+.theme-code-block[class~="language-js"]:not(:has([class*="codeBlockTitle"]))::before,
+.theme-code-block[class~="language-javascript"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "javascript";
+}
+
+.theme-code-block[class~="language-ini"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "ini";
+}
+
+.theme-code-block[class~="language-diff"]:not(:has([class*="codeBlockTitle"]))::before {
+  content: "diff";
+}
+
+/* O botão de copiar vai para a barra e fica sempre visível, discreto. */
+.theme-code-block [class*="codeBlockContent"] {
+  position: static;
+}
+
+.theme-code-block {
+  position: relative;
+}
+
+.theme-code-block [class*="buttonGroup"] {
+  top: 0;
+  right: 0;
+  height: 36px;
+  align-items: center;
+}
+
+.theme-code-block:has([class*="codeBlockTitle"]) [class*="buttonGroup"] {
+  height: 42px;
+}
+
+.theme-code-block [class*="codeBlockContent"] [class*="buttonGroup"] button {
+  opacity: 1;
+  background: transparent;
+  border: 0;
+  color: var(--code-comment);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+
+.theme-code-block [class*="buttonGroup"] button:hover {
+  color: var(--code-text);
+  background: transparent;
+}
+
+.theme-code-block [class*="buttonGroup"] button svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* ---------- Callout (admonitions) ---------- */
+
+/* Contorno completo, nunca só a barra da esquerda. Nota/dica/info: neutros; aviso e perigo: o primary. */
+.theme-admonition.alert {
+  --ifm-alert-background-color: var(--color-container);
+  --ifm-alert-background-color-highlight: var(--color-border);
+  --ifm-alert-foreground-color: var(--color-text-default);
+  --ifm-alert-border-color: var(--color-border);
+  --ifm-alert-border-left-width: var(--border-default);
+  --ifm-alert-border-width: var(--border-default);
+  --ifm-alert-padding-vertical: var(--space-4);
+  --ifm-alert-padding-horizontal: var(--space-4);
+  background: var(--color-container);
+  color: var(--color-text-default);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  font-size: 15px;
+  line-height: 24px;
+  margin-bottom: var(--space-6);
+}
+
+.theme-admonition.alert--warning,
+.theme-admonition.alert--danger {
+  --ifm-alert-background-color: var(--color-surface);
+  background: var(--color-surface);
+  border: var(--border-strong) solid var(--color-primary);
+}
+
 .theme-admonition [class*="admonitionHeading"] {
-  text-transform: none;
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
 
-/* Termo buscado marcado com a margem do caderno, sem o amarelo de marca-texto. */
-mark {
-  background-color: rgb(217 46 69 / 18%);
-  color: inherit;
+.theme-admonition.alert--warning [class*="admonitionHeading"],
+.theme-admonition.alert--danger [class*="admonitionHeading"] {
+  color: var(--color-primary);
+}
+
+.theme-admonition [class*="admonitionIcon"] {
+  display: inline-flex;
+  margin: 0;
+}
+
+.theme-admonition [class*="admonitionIcon"] svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+}
+
+.theme-admonition [class*="admonitionContent"] a {
+  color: var(--color-text-default);
+  text-decoration: underline;
+}
+
+.theme-admonition.alert--warning [class*="admonitionContent"] a,
+.theme-admonition.alert--danger [class*="admonitionContent"] a {
+  color: var(--color-primary);
+}
+
+/* ---------- Tabelas ---------- */
+
+.markdown table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  border: 0;
+  font-size: 15px;
+  line-height: 24px;
+  margin-bottom: var(--space-8);
+}
+
+.markdown table thead tr {
+  border-bottom: var(--border-strong) solid var(--color-text-default);
+}
+
+.markdown table th {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  text-align: left;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.markdown table tr {
+  background: transparent;
+  border-top: 0;
+  border-bottom: var(--border-default) solid var(--color-border);
+}
+
+.markdown table th,
+.markdown table td {
+  border: 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+}
+
+.markdown table td {
+  vertical-align: top;
+}
+
+.markdown table td:first-child code {
+  white-space: nowrap;
+}
+
+/* ---------- Navegação ---------- */
+
+.navbar {
+  border-bottom: var(--border-default) solid var(--color-border);
+  padding-block: 0;
+}
+
+.navbar__inner {
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+.navbar__brand {
+  gap: var(--space-3);
+  margin-right: var(--space-6);
+}
+
+.navbar__logo {
+  height: 32px;
+  width: 32px;
+  margin: 0;
+}
+
+.navbar__logo img {
+  image-rendering: pixelated;
+}
+
+.navbar__title {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--color-text-default);
+}
+
+.navbar__link {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.navbar__link--active {
+  color: var(--color-text-default);
+}
+
+/* Link do GitHub escrito, sem logo de terceiro, em mono. */
+.navbar__item.navbar__link[href*="github.com"] {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.navbar__item.navbar__link[href*="github.com"] svg {
+  display: none;
+}
+
+.dropdown__menu {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard);
+  padding: var(--space-1);
+}
+
+.dropdown__link {
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+}
+
+.dropdown__link--active {
+  color: var(--color-primary);
+  background: transparent;
+}
+
+/* Alternância claro/escuro: botão quadrado com o contorno de controle no hover. */
+[class*="colorModeToggle"] button {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-default);
+}
+
+[class*="colorModeToggle"] button:hover {
+  background: var(--color-container);
+}
+
+/* Busca local. */
+.navbar__search-input {
+  background-color: var(--color-surface);
+  border: var(--border-default) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-default);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  height: 36px;
+  width: 13rem;
+  padding: 0 var(--space-3) 0 2.25rem;
+  background-position: 0.75rem center;
+}
+
+.navbar__search-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+[class*="searchBar"] kbd {
+  background: transparent;
+  border: var(--border-default) solid var(--color-border);
+  box-shadow: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
+
+.navbar [class*="searchBar"] [class*="dropdownMenu"] {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard);
+}
+
+.navbar [class*="searchBar"] [class*="dropdownMenu"] [class*="suggestion"] {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+[class*="searchBar"] [class*="dropdownMenu"] [class*="suggestion"][class*="cursor"] {
+  border-color: var(--color-border-strong);
+}
+
+/* Termo achado: negrito sublinhado em vermelho (o vermelho como texto não passa sobre color.container). */
+[class*="searchBar"] mark,
+[class*="hitWrapper"] mark {
+  background: transparent;
+  color: var(--color-text-default);
+  box-shadow: inset 0 -2px 0 var(--color-primary);
+  border-radius: 0;
+  font-weight: 700;
+}
+
+[class*="hitPath"],
+[class*="hitFooter"] {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ---------- Barra lateral, sumário, trilha ---------- */
+
+.theme-doc-sidebar-container {
+  border-right-color: var(--color-border);
+}
+
+.theme-doc-sidebar-menu {
+  padding-top: var(--space-4);
+}
+
+nav.menu {
+  padding: var(--space-4) var(--space-3);
+}
+
+.menu__link {
+  font-size: 15px;
+  line-height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-default);
+}
+
+.menu__link:hover {
+  color: var(--color-text-default);
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  font-weight: 700;
+  background: var(--color-container);
+}
+
+/* Categorias: rótulo // em mono, como o SectionHeader do registro Dev. */
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link::before {
+  content: "// ";
+  color: var(--color-primary);
+  white-space: pre;
+}
+
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible:hover,
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link--active {
+  background: transparent;
+}
+
+.theme-doc-sidebar-item-category-level-1 + .theme-doc-sidebar-item-category-level-1 {
+  margin-top: var(--space-3);
+}
+
+.menu__caret::before,
+.menu__link--sublist-caret::after {
+  background-size: 1.5rem;
+  opacity: 0.6;
+}
+
+.menu__list .menu__list {
+  margin-top: var(--space-1);
+  padding-left: 0;
+}
+
+/* Sumário da página. */
+.table-of-contents {
+  font-size: 14px;
+  line-height: 20px;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.theme-doc-toc-desktop {
+  padding-left: var(--space-6);
+  border-left: var(--border-default) solid var(--color-border);
+}
+
+.theme-doc-toc-desktop::before {
+  content: var(--toc-label, "// Nesta página");
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+html[lang="en"] .theme-doc-toc-desktop::before {
+  content: "// On this page";
+}
+
+.table-of-contents__link {
+  color: var(--color-text-muted);
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.table-of-contents__link--active {
+  font-weight: 700;
+}
+
+.table-of-contents li {
+  margin: var(--space-2) 0;
+}
+
+/* Trilha: mono, discreta. */
+.breadcrumbs {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin-bottom: var(--space-4);
+}
+
+.breadcrumbs__link {
+  color: var(--color-text-muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  color: var(--color-text-default);
+  font-weight: 500;
+}
+
+.breadcrumbs__item:not(:last-child)::after {
+  background: none;
+  content: "/";
+  color: var(--color-border-strong);
+  margin: 0 2px;
+  width: auto;
+  height: auto;
+  opacity: 1;
+}
+
+/* Rodapé da página: editar e navegação anterior/próxima em cards de contorno. */
+.theme-edit-this-page {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.theme-edit-this-page svg {
+  display: none;
+}
+
+.pagination-nav {
+  gap: var(--space-4);
+}
+
+.pagination-nav__link {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-6);
+  transition:
+    transform 80ms steps(2, end),
+    box-shadow 80ms steps(2, end);
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--color-border);
+  transform: translate(-4px, -4px);
+  box-shadow: var(--shadow-hard);
+  text-decoration: none;
+}
+
+.pagination-nav__sublabel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.pagination-nav__label {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-text-default);
+}
+
+.pagination-nav__link--next .pagination-nav__label::after,
+.pagination-nav__link--prev .pagination-nav__label::before {
+  color: var(--color-primary);
+}
+
+/* Abas (instalação). */
+.tabs {
+  border-bottom: var(--border-default) solid var(--color-border);
+  margin-bottom: var(--space-4);
+}
+
+.tabs__item {
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-strong) solid transparent;
+}
+
+.tabs__item:hover {
+  background: var(--color-container);
+}
+
+.tabs__item--active {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-text-default);
+}
+
+/* Botões do Infima, como o Button do design system. */
+.button {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 20px;
+  border-width: var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 10px var(--space-4);
+}
+
+.button--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.button--primary:hover {
+  background: var(--color-primary-pressed);
+  border-color: var(--color-primary-pressed);
+  color: var(--color-on-primary);
+}
+
+/* Botão de voltar ao topo. */
+[class*="backToTopButton"] {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+[class*="backToTopButton"]::after {
+  background-color: var(--color-text-default);
+}
+
+/* ---------- Rodapé ---------- */
+
+.footer {
+  border-top: var(--border-default) solid var(--color-border);
+  font-size: 15px;
+}
+
+.footer__title {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.footer__title::before {
+  content: "// ";
+  color: var(--color-primary);
+  white-space: pre;
+}
+
+.footer__link-item {
+  line-height: 28px;
+}
+
+.footer__bottom {
+  margin-top: var(--space-8);
+  padding-top: var(--space-8);
+  border-top: var(--border-default) solid var(--color-border);
+  text-align: left;
+}
+
+.footer__logo {
+  max-width: 100%;
+  height: 60px;
+  width: auto;
+  margin: 0 0 var(--space-4);
+}
+
+.footer__copyright {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--color-text-muted);
+}
+
+.footer__copyright a {
+  color: var(--color-text-default);
+}
+
+/* ---------- Telas pequenas ---------- */
+
+@media (max-width: 996px) {
+  .navbar__search-input {
+    width: 9rem;
+  }
+
+  /* Em tela estreita a tabela rola dentro dela mesma, sem rolagem lateral na página. */
+  .markdown table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .markdown {
+    max-width: none;
+  }
+}
+
+@media (max-width: 576px) {
+  :root,
+  :root[data-theme="dark"] {
+    --ifm-h1-font-size: 34px;
+    --ifm-h2-font-size: 26px;
+    --ifm-h3-font-size: 20px;
+    --ifm-navbar-padding-horizontal: var(--space-4);
+    --ifm-spacing-horizontal: var(--space-4);
+  }
+
+  .markdown h1,
+  h1 {
+    line-height: 38px;
+  }
+
+  .markdown h2,
+  h2 {
+    line-height: 32px;
+  }
+
+  .navbar__search-input {
+    width: 36px;
+  }
+}
+
+/* Reduzir movimento: nada se desloca. */
+@media (prefers-reduced-motion: reduce) {
+  .pagination-nav__link {
+    transition: none;
+  }
+
+  .pagination-nav__link:hover {
+    transform: none;
+  }
+}
+
+/* O Docusaurus deixa o logo do rodapé a meia opacidade; a assinatura fica inteira. */
+[class*="footerLogoLink"] {
+  opacity: 1;
 }
