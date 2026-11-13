@@ -1,4 +1,4 @@
-// As nove tools sobre uma cópia do cérebro de exemplo, nas duas gerações do protocolo: saída validada pelo esquema
+// As tools sobre uma cópia do cérebro de exemplo, nas duas gerações do protocolo: saída validada pelo esquema
 // declarado em `tools/list`, commits com os rodapés e o cliente vindo do `clientInfo`, recusas do núcleo (regra,
 // segredo) como erro de tool com `next_step`, e erro inesperado sem pilha.
 import type { SyncOutput } from '@cabecao/core';
@@ -75,7 +75,7 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
   const expectedClient = generation === 'legacy' ? 'claude-code' : 'codex';
 
   it(
-    'as nove tools respondem com structuredContent igual ao texto e válido pelo esquema de saída',
+    'todas as tools respondem com structuredContent igual ao texto e válido pelo esquema de saída',
     async () => {
       const dir = await createBrainRepo();
       const server = startInMemory(dir, { generation, clientName: announced });
@@ -96,6 +96,24 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
 
       const read = check('read', await server.client.call('read', { path: 'wiki/entities/SQS.md' }));
       expect((read.note as { path: string }).path).toBe('wiki/entities/SQS.md');
+
+      const past = check('search', await server.client.call('search', { query: 'filas', as_of: '2026-03-01' }));
+      expect(past.as_of).toBe('2026-03-01');
+      expect(Array.isArray(past.related)).toBe(true);
+
+      const graph = check('graph', await server.client.call('graph', { node: 'Projeto Atlas', depth: 1 }));
+      expect((graph.node as { path: string }).path).toBe('wiki/entities/Projeto Atlas.md');
+      expect((graph.neighbors as unknown[]).length).toBeGreaterThan(0);
+      expect(graph.data_notice).toMatch(/dado/);
+
+      const facts = check(
+        'facts',
+        await server.client.call('facts', { subject: 'Projeto Atlas', predicate: 'led_by', as_of: '2026-06-01' }),
+      );
+      expect((facts.facts as { path: string; validity: string }[])[0]).toMatchObject({
+        path: 'memory/facts/fato-ana-lidera-atlas.md',
+        validity: 'current',
+      });
 
       const status = check('status', await server.client.call('status'));
       expect(status.client).toBe(expectedClient);
@@ -145,8 +163,19 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       );
       expect(patched.action).toBe('update');
 
+      const related = check(
+        'relate',
+        await server.client.call('relate', {
+          from: 'wiki/concepts/Servidor MCP.md',
+          type: 'related_to',
+          to: 'SQS',
+          session_handle: session,
+        }),
+      );
+      expect(related.relation).toMatchObject({ type: 'related_to', to: 'wiki/entities/SQS.md', link: '[[SQS]]' });
+
       const undone = check('undo', await server.client.call('undo', { session: session, session_handle: session }));
-      expect((undone.undone as unknown[]).length).toBe(4);
+      expect((undone.undone as unknown[]).length).toBe(5);
 
       // sem remoto configurado: o sync faz o que é local e diz como ficou
       const synced = check('sync', await server.client.call('sync', { session_handle: session }));
