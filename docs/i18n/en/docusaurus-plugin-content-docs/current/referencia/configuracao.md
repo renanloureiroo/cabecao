@@ -30,6 +30,7 @@ sidebar_position: 3
 | `relations` | list of names | `[]` | Your own typed relations, in addition to the six built-in ones |
 | `commit` | object | absent | The template for commit subjects |
 | `embedding` | object | absent | Reserved for semantic search, [coming soon](../em-breve.md). It has no effect today |
+| `llm_policy` | object | absent (no restriction) | What an `ask` answer provider may receive from this brain. See [Per-brain policy](../guias/respostas-com-modelo.md#per-brain-policy) |
 
 Keys that Cabeção does not know are kept when it rewrites the file.
 
@@ -74,6 +75,18 @@ Placeholders for `message`:
 `dateFormat` uses Moment.js tokens (`YYYY`, `MM`, `DD`, `HH`, `mm`, `ss`, `SSS`, `dddd`, `MMMM`...) and accepts literal text in square brackets, such as `[às] HH:mm`. Month and day names come out in English.
 
 The body and the trailers (`Cabecao-Op`, `Cabecao-Session`...) do not change: `undo` depends on them. See [Commits and undo](../conceitos/commits-e-undo.md).
+
+### llm_policy
+
+Applies on every machine of the brain and only restricts: the provider itself is chosen on each machine, with `cabecao llm on`.
+
+```json
+{
+  "llm_policy": { "allow": "agent", "exclude_paths": ["memory/private/**"], "exclude_types": [], "exclude_trust": ["low"] }
+}
+```
+
+`allow` is `"any"` (default), `"agent"` (only the installed agent) or `"none"` (never calls a provider). An invalid `llm_policy` does not break the brain: it closes sending (nothing leaves) and `doctor` says what to fix. The policy only restricts (what enables a provider is the machine), only you change it (`cabecao llm policy`, in the terminal) and an agent does not alter it, not even with confirmation.
 
 ## When the file breaks
 

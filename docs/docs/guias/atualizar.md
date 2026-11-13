@@ -128,6 +128,7 @@ O npm não roda nada quando desinstala um pacote. Por isso, antes de tirar o pro
 - as skills que ele instalou (as que você alterou ficam);
 - o sync agendado (como `cabecao schedule off`);
 - a configuração da máquina (`~/.config/cabecao`, ou a pasta de `CABECAO_CONFIG_DIR`);
+- o provedor das [respostas com um modelo](./respostas-com-modelo.md), se você ativou: o `llm.json` e as chaves guardadas, no cofre do sistema e no arquivo (se o cofre recusar apagar uma chave, o `uninstall` diz qual);
 - o cache: o runtime e os modelos da busca por significado e os registros das consolidações (`--keep-cache` mantém).
 
 O **cérebro nunca é tocado**: ele é seu, está no git e no remoto. A cópia `.bak` que o `install-client` guardou do arquivo original de cada cliente também fica.

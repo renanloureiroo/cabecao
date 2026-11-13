@@ -5,7 +5,8 @@
 // - um arquivo com nome de instrução de cliente de IA (`CLAUDE.md`, `GEMINI.md`...) em QUALQUER pasta;
 // - `.cabecao.json`, `.gitignore` e `.gitattributes`, na raiz: só se o resultado for VÁLIDO (o `.cabecao.json` passa
 //   pela validação da configuração; os outros dois continuam com as linhas que o Cabeção exige), e nunca mexendo na
-//   seção `embedding` do `.cabecao.json` (ela é dos comandos de embeddings).
+//   seção `embedding` do `.cabecao.json` (ela é dos comandos de embeddings); a seção `llm_policy` um agente não altera
+//   nem com confirmação (decisão 38: só o usuário, com `cabecao llm policy` ou no editor).
 //
 // O catálogo (`index.md`, ou o `indexMd` da configuração) é derivado e não se edita. Para um agente, toda escrita
 // aqui é elevada: precisa de confirmação (`confirm.ts`). O usuário (CLI) confirma no terminal quando a CLI pede.
@@ -74,7 +75,13 @@ export function controlTarget(path: string, config: BrainConfig): { path: string
 }
 
 /** Confere que o texto final de um arquivo de configuração continua válido. */
-function validateControl(kind: ControlKind, path: string, text: string, before: string | null): void {
+function validateControl(
+  kind: ControlKind,
+  path: string,
+  text: string,
+  before: string | null,
+  actor: 'human' | 'agent',
+): void {
   if (kind === 'brain-config') {
     try {
       parseBrainConfig(text, path);
@@ -84,8 +91,24 @@ function validateControl(kind: ControlKind, path: string, text: string, before: 
         nextStep: 'Mande o arquivo inteiro, em JSON válido, no formato da configuração do cérebro.',
       });
     }
-    const previous = before === null ? undefined : (JSON.parse(before.replace(/^﻿/, '')) as { embedding?: unknown });
-    const raw = JSON.parse(text.replace(/^﻿/, '')) as { embedding?: unknown };
+    const previous =
+      before === null
+        ? undefined
+        : (JSON.parse(before.replace(/^﻿/, '')) as { embedding?: unknown; llm_policy?: unknown });
+    const raw = JSON.parse(text.replace(/^﻿/, '')) as { embedding?: unknown; llm_policy?: unknown };
+    // a política do provedor de respostas (decisão 38): nenhum agente a altera, nem com confirmação; só o usuário, pela
+    // CLI ("cabecao llm policy") ou no editor
+    if (actor === 'agent' && !isDeepStrictEqual(raw.llm_policy, previous?.llm_policy)) {
+      throw new BrainError(
+        'invalid_argument',
+        `a seção "llm_policy" do ${path} não se altera por um agente: é a política de envio a provedores de respostas`,
+        {
+          details: { path },
+          nextStep:
+            'Mantenha "llm_policy" exatamente como está. Só o usuário muda, no terminal, com "cabecao llm policy".',
+        },
+      );
+    }
     if (!isDeepStrictEqual(raw.embedding, previous?.embedding)) {
       throw new BrainError(
         'invalid_argument',
@@ -167,7 +190,7 @@ async function writeControlText(
         });
       }
       const { text, describe, shown } = compute(before);
-      validateControl(target.kind, target.path, text, before);
+      validateControl(target.kind, target.path, text, before, ctx.actor);
       const elevation: Elevation = {
         reasons: [KIND_REASON[target.kind]],
         summary: `${describe} ${target.path} (${KIND_REASON[target.kind]}). Conteúdo final: ${text.length.toLocaleString('pt-BR')} caracteres${before === null ? '' : `, antes ${before.length.toLocaleString('pt-BR')}`}. Texto ${mode === 'patch' ? 'que entra' : mode === 'append' ? 'acrescentado' : 'novo'}: "${preview(shown)}"`,

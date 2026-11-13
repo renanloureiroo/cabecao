@@ -116,6 +116,7 @@ No Claude Code, o plugin traz tudo junto (servidor embutido, briefing no início
 - Memória com ciclo de vida: handoff, duplicatas resolvidas, `lint`, `consolidate` (também com um agente sozinho), `forget`
 - `undo` por operação ou sessão; scanner de segredos; regras só com o seu pedido explícito
 - Obsidian com um comando (`obsidian setup`); `upgrade` e `uninstall`
+- Respostas com citações conferidas (`ask`), opcionais: desligadas por padrão, com o provedor que você ativar no terminal
 
 O que vem depois está em [Em breve](https://renanloureiroo.github.io/cabecao/em-breve).
 

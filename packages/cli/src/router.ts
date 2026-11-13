@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import type { ParseArgsOptionsConfig } from 'node:util';
 import { parseArgs } from 'node:util';
 import { accessOf } from './access.ts';
-import { resolveActor } from './actor.ts';
+import { FALLBACK_AGENT_CLIENT, resolveActor } from './actor.ts';
 import { COMMANDS } from './commands.ts';
 import { CliError, UsageError } from './errors.ts';
 import { EXAMPLES, GROUPS } from './help.ts';
@@ -366,11 +366,21 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
 
     // quem roda (`actor.ts`) e a classe do comando (`access.ts`). Todo comando registrado tem classe (um teste confere);
     // um registro injetado (testes) sem classe roda como memória: abre o cérebro com o ator resolvido, sob as regras dele
-    const actor = resolveActor({
+    const resolved = resolveActor({
       env: io.env,
       terminal: io.terminal !== undefined,
       as: typeof values.as === 'string' ? values.as : undefined,
     });
+    const actor: typeof resolved =
+      command.alwaysAgent === true && resolved.actor === 'human'
+        ? {
+            ...resolved,
+            actor: 'agent',
+            client: FALLBACK_AGENT_CLIENT,
+            reason: 'server',
+            explanation: `"${CLI_NAME} ${command.name}" atende um cliente de IA: quem o usa é sempre um agente`,
+          }
+        : resolved;
     if (values.as === '') throw new UsageError('a opção --as precisa do nome do agente');
     const access = accessOf(command.name, positionals) ?? 'memory';
     if (access === 'human' && actor.actor === 'agent') {
@@ -395,6 +405,10 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
       actor,
       // só o usuário recebe pergunta; ela vai direto ao terminal controlador, nunca ao stdin
       prompt: actor.actor === 'human' && terminal !== undefined ? (question) => terminal.prompt(question) : undefined,
+      promptSecret:
+        actor.actor === 'human' && terminal?.promptSecret !== undefined
+          ? (question) => (terminal.promptSecret as (q: string) => Promise<string | null>)(question)
+          : undefined,
     };
     const { run } = await command.load();
     const result = await run(ctx);

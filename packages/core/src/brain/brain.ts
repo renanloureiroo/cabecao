@@ -48,6 +48,8 @@ import { lint } from './lint.ts';
 import type { MapGraphInput, MapGraphOutput } from './map.ts';
 import { mapGraph } from './map.ts';
 import { Mutex } from './mutex.ts';
+import type { PrivateNote } from './private-notes.ts';
+import { privateNotes } from './private-notes.ts';
 import type {
   ReadInput,
   ReadOutput,
@@ -137,6 +139,8 @@ export interface Brain {
   facts(input?: FactsInput): Promise<FactsOutput>;
   /** Relatório de saúde por regras (sem LLM, só leitura): cada achado com severidade, caminho e correção. */
   lint(input?: LintInput): Promise<LintOutput>;
+  /** Notas que nunca vão a um provedor de respostas (`ask`): privadas e de frontmatter ilegível, com os nomes delas. */
+  privateNotes(): Promise<PrivateNote[]>;
 
   /**
    * Grava uma memória, tratando duplicatas e contradições no mesmo escopo e tipo: igual → ignora; complementa →
@@ -307,6 +311,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     mapGraph: (input) => mapGraph(ctx, input),
     facts: (input) => facts(ctx, input),
     lint: (input) => lint(ctx, input),
+    privateNotes: () => privateNotes(ctx),
     status: async () => {
       assertOpen(ctx);
       return status(ctx, await machineName(ctx));

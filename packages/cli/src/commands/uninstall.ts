@@ -1,7 +1,8 @@
 // `cabecao uninstall [--dry-run] [--keep-cache]`: tira desta máquina tudo o que o Cabeção pôs FORA do cérebro (o npm
 // não roda nada ao desinstalar um pacote desde o npm 7): os registros do servidor MCP nos clientes de IA, as skills
 // que ele instalou, o sync agendado, a configuração da máquina e o cache (runtime e modelos de embeddings, registros
-// das consolidações). O cérebro NUNCA é tocado: ele é seu, está no git e no remoto.
+// das consolidações), e o provedor de respostas do `ask` (o `llm.json` e as chaves guardadas, no cofre do sistema e
+// em arquivo). O cérebro NUNCA é tocado: ele é seu, está no git e no remoto.
 //
 // Mostra o que vai sair e pergunta no terminal (só o usuário roda este comando). `--dry-run` só mostra.
 import { existsSync } from 'node:fs';
@@ -15,6 +16,9 @@ import { CLIENT_IDS, CLIENTS } from '../install-client/clients.ts';
 import { resolveLaunch } from '../install-client/launch.ts';
 import { readRegistrations, registerClients } from '../install-client/register.ts';
 import { removeProgramCommand } from '../install-method.ts';
+import { CREDENTIALS_FILE, credentialAccount, DPAPI_FILE, deleteKey } from '../llm/credentials.ts';
+import { loadLlmMachine } from '../llm/describe.ts';
+import { USAGE_FILE } from '../llm/run.ts';
 import { scheduleOff, scheduleStatus } from '../schedule/system.ts';
 import { readRegistry, removeFrom, writeRegistry } from '../skills/install.ts';
 import { displayPath } from '../text.ts';
@@ -26,8 +30,31 @@ interface Plan {
   schedule: { mechanism: string; files: string[] } | null;
   configDir: { path: string; remove: 'all' | 'skip'; why?: string } | null;
   cacheDir: { path: string; remove: 'all' | 'skip'; why?: string } | null;
+  /** O provedor de respostas: a pasta, os provedores com chave guardada e os arquivos do Cabeção nela. */
+  llm: { dir: string; providers: { id: string; account: string }[]; files: string[] } | null;
   brain: string | null;
   program: string | null;
+}
+
+const LLM_FILES = [
+  'llm.json',
+  'llm-consent.key',
+  CREDENTIALS_FILE,
+  DPAPI_FILE,
+  USAGE_FILE,
+  'ask.log',
+  'ask.log.1',
+  'ask-usage.lock',
+];
+
+async function llmPlan(ctx: CommandContext): Promise<Plan['llm']> {
+  const machine = await loadLlmMachine(ctx).catch(() => null);
+  if (machine === null || machine.configDir === '') return null;
+  const files = LLM_FILES.map((name) => resolve(machine.configDir, name)).filter((path) => existsSync(path));
+  const providers = Object.entries(machine.config?.providers ?? {}).flatMap(([id, entry]) =>
+    entry.kind === 'http' && entry.key !== 'none' ? [{ id, account: credentialAccount(id, entry) }] : [],
+  );
+  return files.length === 0 && providers.length === 0 ? null : { dir: machine.configDir, providers, files };
 }
 
 /** Uma pasta só é apagada inteira se for a do Cabeção (termina em "cabecao") e não contiver o cérebro. */
@@ -78,12 +105,13 @@ async function makePlan(ctx: CommandContext): Promise<Plan> {
     configDir: existsSync(config) ? { path: config, ...removable(config, brain) } : null,
     cacheDir:
       existsSync(cache) && ctx.values['keep-cache'] !== true ? { path: cache, ...removable(cache, brain) } : null,
+    llm: await llmPlan(ctx),
     brain,
     program: removeProgramCommand(ctx),
   };
 }
 
-function planText(plan: Plan, home: string, dryRun: boolean): string {
+function planText(plan: Plan, home: string, dryRun: boolean, agent = false): string {
   const show = (path: string) => displayPath(path, home);
   const lines = [
     dryRun ? 'O que "cabecao uninstall" tiraria desta máquina (nada foi feito):' : 'Vai sair desta máquina:',
@@ -93,7 +121,8 @@ function planText(plan: Plan, home: string, dryRun: boolean): string {
     plan.skills.length === 0 &&
     plan.schedule === null &&
     plan.configDir === null &&
-    plan.cacheDir === null;
+    plan.cacheDir === null &&
+    plan.llm === null;
   if (empty) lines.push('  nada: o Cabeção não deixou registro, skill, agendamento, configuração nem cache aqui.');
   for (const client of plan.clients) {
     lines.push(`  registro do servidor MCP no ${client.label}: ${client.files.map(show).join(', ')}`);
@@ -102,6 +131,14 @@ function planText(plan: Plan, home: string, dryRun: boolean): string {
     lines.push(`  skills do Cabeção em ${show(skills.dir)} (${skills.clients.join(', ')}; só as que você não alterou)`);
   }
   if (plan.schedule !== null) lines.push(`  sync agendado (${plan.schedule.mechanism})`);
+  if (plan.llm !== null && agent) {
+    lines.push('  respostas (ask): a configuração e as chaves guardadas (os detalhes, só no seu terminal)');
+  } else if (plan.llm !== null) {
+    const keys = plan.llm.providers.map((provider) => provider.id);
+    lines.push(
+      `  respostas (ask): a configuração em ${show(plan.llm.dir)}${keys.length === 0 ? '' : ` e as chaves guardadas de ${keys.join(', ')} (cofre do sistema e arquivo)`}`,
+    );
+  }
   for (const [label, dir] of [
     ['configuração da máquina', plan.configDir],
     ['cache (runtime e modelos de embeddings, registros)', plan.cacheDir],
@@ -129,8 +166,13 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const dryRun = ctx.values['dry-run'] === true;
   const home = homeDir(ctx);
   const plan = await makePlan(ctx);
-  const text = planText(plan, home, dryRun);
-  if (dryRun) return { data: { action: 'dry-run', ...plan }, text };
+  // para um agente, nada do provedor de respostas (nome, destino, pasta): só que há configuração
+  const agent = ctx.actor.actor !== 'human';
+  const text = planText(plan, home, dryRun, agent);
+  if (dryRun) {
+    const shown = agent && plan.llm !== null ? { ...plan, llm: { configured: true } } : plan;
+    return { data: { action: 'dry-run', ...shown }, text };
+  }
 
   if (ctx.prompt === undefined) {
     throw new CliError(
@@ -182,6 +224,31 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
     } catch (error) {
       problems.push(`sync agendado: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+  // as chaves no cofre do sistema e os arquivos do provedor de respostas, antes de apagar a pasta de configuração
+  if (plan.llm !== null) {
+    const io = {
+      env: ctx.env,
+      platform: ctx.platform,
+      configDir: plan.llm.dir,
+      ...(ctx.credentialRunner === undefined ? {} : { runner: ctx.credentialRunner }),
+    };
+    let failed = false;
+    for (const provider of plan.llm.providers) {
+      const left = await deleteKey(io, provider.account).catch((error: unknown) => [
+        error instanceof Error ? error.message : String(error),
+      ]);
+      for (const problem of left) problems.push(`chave de ${provider.id}: ${problem}`);
+      failed ||= left.length > 0;
+    }
+    for (const file of plan.llm.files) {
+      // a chave que o cofre recusou apagar fica registrada: o arquivo de chaves e o llm.json ficam para tentar de novo
+      if (failed && (file.endsWith('llm.json') || file.endsWith(CREDENTIALS_FILE))) continue;
+      await rm(file, { force: true }).catch((error: unknown) =>
+        problems.push(`${file}: ${error instanceof Error ? error.message : String(error)}`),
+      );
+    }
+    if (!failed) done.push('respostas (ask): configuração e chaves guardadas apagadas');
   }
   for (const dir of [plan.configDir, plan.cacheDir]) {
     if (dir === null || dir.remove !== 'all') continue;

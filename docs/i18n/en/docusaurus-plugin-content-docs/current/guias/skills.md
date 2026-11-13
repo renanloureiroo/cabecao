@@ -16,7 +16,7 @@ Each one covers an **intent**, and its description is written around what you as
 
 | Skill | Kicks in when | Commands |
 | --- | --- | --- |
-| `cabecao-consultar` | Start of a task; before stating something about your history, decisions or preferences | `recall`, `search`, `read`, `graph`, `facts` |
+| `cabecao-consultar` | Start of a task; before stating something about your history, decisions or preferences | `recall`, `search`, `read`, `graph`, `facts`, `ask` |
 | `cabecao-lembrar` | You state a preference, correct the agent, make a decision; the agent discovers a gotcha | `remember` (with `--resolution` for similar memories), `relate`, `write`, `patch` |
 | `cabecao-passar-bastao` | End of a relevant piece of work, change of machine or agent | `handoff`, `sync` |
 | `cabecao-manutencao` | Only when you ask: see the state, find problems, consolidate, forget, undo, sync | `status`, `lint`, `consolidate`, `forget`, `undo`, `sync` |

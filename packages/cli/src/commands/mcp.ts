@@ -1,4 +1,5 @@
-import type { EmbeddingProvider, SyncOutput } from '@cabecao/core';
+import { stat } from 'node:fs/promises';
+import type { AskInput, AskOutput, Brain, BrainConfig, EmbeddingProvider, SyncOutput } from '@cabecao/core';
 import { isUlid, readBrainConfig } from '@cabecao/core';
 import { readMachine, resolveBrain, toCliError } from '../brain.ts';
 import { embeddingProvider } from '../embeddings.ts';
@@ -20,6 +21,8 @@ export interface StdioServerOptions {
   syncRunner?: SyncRunner;
   /** Runtime de embeddings; criar não carrega nada (o modelo carrega na primeira busca que precisa dele). */
   embeddings?: EmbeddingProvider;
+  /** Respostas geradas (tool `ask`); só quando há provedor ativo nesta máquina e o cérebro permite. */
+  ask?: (brain: Brain, input: AskInput, signal?: AbortSignal) => Promise<AskOutput>;
   /** Modo sem ninguém olhando, preso a uma consolidação (`--consolidation <id>`). */
   unattended?: { consolidationId: string; allowForget: boolean; allowElevated?: boolean };
   stdin?: NodeJS.ReadableStream;
@@ -75,6 +78,40 @@ export function parseSyncProcessOutput(result: { code: number | null; stdout: st
   });
 }
 
+/**
+ * A tool `ask` só existe com um provedor de respostas ativo nesta máquina (`cabecao llm on`) e permitido pela
+ * `llm_policy` do cérebro. Sem `llm.json`, nada do código dos provedores é carregado. A decisão é tomada na subida do
+ * servidor: ativar depois pede reiniciar o cliente de IA.
+ */
+export async function askRunnerFor(
+  io: Pick<CliIo, 'env' | 'platform' | 'homedir' | 'stderr' | 'llmConfigDir'>,
+  config: BrainConfig,
+): Promise<StdioServerOptions['ask']> {
+  // a pasta padrão do usuário; desviada por variável de ambiente, nada (o servidor roda para um agente; llm/describe.ts)
+  const { trustedConfigDir } = await import('../llm/describe.ts');
+  // o servidor atende um agente, sempre: nunca vale uma pasta desviada, mesmo com um terminal herdado
+  const agentIo = { ...io, actor: { actor: 'agent' as const } };
+  const { dir } = trustedConfigDir(agentIo);
+  if (dir === null) return undefined;
+  const exists = await stat(`${dir}/llm.json`).then(
+    () => true,
+    () => false,
+  );
+  if (!exists) return undefined;
+  try {
+    const { askAnnounced, runAsk } = await import('../llm/run.ts');
+    if (!(await askAnnounced(agentIo, config))) return undefined;
+    // um contador por processo: o teto por sessão do servidor (um cliente de IA aberto)
+    const session = { calls: 0 };
+    return async (brain, input, signal) =>
+      (await runAsk(agentIo, brain, input, { session, ...(signal === undefined ? {} : { signal }) })).output;
+  } catch {
+    // o stderr do servidor chega ao cliente de IA: nada do provedor nem do motivo (o "cabecao doctor" no terminal diz)
+    io.stderr.write('[cabecao] respostas (ask) indisponíveis nesta sessão; rode "cabecao doctor" no seu terminal\n');
+    return undefined;
+  }
+}
+
 export interface McpDeps {
   /** Carrega o servidor. Nos testes, um falso. */
   loadServer: () => Promise<RunStdioServer>;
@@ -106,11 +143,14 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
   }
   const brainRoot = await resolveBrain(ctx);
   // Confere antes de subir: um cliente MCP mostra o stderr de um servidor que não sobe, e a mensagem diz o que fazer.
+  let brainConfig: BrainConfig;
   try {
-    await readBrainConfig(brainRoot);
+    brainConfig = await readBrainConfig(brainRoot);
   } catch (error) {
     throw toCliError(error);
   }
+  // a tool `ask` só no servidor dos clientes de IA; o da consolidação sem ninguém olhando não chama provedor
+  const ask = consolidation === undefined ? await askRunnerFor(ctx, brainConfig) : undefined;
   const machine = (await readMachine(ctx))?.machine;
   let runStdioServer: RunStdioServer;
   try {
@@ -131,6 +171,7 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     ...(machine === undefined ? {} : { machine }),
     syncRunner: createSyncRunner(ctx, brainRoot),
     embeddings: embeddingProvider(ctx),
+    ...(ask === undefined ? {} : { ask }),
     ...(consolidation === undefined
       ? {}
       : { unattended: { consolidationId: consolidation, allowForget, allowElevated } }),

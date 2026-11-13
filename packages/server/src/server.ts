@@ -8,6 +8,7 @@ import { registerPrompts } from './prompts.ts';
 import { registerResources } from './resources.ts';
 import type { ServerRuntime } from './tools.ts';
 import { registerTools } from './tools.ts';
+import { ASK_INSTRUCTIONS } from './tools-ask.ts';
 
 /** Identificação que o servidor MCP anuncia aos clientes. */
 export function serverInfo(version: string): { name: string; version: string } {
@@ -20,11 +21,12 @@ export function serverInfo(version: string): { name: string; version: string } {
  */
 export function buildServer(runtime: ServerRuntime): McpServer {
   const server = new McpServer(serverInfo(runtime.version), {
-    instructions: SERVER_INSTRUCTIONS,
-    // Só vão para o fio na geração 2026-07-28. A lista de tools e as instruções mudam só com a versão do pacote.
+    instructions: runtime.ask === undefined ? SERVER_INSTRUCTIONS : `${SERVER_INSTRUCTIONS}${ASK_INSTRUCTIONS}`,
+    // Só vão para o fio na geração 2026-07-28. A lista de tools e as instruções mudam com a versão do pacote e, com a
+    // tool `ask`, com a configuração desta máquina: aí elas deixam de ser públicas.
     cacheHints: {
-      'server/discover': { ttlMs: 300_000, cacheScope: 'public' },
-      'tools/list': { ttlMs: 300_000, cacheScope: 'public' },
+      'server/discover': { ttlMs: 300_000, cacheScope: runtime.ask === undefined ? 'public' : 'private' },
+      'tools/list': { ttlMs: 300_000, cacheScope: runtime.ask === undefined ? 'public' : 'private' },
       'resources/list': { ttlMs: 300_000, cacheScope: 'public' },
       'resources/templates/list': { ttlMs: 300_000, cacheScope: 'public' },
       'prompts/list': { ttlMs: 300_000, cacheScope: 'public' },

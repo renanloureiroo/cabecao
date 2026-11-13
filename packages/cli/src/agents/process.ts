@@ -12,6 +12,11 @@ export interface AgentProcessOptions {
   readonly platform: NodeJS.Platform;
   /** Quanto esperar entre o pedido educado (SIGTERM) e o forçado (SIGKILL). */
   readonly graceMs?: number;
+  /**
+   * Cancelamento vindo de quem chamou (o `ask`: Ctrl+C na CLI, ou o cliente MCP que desistiu da chamada). Tem o mesmo
+   * efeito de um SIGINT: a árvore do agente é encerrada e o resultado sai com `interrupted`.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface AgentProcessResult {
@@ -154,6 +159,8 @@ export async function runAgentProcess(
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
+  if (options.signal?.aborted === true) onSignal();
+  options.signal?.addEventListener('abort', onSignal, { once: true });
 
   let exit: { code: number | null; signal: string | null };
   try {
@@ -163,6 +170,7 @@ export async function runAgentProcess(
     clearTimeout(killTimer);
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
+    options.signal?.removeEventListener('abort', onSignal);
   }
 
   // o agente saiu: o que sobrou do grupo (um servidor MCP que não fechou) recebe SIGTERM, depois SIGKILL

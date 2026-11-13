@@ -55,6 +55,8 @@ O `init` não pergunta nada: cria o cérebro num repositório vazio, só baixa u
 | `cabecao obsidian setup` | Configura o cérebro para o Obsidian |
 | `cabecao export canvas` | Exporta um mapa do grafo (`.canvas`) |
 | `cabecao upgrade` | Aplica as migrações do esquema do cérebro |
+| `cabecao ask "<pergunta>"` | Resposta com citações conferidas, pelo provedor que você ativar (opcional) |
+| `cabecao llm on\|off\|status\|test\|remove` | O provedor das respostas do `ask`: desligado por padrão; nada sai da máquina até você ativar |
 | `cabecao install-client <cliente>` | Registra o servidor MCP num cliente de IA |
 | `cabecao install-skills` | Instala as skills do Cabeção nos agentes (uso pela CLI, sem MCP) |
 | `cabecao uninstall` | Tira o Cabeção desta máquina; nunca o cérebro |

@@ -310,6 +310,110 @@ $ cabecao search "deploy blog"
 
 Mais exemplos em [Buscar](../guias/buscar.md).
 
+## cabecao ask
+
+Responde com citações conferidas, usando o provedor que você ativou com [`cabecao llm on`](#cabecao-llm). Opcional; sem provedor, mostra os trechos achados e como ativar. Guia completo em [Respostas com um modelo de linguagem](../guias/respostas-com-modelo.md).
+
+```text
+cabecao ask "<pergunta>" [--scope <escopo>] [--type <tipo>...] [--as-of <data>] [--limit <n>] [--verbose] [--show-context]
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--scope <escopo>` | `global` ou `project:<nome>` (que inclui também o global) |
+| `--type <tipo>` | Só notas deste tipo. Repita ou separe por vírgula |
+| `--as-of <data>` | Data `AAAA-MM-DD` em que a validade é calculada (padrão: hoje) |
+| `--limit <n>` | Máximo de notas usadas como fonte, de 1 a 20 (padrão: 10) |
+| `--verbose` | Acrescenta provedor, modelo, tokens, custo e tempo (só para você; com `--json`, o bloco `diagnostics`) |
+| `--show-context` | Mostra exatamente o que seria enviado ao provedor, sem enviar nada |
+
+Sem provedor ativado (saída real, no cérebro de exemplo):
+
+```text
+$ cabecao ask "Quem lidera o Projeto Atlas?"
+Nenhum provedor de respostas está ativado nesta máquina, então não há resposta gerada (nada saiu da máquina).
+Para ativar, rode "cabecao llm on" (Anthropic, OpenAI, Gemini, OpenRouter, Groq ou um servidor local).
+
+Trechos que achei no cérebro:
+  - memory/facts/fato-bruno-lidera-atlas.md
+    Bruno Tavares lidera o Projeto Atlas desde setembro de 2026.
+  - wiki/entities/Bruno Tavares.md › Bruno Tavares
+    # Bruno Tavares Engenheiro fictício. Lidera o [[Projeto Atlas]] desde setembro de 2026.
+  ...
+  - memory/facts/fato-ana-lidera-atlas.md (vencido)
+    Ana Prado liderou o Projeto Atlas de janeiro a agosto de 2026.
+```
+
+Com um provedor (saída real da CLI; no lugar do provedor respondia um servidor local de teste):
+
+```text
+$ cabecao ask "Quem lidera o Projeto Atlas?"
+Bruno Tavares lidera o Projeto Atlas desde setembro de 2026. [1]
+
+Fontes:
+  [1] memory/facts/fato-bruno-lidera-atlas.md · vigente · trust high · origin human
+      "Bruno Tavares lidera o Projeto Atlas desde setembro de 2026."
+```
+
+**Saída:** `0` quando o comando funcionou (respondeu, respondeu com pouco apoio ou o cérebro não tem isso: o `status` diz qual); `5` quando nenhum provedor gerou a resposta (desligado, falhou ou teto de gasto atingido; vêm os trechos achados); `2` erro de uso. Os códigos 3 e 4 não são usados, porque em toda a CLI querem dizer "pede o seu pedido explícito" e "só você, no terminal". Com `--json`, o mesmo objeto da [tool `ask`](./mcp.md#ask). Para um agente, `--verbose` é ignorado e `--show-context` não mostra o destino.
+
+## cabecao llm
+
+O provedor que gera as respostas do `ask` nesta máquina.
+
+```text
+cabecao llm on [--provider <provedor>] [--model <modelo>] [--base-url <url>] [--key-env <VARIÁVEL>] [--store keychain|file]
+cabecao llm off
+cabecao llm status
+cabecao llm test [--provider <provedor>]
+cabecao llm remove <provedor>
+cabecao llm policy [--allow none|agent|any] [--exclude-path <glob>...] [--exclude-type <tipo>...] [--exclude-trust <nível>...] [--clear]
+```
+
+| Subcomando | O que faz | Precisa de você no terminal? |
+| --- | --- | --- |
+| `on` | Detecta o que já existe (Claude Code instalado, variáveis de chave), oferece isso primeiro, mostra o que sai e para onde, pede confirmação e faz um teste | Sim |
+| `off` | Desliga sem apagar nada | Sim |
+| `status` | Provedores, modelo, destino, disponibilidade e onde está a chave (mascarada). Para um agente, só se as respostas estão ligadas | Não |
+| `test` | Uma chamada mínima, sem nada do cérebro: diz se funcionou e quanto demorou (gasta uma pergunta) | Sim |
+| `remove` | Apaga o provedor e a chave que o Cabeção guardou; se o cofre recusar, diz isso e sai com `1` | Sim |
+| `policy` | Mostra ou muda a `llm_policy` deste cérebro (vai para o git; só restringe). Um agente não a muda, nem com confirmação | Sim |
+
+| Opção | O que faz |
+| --- | --- |
+| `--provider` | `claude-code`, `anthropic`, `openai`, `gemini`, `openrouter`, `groq`, `ollama`, `lmstudio` ou `compatible` |
+| `--model` | O modelo (padrão: o mais barato com saída estruturada; obrigatório em OpenRouter, servidores locais e `compatible`) |
+| `--base-url` | Só com `compatible`, `ollama` e `lmstudio`: `https`, ou `http` só nesta máquina; metadados de nuvem e rede de enlace são recusados |
+| `--key-env` | Lê a chave desta variável de ambiente, sem guardá-la |
+| `--store` | Onde guardar uma chave colada: `keychain` (cofre do sistema, padrão) ou `file` (arquivo `0600`) |
+| `--allow`, `--exclude-path`, `--exclude-type`, `--exclude-trust`, `--clear` | Com `policy`: os campos da [`llm_policy`](../guias/respostas-com-modelo.md#política-por-cérebro) |
+
+```text
+$ cabecao llm status
+Respostas (ask): ligadas
+Ordem de uso: ollama
+  ollama: Ollama (servidor local) · modelo llama3.2 · roda nesta máquina
+    ativado em 2026-11-13 · disponível
+Limites: ~3000 tokens de contexto, 2048 de saída e 60 s por chamada
+Configuração: ~/.config/cabecao/llm.json · log: ~/.config/cabecao/ask.log
+```
+
+O Antigravity instalado e o Codex não são oferecidos; o motivo está no [guia](../guias/respostas-com-modelo.md#por-que-o-antigravity-instalado-não-é-oferecido).
+
+A configuração fica na pasta padrão do seu usuário; desviada por `CABECAO_CONFIG_DIR` (ou `HOME`, `XDG_CONFIG_HOME`, `APPDATA`), vale só para você no terminal (veja [Onde fica a configuração](../guias/respostas-com-modelo.md#onde-fica-a-configuração)).
+
+**Saída:** `0`; `4` quando `on`, `off`, `test`, `remove` ou `policy` rodam sem terminal ou por um agente (veja [Quem é humano e quem é agente](../guias/humano-e-agente.md)); `1` quando você não confirma ou quando `test` falha; `2` com provedor ou opção inválidos.
+
+## cabecao eval --answers
+
+Mede as respostas do `ask` com as suas perguntas e o provedor ativado.
+
+```text
+cabecao eval --answers <perguntas.jsonl> [--provider <id>...]
+```
+
+Uma pergunta por linha: `{"query": "...", "expected": "caminho/da/nota.md"}` para as que o cérebro responde, e `{"query": "...", "answerable": false}` para as que ele não responde. As métricas: citações válidas, afirmações sem apoio, fonte certa citada, recusa correta e recusa indevida (cada uma com o numerador e o denominador), tempo médio e tokens. Sem juiz por LLM. Com `--provider`, um relatório por provedor. Só você, no terminal (gasta com o provedor). O projeto traz um conjunto pequeno sobre o cérebro de exemplo em `fixtures/eval/respostas.jsonl`. Cada pergunta é uma chamada ao provedor.
+
 ## cabecao graph
 
 Vizinhos de uma nota no grafo.
@@ -969,5 +1073,7 @@ Sem `--dry-run`, mostra a mesma lista e pergunta no terminal; só você confirma
 | `CABECAO_CACHE_DIR` | Pasta do cache: runtime e modelo de embeddings e a saída dos agentes do `consolidate --run` (padrão: `~/.cache/cabecao`; no Windows, `%LOCALAPPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | Com `1`, os erros saem com o stack |
 | `COLUMNS` | Largura da ajuda quando a saída não é um terminal (padrão: 80) |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | Chave do provedor de respostas do `ask`; quando definida, vale antes da chave guardada |
+| `HTTPS_PROXY`, `NO_PROXY` | Proxy para os provedores de respostas, onde o Node deixa (veja `cabecao llm status`); no Node 24, com `NODE_USE_ENV_PROXY=1` |
 | `XDG_CONFIG_HOME` | Quando definida, a configuração fica em `$XDG_CONFIG_HOME/cabecao` |
 | `CLAUDE_PLUGIN_OPTION_BRAIN_DIR` | Passada pelo Claude Code aos hooks do plugin: a pasta do cérebro da opção `brain_dir`. Só vale em `recall --hook` e `sync --hook`, e só quando não há `--brain` nem `CABECAO_BRAIN` |
