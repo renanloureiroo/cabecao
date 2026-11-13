@@ -26,7 +26,6 @@ Um comando para medir a qualidade da busca no seu próprio cérebro, com as suas
 - **Consolidação agendada pelo próprio Cabeção**: o `cabecao consolidate --run` já chama um agente sozinho, mas o `cabecao schedule` só agenda o sync; hoje, agendar a consolidação é com o agendador do sistema (veja [Consolidar com um agente](./guias/consolidar-com-agente.md#agendar)).
 - **Mais agentes no `consolidate --run`**: o GitHub Copilot CLI e o OpenCode têm opções para restringir as tools, mas ainda não foram testados.
 - **Apagar de vez** (`cabecao purge`): tirar uma nota do histórico do git, para o caso raro de algo que não podia estar lá. Hoje o `forget` arquiva, e o arquivado continua no git.
-- **Integração com o Obsidian**: configuração do vault e painéis prontos em `dashboards/`.
-- **Pacote para o Claude Desktop**, para instalar o servidor com um clique.
+- **Explorador do grafo dentro do Claude**, para navegar pelas notas e relações numa janela da conversa.
 
 Quer acompanhar ou opinar? Abra uma [issue](https://github.com/renanloureiroo/cabecao/issues).

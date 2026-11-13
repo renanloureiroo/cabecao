@@ -532,6 +532,101 @@ Antigravity and Gemini CLI are not part of `--run`: the personal plan's terms do
 
 **Exit:** `0` when it prepared, closed, or the agent finished (with or without changes); `1` when the id is not a consolidation on this machine, the agent is not installed, lacks the allowed credential, or has no `--run`, or the agent did not close the consolidation; `2` with a `--run` option without `--run` or an invalid `--timeout`.
 
+## cabecao obsidian
+
+Sets up the brain for Obsidian: graph, properties, dashboards and Web Clipper.
+
+```text
+cabecao obsidian setup [--dry-run] [--force]
+cabecao obsidian setup --remove [--dry-run]
+cabecao obsidian clipper
+```
+
+| Option | What it does |
+| --- | --- |
+| `--dry-run` | Shows what would change, with the diff of each file; writes nothing |
+| `--force` | Writes even with Obsidian open on this brain |
+| `--remove` | Removes only what the setup on this machine added and was not changed afterwards |
+
+`setup` **merges** `app.json`, `graph.json` and `types.json` in `.obsidian/`: it only adds what is missing, never replaces a value of yours, never removes or reorders what is already there, and does not reformat the file. Before the first change to each file, the original goes to `.cabecao/backups/obsidian/`. It also writes the five `.base` dashboards and the Web Clipper template to `dashboards/`, without replacing a dashboard you edited. `workspace.json` and plugins are never touched. With Obsidian running and this vault marked as open, it refuses to write (unless `--force`). `clipper` prints the Web Clipper template as JSON. See [Using it with Obsidian](../guias/obsidian.md).
+
+```text
+$ cabecao obsidian setup
+Obsidian: ~/cabecao
++ .obsidian/app.json (criado)
++ .obsidian/graph.json (criado)
++ .obsidian/types.json (criado)
++ dashboards/decisoes.base (criado)
++ dashboards/fatos.base (criado)
++ dashboards/memorias.base (criado)
++ dashboards/revisar.base (criado)
++ dashboards/saude.base (criado)
++ dashboards/cabecao-web-clipper.json (criado)
+Pronto. Abra a pasta do cérebro no Obsidian ("Open folder as vault"). Para importar o modelo do Web Clipper:
+extensão > Settings > Templates > Import > dashboards/cabecao-web-clipper.json. Para desfazer: "cabecao obsidian setup --remove".
+```
+
+**Exit:** `0`; `1` when one of the existing JSON files cannot be read (it is not touched; the others go ahead), when Obsidian is open on this brain, or on `--remove` without a setup record on this machine; `2` without `setup` or `clipper`.
+
+## cabecao export
+
+Exports a map of the graph for Obsidian, as JSON Canvas (`.canvas`).
+
+```text
+cabecao export canvas [--node <note>] [--depth 1|2] [--limit <n>] [-o <file>] [--force]
+cabecao export canvas --scope <scope> [--limit <n>] [-o <file>] [--force]
+```
+
+| Option | What it does |
+| --- | --- |
+| `--node <note>` | Center note: title, path or id. The map is its neighborhood |
+| `--depth 1\|2` | With `--node`: hops from the note (default: 1) |
+| `--scope <scope>` | Only the notes in this scope: `global` or `project:<name>` |
+| `--limit <n>` | Maximum notes in the map, from 1 to 500 (default: 60) |
+| `-o`, `--output <file>` | `.canvas` file (default: `dashboards/mapa-<name>.canvas`) |
+| `--force` | Replaces the file if it already exists |
+
+Without `--node` or `--scope`, the map covers the whole brain. Each note type sits in a box, with the colors of Obsidian's graph; notes are laid out in a grid with no overlap, and arrows carry the relation type (`uses`, `part_of`, `supersedes`, `subject`, `link`...). Unlinked mentions, archived notes and conflict copies are left out. Above the limit, the farthest and least connected notes are left out, with a warning. The file is deterministic: exporting the same thing again gives the same bytes.
+
+```text
+$ cabecao export canvas --node "Projeto Atlas" --depth 2
+Mapa: dashboards/mapa-projeto-atlas.canvas
+22 notas, 67 relações.
+Abra no Obsidian; o arquivo vai para o remoto no próximo "cabecao sync".
+
+$ cabecao export canvas --limit 10 -o ~/cabecao/dashboards/pequeno.canvas
+Mapa: dashboards/pequeno.canvas
+10 notas, 33 relações (14 notas ficaram de fora pelo limite de 10; use --limit até 500).
+Abra no Obsidian; o arquivo vai para o remoto no próximo "cabecao sync".
+```
+
+**Exit:** `0`; `1` when the file already exists (without `--force`), the note does not exist or the map would be empty; `2` with invalid options (`--depth` without `--node`, `--node` with `--scope`, an output that does not end in `.canvas`).
+
+## cabecao upgrade
+
+Applies the brain's schema migrations and, with `--template`, updates the template.
+
+```text
+cabecao upgrade [--dry-run]
+cabecao upgrade --template [--dry-run] [--yes]
+```
+
+| Option | What it does |
+| --- | --- |
+| `--dry-run` | Shows what would change; writes nothing |
+| `--template` | Updates the brain template (`AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes`) |
+| `--yes` | With `--template`: also replaces the files you edited, without asking |
+
+Without `--template`: if the `schemaVersion` in `.cabecao.json` is older than this Cabeção's, it creates the restore point `cabecao/restore/<date>-upgrade` and applies the migrations in order, one commit per migration (action `migrate`), all in the same session (`cabecao undo --session <id>` undoes them all). It only runs with the brain clean and synced, and refuses a brain on a newer schema. With `--template`: it replaces files equal to an earlier version's template, asks before replacing one you edited (without a terminal, it stays, and the new template goes to `.cabecao/template/`), and appends the missing lines to `.gitignore` and `.gitattributes`, in one commit. See [Updating Cabeção](../guias/atualizar.md).
+
+```text
+$ cabecao upgrade
+Esquema 1: em dia (este Cabeção usa o 1). Nenhuma migração pendente.
+Modelo do cérebro: há atualização opcional (.gitignore). Veja com "cabecao upgrade --template --dry-run".
+```
+
+**Exit:** `0`; `1` when it refuses (brain on a newer schema, changes outside a commit, commits to push or to pull, sync in progress) or when a migration fails (the earlier ones stay committed).
+
 ## cabecao mcp
 
 The MCP server over stdio.

@@ -224,8 +224,12 @@ export const checkBrain: Check = (facts) => {
   return {
     id: 'brain',
     title: 'Cérebro',
-    status: 'ok',
+    // esquema anterior: o cérebro funciona, mas há migração pendente (`cabecao upgrade`)
+    status: config.schemaVersion < config.supported ? 'warn' : 'ok',
     message: `${facts.brain.root} (esquema ${config.schemaVersion}${config.schemaVersion === config.supported ? '' : `; esta versão do Cabeção usa o ${config.supported}`})`,
+    ...(config.schemaVersion < config.supported
+      ? { fix: 'Há migração pendente: rode "cabecao sync" e depois "cabecao upgrade".' }
+      : {}),
   };
 };
 

@@ -71,6 +71,14 @@ Thumbs.db
 desktop.ini
 `;
 
+/**
+ * Todas as linhas do `.gitignore` do modelo (sem comentários). O `cabecao upgrade --template` acrescenta as que faltam
+ * a um cérebro criado antes delas ou adotado (o `init` de adoção só acrescenta as obrigatórias).
+ */
+export const RECOMMENDED_GITIGNORE_LINES: readonly string[] = GITIGNORE_CONTENT.split('\n').filter(
+  (line) => line.trim() !== '' && !line.startsWith('#'),
+);
+
 const GITATTRIBUTES_CONTENT = `# Cabeção: o diário só recebe linhas no fim; o merge por união junta as linhas de duas máquinas sem conflito.
 ${LOG_MD} merge=union
 `;
