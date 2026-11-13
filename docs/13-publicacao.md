@@ -50,35 +50,50 @@ O workflow [`ci.yml`](../.github/workflows/ci.yml) roda em todo Pull Request e e
 
 ## Publicar no npm
 
-Só o pacote `cabecao` é publicado. A publicação nunca acontece por push ou por merge: alguém precisa disparar.
+Só o pacote `cabecao` é publicado. A publicação nunca acontece por push ou por merge: alguém precisa disparar o workflow [`release.yml`](../.github/workflows/release.yml), na `main`. Ele repete lint, typecheck, testes, build, smoke e o teste de ponta a ponta, publica, e cria a tag `vX.Y.Z` e a release no GitHub.
 
-### Primeira publicação (reserva do nome)
+### Versões e etiquetas
 
-O npm só permite ligar a publicação pelo GitHub Actions a um pacote que já existe. Por isso a primeira versão sai da sua máquina:
+| Versão | Etiqueta no npm | Quem recebe |
+|---|---|---|
+| `0.1.0-beta.0`, `0.1.0-beta.1`... | `beta` | Só quem pede: `npx cabecao@beta` |
+| `0.1.0`, `0.2.0`... | `latest` | Todo mundo: `npx cabecao` |
+
+O workflow recusa uma versão de pré-lançamento com a etiqueta `latest`, uma versão final com a etiqueta `beta`, e uma versão cuja tag já existe.
+
+### Primeira publicação
+
+O npm só deixa cadastrar a publicação pelo GitHub Actions num pacote que já existe. A documentação oficial não diz isso com todas as letras; é o que os guias da comunidade relatam. Por isso a primeira versão sai por um destes dois caminhos.
+
+**Pela sua máquina** (mais simples):
 
 ```bash
 npm login
 pnpm install && pnpm build
 cd packages/cli
-npm publish --dry-run     # confira a lista de arquivos
-npm publish
+npm publish --dry-run --tag beta    # confira a lista de arquivos
+npm publish --tag beta
 ```
 
-### Ligar a publicação pelo GitHub Actions
+**Pelo GitHub Actions, com um token temporário:**
+
+1. Em npmjs.com, crie um *granular access token* com permissão de leitura e escrita em pacotes, com validade curta.
+2. No GitHub, em Settings > Secrets and variables > Actions, crie o secret `NPM_TOKEN` com esse token.
+3. Em Actions > release > Run workflow, na `main`: rode uma vez com **dry-run** marcado; depois com **dry-run** desmarcado e **usar-token** marcado.
+4. Apague o secret e revogue o token.
+
+### Ligar o trusted publishing
 
 Uma vez, depois da primeira publicação:
 
 1. Em npmjs.com, abra o pacote `cabecao` e vá em **Settings**.
 2. Em **Trusted Publisher**, escolha **GitHub Actions** e preencha: usuário `renanloureiroo`, repositório `cabecao`, workflow `release.yml`. Deixe o ambiente em branco.
 
-Não existe `NPM_TOKEN` no repositório: o npm troca a identidade do job por uma credencial de curta duração e gera a atestação de proveniência.
+A partir daí não existe token no repositório: o npm troca a identidade do job por uma credencial de curta duração e gera a atestação de proveniência. O cadastro precisa de uma publicação bem-sucedida em até 2 dias, senão expira.
 
 ### Publicar uma versão nova
 
-1. Em cada mudança que mereça entrar no changelog, rode `pnpm changeset` e inclua o arquivo gerado no commit.
-2. Na hora de lançar, rode `pnpm version-packages`. Ele sobe a versão do `cabecao` e escreve o `CHANGELOG.md`. Faça o commit e leve para a `main`.
-3. No GitHub, abra **Actions > release > Run workflow**, na `main`. Rode primeiro com **dry-run** marcado; depois, desmarcado.
-
-O workflow [`release.yml`](../.github/workflows/release.yml) repete lint, typecheck, testes, build e smoke antes de publicar.
+1. Suba a versão em `packages/cli/package.json` (ou use `pnpm changeset` e `pnpm version-packages`, que também escrevem o `CHANGELOG.md`). Leve para a `main`.
+2. Em Actions > release > Run workflow, na `main`: escolha a etiqueta, rode com **dry-run** marcado e depois desmarcado.
 
 > A publicação pelo GitHub Actions ainda não foi executada de ponta a ponta. A primeira execução real é a validação.
