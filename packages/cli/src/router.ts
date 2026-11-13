@@ -5,6 +5,11 @@ import { accessOf } from './access.ts';
 import { resolveActor } from './actor.ts';
 import { COMMANDS } from './commands.ts';
 import { CliError, UsageError } from './errors.ts';
+import { EXAMPLES, GROUPS } from './help.ts';
+import { upgradeHint } from './install-method.ts';
+import { didYouMean } from './suggest.ts';
+import { systemError } from './syserr.ts';
+import { fill, reflow, words, wrapLine } from './text.ts';
 import type { CliIo, CommandContext, CommandSpec, OptionSpec, OptionValue } from './types.ts';
 import { CLI_NAME, HOMEPAGE, VERSION } from './version.ts';
 
@@ -54,12 +59,13 @@ function parseConfig(options: Readonly<Record<string, OptionSpec>>): ParseArgsOp
 }
 
 /** Traduz o erro do `parseArgs` (em inglês) para uma mensagem de uso em português. */
-function translateParseError(error: unknown): UsageError {
+function translateParseError(error: unknown, known: readonly string[] = []): UsageError {
   const message = error instanceof Error ? error.message : String(error);
   const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
   const option = /'(-{1,2}[^\s'=<]+)/.exec(message)?.[1];
   if (code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION' && option !== undefined) {
-    return new UsageError(`opção desconhecida: ${option}`);
+    const typed = option.replace(/^-+/, '');
+    return new UsageError(`opção desconhecida: ${option}.${didYouMean(typed, known, '--')}`.replace(/\.$/, ''));
   }
   if (code === 'ERR_PARSE_ARGS_INVALID_OPTION_VALUE' && option !== undefined) {
     if (message.includes('missing')) return new UsageError(`a opção ${option} precisa de um valor`);
@@ -81,7 +87,7 @@ function parseStrict(
     const parsed = parseArgs({ args: [...args], options: parseConfig(options), strict: true, allowPositionals: true });
     return { values: parsed.values as Values, positionals: parsed.positionals };
   } catch (error) {
-    throw translateParseError(error);
+    throw translateParseError(error, Object.keys(options));
   }
 }
 
@@ -106,16 +112,65 @@ function optionLabel(name: string, spec: OptionSpec): string {
   return spec.short === undefined ? `    ${long}` : `-${spec.short}, ${long}`;
 }
 
-function table(rows: ReadonlyArray<readonly [string, string]>): string {
-  const width = Math.max(...rows.map(([left]) => left.length));
-  return rows.map(([left, right]) => `  ${left.padEnd(width)}  ${right}`).join('\n');
+/** Largura da ajuda: a do terminal (até 100 colunas, para a leitura), ou 80 sem terminal. */
+export function helpWidth(io: Pick<CliIo, 'columns' | 'env'>): number {
+  const fromEnv = Number(io.env.COLUMNS);
+  const columns = io.columns ?? (Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 80);
+  return Math.max(40, Math.min(100, columns));
 }
 
-function optionsTable(options: Readonly<Record<string, OptionSpec>>): string {
-  return table(Object.entries(options).map(([name, spec]) => [optionLabel(name, spec), spec.description] as const));
+/** Tabela de duas colunas que respeita a largura: a descrição quebra alinhada; rótulo longo vai sozinho na linha. */
+function table(rows: ReadonlyArray<readonly [string, string]>, width: number): string {
+  const labelWidth = Math.min(Math.max(...rows.map(([left]) => left.length)), Math.floor(width / 3));
+  const pad = ' '.repeat(2 + labelWidth + 2);
+  const lines: string[] = [];
+  for (const [left, right] of rows) {
+    if (left.length > labelWidth) {
+      lines.push(`  ${left}`, ...fill(words(right), width, pad, pad));
+    } else lines.push(...fill(words(right), width, `  ${left.padEnd(labelWidth)}  `, pad));
+  }
+  return lines.join('\n');
 }
 
-export function generalHelp(commands: readonly CommandSpec[]): string {
+function optionsTable(options: Readonly<Record<string, OptionSpec>>, width: number): string {
+  return table(
+    Object.entries(options).map(([name, spec]) => [optionLabel(name, spec), spec.description] as const),
+    width,
+  );
+}
+
+/** As opções globais numa linha, para a ajuda de cada comando (a explicação completa fica em `cabecao --help`). */
+const GLOBAL_LINE = `Opções globais: --brain <pasta>, --json, --as <cliente>, -h, -v (veja "${CLI_NAME} --help").`;
+
+function groupedCommands(commands: readonly CommandSpec[], width: number): string[] {
+  const used = new Set<string>();
+  const lines: string[] = [];
+  const rows = (names: readonly string[]) =>
+    names.flatMap((name) => {
+      const command = commands.find((candidate) => candidate.name === name);
+      if (command === undefined) return [];
+      used.add(name);
+      return [[command.name, command.summary] as const];
+    });
+  for (const group of GROUPS) {
+    const list = rows(group.commands);
+    if (list.length === 0) continue;
+    lines.push(`${group.title}:`, table(list, width), '');
+  }
+  const rest = commands.filter((command) => !used.has(command.name));
+  if (rest.length > 0)
+    lines.push(
+      'Outros:',
+      table(
+        rest.map((c) => [c.name, c.summary] as const),
+        width,
+      ),
+      '',
+    );
+  return lines;
+}
+
+export function generalHelp(commands: readonly CommandSpec[], width = 80): string {
   const lines = [
     `${CLI_NAME} ${VERSION}`,
     'Segundo cérebro pessoal em Markdown e git, para você e seus agentes de IA.',
@@ -124,36 +179,45 @@ export function generalHelp(commands: readonly CommandSpec[]): string {
     `  ${CLI_NAME} <comando> [opções]`,
     `  ${CLI_NAME} <comando> --help`,
     '',
-    'Comandos:',
-    table(commands.map((command) => [command.name, command.summary] as const)),
-    '',
+    ...groupedCommands(commands, width),
     'Opções globais:',
-    optionsTable(GLOBAL_OPTIONS),
+    optionsTable(GLOBAL_OPTIONS, width),
     '',
     'Para começar:',
-    `  ${CLI_NAME} init <url-do-repositório>   numa máquina nova (ou sem URL, para um cérebro só local)`,
+    `  ${CLI_NAME} init <url-do-repositório>   numa máquina nova (sem URL: só local)`,
     `  ${CLI_NAME} doctor                       se algo parecer errado`,
     '',
-    `O cérebro usado é o de --brain, senão o de ${BRAIN_ENV}, senão o padrão desta máquina (gravado pelo init),`,
-    'senão a pasta atual, se ela for um cérebro.',
+    reflow(
+      `O cérebro usado é o de --brain, senão o de ${BRAIN_ENV}, senão o padrão desta máquina (gravado pelo init), senão a pasta atual, se ela for um cérebro.`,
+      width,
+    ),
+    reflow(
+      'Quem roda é você só num terminal interativo e sem sinal de agente no ambiente; em qualquer outro caso, um agente, com as regras do servidor MCP.',
+      width,
+    ),
     '',
     HOMEPAGE,
   ];
   return `${lines.join('\n')}\n`;
 }
 
-export function commandHelp(command: CommandSpec): string {
+export function commandHelp(command: CommandSpec, width = 80): string {
+  const hanging = ' '.repeat(4 + CLI_NAME.length + 1 + command.name.length + 1);
   const lines = [
-    `${CLI_NAME} ${command.name}: ${command.summary}`,
+    reflow(`${CLI_NAME} ${command.name}: ${command.summary}`, width),
     '',
     'Uso:',
-    ...command.usage.map((line) => `  ${CLI_NAME} ${line}`),
+    ...command.usage.map((line) => wrapLine(`  ${CLI_NAME} ${line}`, width, hanging)),
   ];
-  if (command.options !== undefined && Object.keys(command.options).length > 0) {
-    lines.push('', 'Opções:', optionsTable(command.options));
+  const examples = EXAMPLES[command.name] ?? [];
+  if (examples.length > 0) {
+    lines.push('', 'Exemplos:', ...examples.map((line) => wrapLine(`  ${line}`, width, '      ')));
   }
-  lines.push('', 'Opções globais:', optionsTable(GLOBAL_OPTIONS));
-  if (command.details !== undefined) lines.push('', command.details);
+  if (command.options !== undefined && Object.keys(command.options).length > 0) {
+    lines.push('', 'Opções:', optionsTable(command.options, width));
+  }
+  lines.push('', reflow(GLOBAL_LINE, width));
+  if (command.details !== undefined) lines.push('', reflow(command.details, width));
   return `${lines.join('\n')}\n`;
 }
 
@@ -172,7 +236,7 @@ function printGeneralHelp(io: CliIo, json: boolean, commands: readonly CommandSp
     const list = commands.map(({ name, summary, usage }) => ({ name, summary, usage }));
     writeJson(io, { ok: true, command: null, data: { version: VERSION, commands: list } });
   } else {
-    io.stdout.write(generalHelp(commands));
+    io.stdout.write(generalHelp(commands, helpWidth(io)));
   }
   return EXIT_OK;
 }
@@ -180,16 +244,24 @@ function printGeneralHelp(io: CliIo, json: boolean, commands: readonly CommandSp
 function printCommandHelp(io: CliIo, json: boolean, command: CommandSpec): number {
   if (json) {
     const { name, summary, usage, options = {} } = command;
-    writeJson(io, { ok: true, command: name, data: { name, summary, usage, options } });
+    const examples = EXAMPLES[name] ?? [];
+    writeJson(io, { ok: true, command: name, data: { name, summary, usage, examples, options } });
   } else {
-    io.stdout.write(commandHelp(command));
+    io.stdout.write(commandHelp(command, helpWidth(io)));
   }
   return EXIT_OK;
 }
 
 function findCommand(commands: readonly CommandSpec[], name: string): CommandSpec {
   const command = commands.find((candidate) => candidate.name === name);
-  if (command === undefined) throw new UsageError(`comando desconhecido: ${name}`);
+  if (command === undefined) {
+    const suggestion = didYouMean(
+      name,
+      commands.map((candidate) => candidate.name),
+      `${CLI_NAME} `,
+    );
+    throw new UsageError(`comando desconhecido: ${name}.${suggestion}`.replace(/\.$/, ''));
+  }
   return command;
 }
 
@@ -200,13 +272,18 @@ function explicitBrain(io: CliIo, values: Values): string | undefined {
   return chosen === undefined || chosen === '' ? undefined : resolve(io.cwd, chosen);
 }
 
-function reportError(
-  io: CliIo,
-  error: unknown,
-  command: string | undefined,
-  json: boolean,
-  ownsStdout = false,
-): number {
+/** O erro (ou a causa dele) é o de um cérebro de esquema mais novo que este Cabeção (`config_schema_too_new`). */
+function schemaTooNew(error: unknown): boolean {
+  for (let current: unknown = error, depth = 0; current instanceof Error && depth < 5; depth++) {
+    if ((current as { code?: unknown }).code === 'config_schema_too_new') return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+function reportError(io: CliIo, raw: unknown, command: string | undefined, json: boolean, ownsStdout = false): number {
+  // permissão negada, disco só de leitura ou cheio: o que houve e o que fazer, nunca o texto cru do Node
+  const error = raw instanceof CliError || raw instanceof UsageError ? raw : (systemError(raw) ?? raw);
   const usage = error instanceof UsageError;
   const expected = usage || error instanceof CliError;
   const debug = io.env[DEBUG_ENV] === '1';
@@ -217,7 +294,14 @@ function reportError(
     const help = command === undefined ? `${CLI_NAME} --help` : `${CLI_NAME} ${command} --help`;
     io.stderr.write(`Rode ${help} para ver ${command === undefined ? 'o que existe' : 'o uso'}.\n`);
   }
-  if (error instanceof CliError && error.hint !== undefined) io.stderr.write(`${error.hint}\n`);
+  // um cérebro de versão mais nova: o comando de atualização depende de como ESTE cabecao foi instalado
+  const hint =
+    error instanceof CliError && schemaTooNew(error)
+      ? `Este cérebro é de uma versão mais nova do Cabeção: ${upgradeHint(io)}.`
+      : error instanceof CliError
+        ? error.hint
+        : undefined;
+  if (hint !== undefined) io.stderr.write(`${hint}\n`);
   const humanOnly = error instanceof CliError && error.code !== undefined && HUMAN_ONLY_CODES.has(error.code);
   if (debug) {
     if (error instanceof Error && error.stack !== undefined) io.stderr.write(`${error.stack}\n`);
@@ -227,7 +311,6 @@ function reportError(
 
   if (json && !ownsStdout) {
     const code = error instanceof CliError ? error.code : undefined;
-    const hint = error instanceof CliError ? error.hint : undefined;
     const details = error instanceof CliError ? error.details : undefined;
     writeJson(io, {
       ok: false,

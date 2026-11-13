@@ -138,6 +138,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     cwd,
     stdout: process.stdout,
     stderr: process.stderr,
+    columns: process.stdout.isTTY === true ? process.stdout.columns : undefined,
     platform: process.platform,
     homedir: safeHomedir(),
     execPath: process.execPath,
