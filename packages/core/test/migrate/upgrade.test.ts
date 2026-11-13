@@ -226,10 +226,16 @@ describe('atualização do modelo do cérebro', () => {
   const OLD_AGENTS = AGENTS_MD_CONTENT.replace(
     /- Grave com `remember`[^\n]*\n- Fontes de fora[^\n]*\n- Antes de encerrar[^\n]*\n/,
     '- Grave com `remember` o que for durável e não óbvio. Prefira as tools do Cabeção a editar os arquivos à mão: elas validam o frontmatter, procuram segredos e fazem o commit (que `undo` desfaz). Antes de gravar, use `search` para não repetir uma memória que já existe.\n- Antes de encerrar, grave um handoff com `remember` e `type: handoff`: o que foi feito, o que falta, as decisões e as armadilhas. O próximo `recall` o traz.\n',
-  ).replace(
-    /- Não apague arquivos\.[^\n]*\n/,
-    '- Não apague arquivos. Para tirar uma memória de circulação, marque `valid_until` nela (com `write_page`) ou peça ao usuário que a arquive em `memory/_archive/`.\n',
-  );
+  )
+    .replace(
+      /- Não apague arquivos\.[^\n]*\n/,
+      '- Não apague arquivos. Para tirar uma memória de circulação, marque `valid_until` nela (com `write_page`) ou peça ao usuário que a arquive em `memory/_archive/`.\n',
+    )
+    // a linha das regras das betas (antes da decisão 37)
+    .replace(
+      /- Regras \(`type: rule`, em `memory\/rules\/`\)[^\n]*\n/,
+      '- Regras (`type: rule`) só o usuário cria. Um agente pode propor uma regra em `wiki/syntheses/`, nunca gravá-la em `memory/rules/`.\n',
+    );
 
   it('o hash conhecido é o do AGENTS.md das betas', () => {
     expect(OLD_AGENTS).not.toBe(AGENTS_MD_CONTENT);

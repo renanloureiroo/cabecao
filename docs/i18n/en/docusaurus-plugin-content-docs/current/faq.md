@@ -41,4 +41,4 @@ Nothing changes in your notes: they are Markdown in a git repository. Remove the
 
 ## Why "Cabeção"?
 
-It is a tribute to Cabeção, a character from the Brazilian TV show *Malhação*. In Portuguese, "cabeção" is slang for "big head", someone very smart.
+It is a tribute to Cabeção from *Malhação*.

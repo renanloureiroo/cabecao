@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Brain, OpenBrainOptions } from '../../src/brain/index.ts';
-import { openBrain } from '../../src/brain/index.ts';
+import { BrainError, openBrain } from '../../src/brain/index.ts';
 import { runGit } from '../../src/git/index.ts';
 
 /** Muitos processos git por teste; no Windows cada um custa dezenas de milissegundos. */
@@ -186,4 +186,28 @@ export function waitChild(child: ChildProcess): Promise<{ code: number | null; s
 /** Apaga a pasta temporária inteira (chame no `afterAll`, depois de `cleanupAll`). */
 export function disposeSandbox(): void {
   rmSync(sandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
+
+/**
+ * Ação elevada (decisão 37) sem confirmação: ou volta `confirmation_required` (nada foi feito), ou é recusada com um
+ * `BrainError` por outro motivo. Devolve o status ou o código do erro; falha o teste se a ação EXECUTOU.
+ */
+export async function notExecuted(promise: Promise<unknown>): Promise<string> {
+  let out: { status?: unknown; changed?: unknown; commit?: unknown };
+  try {
+    out = (await promise) as typeof out;
+  } catch (error) {
+    if (error instanceof BrainError) return error.code;
+    throw error;
+  }
+  if (out.status === 'confirmation_required' && out.changed !== true && (out.commit ?? null) === null) {
+    return 'confirmation_required';
+  }
+  throw new Error(`a ação deveria ter ficado pendente: ${JSON.stringify(out).slice(0, 400)}`);
+}
+
+/** O `confirm_token` de uma resposta `confirmation_required`. */
+export function tokenOf(out: { confirm_token?: string | null | undefined }): string {
+  if (typeof out.confirm_token !== 'string') throw new Error('a resposta não trouxe confirm_token');
+  return out.confirm_token;
 }

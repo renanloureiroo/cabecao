@@ -78,6 +78,7 @@ export {
   fieldOrder,
   fieldsForType,
   hasErrors,
+  isApprovedByUser,
   isArchivedPath,
   isIsoDate,
   isNoteType,

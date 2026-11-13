@@ -4,6 +4,7 @@ import type { IngestInput, IngestOutput } from '@cabecao/core';
 import { INGEST_MAX_BYTES, splitFrontmatter } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
+import { readAllStdin } from '../memory.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
 export function ingestText(output: IngestOutput): string {
@@ -39,7 +40,23 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (rest.length > 0) throw new UsageError(`argumento a mais: ${rest.join(' ')}`);
   const title = typeof ctx.values.title === 'string' ? ctx.values.title : undefined;
   const scope = typeof ctx.values.scope === 'string' ? ctx.values.scope : undefined;
+  const source = typeof ctx.values.source === 'string' ? ctx.values.source : undefined;
   const root = await resolveBrain(ctx);
+  const agent = ctx.actor.actor === 'agent';
+  if (file === '-') {
+    // o texto pela entrada padrão: o mesmo que a tool ingest com `content` (trust: low; de agente, ingested_by agente)
+    const content = await readAllStdin(ctx, 'o texto da fonte');
+    if (title === undefined) throw new UsageError('com a fonte pela entrada padrão, informe --title');
+    const output = await withBrain(ctx, root, (brain) =>
+      brain.ingest({
+        content,
+        title,
+        ...(source === undefined ? {} : { source }),
+        ...(scope === undefined ? {} : { scope }),
+      }),
+    );
+    return { data: output, text: ingestText(output) };
+  }
   const absolute = resolve(ctx.cwd, file);
   let info: Awaited<ReturnType<typeof stat>>;
   try {
@@ -60,6 +77,14 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const realFile = await realpath(absolute);
   const inside = relative(realRoot, realFile);
   const inBrain = inside !== '' && !inside.startsWith('..') && !isAbsolute(inside);
+  // Um agente não faz a CLI ler arquivo de fora do cérebro (seria o Cabeção lendo qualquer arquivo a pedido de um
+  // agente, o que a tool ingest também recusa). Ele manda o texto pela entrada padrão, como `content` da tool.
+  if (agent && !inBrain) {
+    throw new CliError(`${absolute} fica fora do cérebro; um agente não pede à CLI para ler arquivo de fora`, {
+      code: 'unsafe_path',
+      hint: 'Mande o texto pela entrada padrão, como a tool ingest recebe "content": cabecao ingest - --title <título> [--source <origem>] < arquivo.',
+    });
+  }
   let input: IngestInput;
   if (inBrain) {
     input = {
@@ -88,6 +113,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
       ...(scope === undefined ? {} : { scope }),
     };
   }
-  const output = await withBrain(ctx, root, (brain) => brain.ingest(input, { fromUserFile: !inBrain }));
+  // só o usuário indica um arquivo seu (`fromUserFile`); um agente nunca chega aqui com arquivo de fora
+  const output = await withBrain(ctx, root, (brain) => brain.ingest(input, { fromUserFile: !inBrain && !agent }));
   return { data: output, text: ingestText(output) };
 }

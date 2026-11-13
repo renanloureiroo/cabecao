@@ -14,37 +14,31 @@
 // O token tem um prefixo próprio (`cbc_ct_`) que o scanner de segredos reconhece: ele nunca é GRAVADO numa nota (o
 // agente que tentar copiar o token para um handoff ou uma memória é barrado), e as respostas das tools, que não passam
 // pelo scanner, o entregam normalmente.
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { IndexedNote } from '../db/index.ts';
 import { getNote } from '../db/index.ts';
 import { isSafeRelativePath, isUlid } from '../util/index.ts';
 import { archiveNote, hashContent, isArchivedPath, readNote } from '../vault/index.ts';
+import type { ConfirmOptions } from './confirm.ts';
+import { CONFIRM_TOKEN_TTL_MS, issueConfirmToken, verifyConfirmToken } from './confirm.ts';
 import type { BrainContext } from './context.ts';
 import { withFreshIndex } from './context.ts';
 import type { DataEnvelope } from './envelope.ts';
 import { DATA_NOTICE } from './envelope.ts';
 import type { IssueOutput } from './errors.ts';
 import { BrainError, toBrainError } from './errors.ts';
-import { confirmSecret } from './local-state.ts';
 import {
-  assertAgentMayWrite,
   assertAgentText,
+  assertNotConflictCopy,
   executeBatch,
   frontmatterTargets,
   invalid,
   isRecord,
-  isRuleType,
-  ruleRefused,
+  noteElevationReasons,
   sessionOf,
 } from './write.ts';
 
-/** Quanto tempo um `confirm_token` vale. */
-export const CONFIRM_TOKEN_TTL_MS = 5 * 60_000;
-/** Prefixo do `confirm_token`; o scanner de segredos tem uma regra para ele (`cabecao-confirm-token`). */
-export const CONFIRM_TOKEN_PREFIX = 'cbc_ct_';
+export { CONFIRM_TOKEN_PREFIX, CONFIRM_TOKEN_TTL_MS } from './confirm.ts';
 export const FORGET_REASON_MAX_CHARS = 500;
-
-const TOKEN_RE = /^cbc_ct_([0-9a-z]{1,12})_([A-Za-z0-9_-]{43})$/;
 
 export interface ForgetInput {
   /** Id (ULID) da nota, ou o caminho dela. */
@@ -57,9 +51,7 @@ export interface ForgetInput {
 }
 
 /** Opções que só quem chama de dentro passa (o servidor MCP, depois de o usuário confirmar por elicitação). */
-export interface ForgetOptions {
-  readonly userConfirmed?: boolean;
-}
+export type ForgetOptions = ConfirmOptions;
 
 export interface ForgetOutput extends DataEnvelope {
   /** `confirmation_required`: nada mudou, falta a segunda chamada; `archived`: arquivada. */
@@ -87,15 +79,8 @@ export interface ForgetOutput extends DataEnvelope {
   readonly next_step: string;
 }
 
-const base64url = (data: Buffer): string => data.toString('base64url');
-
-function signature(secret: Buffer, fields: readonly string[]): string {
-  return base64url(createHmac('sha256', secret).update(fields.join('\u0000')).digest());
-}
-
-function tokenFields(note: IndexedNote, contentHash: string, session: string, expires: string): string[] {
-  return ['forget', 'v1', note.id, note.path, contentHash, session, expires];
-}
+/** O que o token do `forget` amarra (além da sessão e do vencimento): a nota e o conteúdo atual dela. */
+const tokenParts = (note: IndexedNote, contentHash: string): string[] => [note.id, note.path, contentHash];
 
 /** A nota pelo id (ULID) ou pelo caminho. */
 async function findNote(ctx: BrainContext, ref: string): Promise<IndexedNote> {
@@ -114,21 +99,24 @@ async function findNote(ctx: BrainContext, ref: string): Promise<IndexedNote> {
   return note;
 }
 
-/** O que um agente não esquece: regra, arquivo de controle ou de instrução, cópia de conflito e fontes de `raw/`. */
+/**
+ * O que não se esquece: o que já está arquivado e, para um agente, uma cópia de conflito (só o sync e o usuário mexem
+ * nelas). Regra, fonte de `raw/` e arquivo de instrução se esquecem com o mesmo token de sempre (decisão 37): o
+ * resumo diz o que é, para o usuário decidir.
+ */
 function assertMayForget(ctx: BrainContext, note: IndexedNote): void {
   if (note.archived || isArchivedPath(note.path)) {
     throw new BrainError('invalid_argument', `a nota ${note.path} já está arquivada`, {
       nextStep: 'Nada a fazer; para trazê-la de volta, desfaça o forget com undo.',
     });
   }
-  if (ctx.actor === 'human') return;
-  if (isRuleType(note.type)) throw ruleRefused();
-  assertAgentMayWrite(ctx, note.path, 'update');
+  assertNotConflictCopy(ctx, note.path);
 }
 
-function summaryOf(note: IndexedNote, reason: string, lines: number): string {
+function summaryOf(note: IndexedNote, reason: string, lines: number, elevated: readonly string[]): string {
   const who = note.origin === null ? 'sem origem registrada' : `origem ${note.origin}`;
-  return `Arquivar ${note.type ?? 'nota'} "${note.title ?? note.path}" (${note.path}, ${lines} ${lines === 1 ? 'linha' : 'linhas'}, ${who}, trust ${note.trust ?? '?'}) em memory/_archive/. Motivo: ${reason}. A nota sai da busca e do recall, continua no git e o undo a traz de volta.`;
+  const warn = elevated.length === 0 ? '' : ` ATENÇÃO: ${elevated.join('; ')}.`;
+  return `Arquivar ${note.type ?? 'nota'} "${note.title ?? note.path}" (${note.path}, ${lines} ${lines === 1 ? 'linha' : 'linhas'}, ${who}, trust ${note.trust ?? '?'}) em memory/_archive/. Motivo (informado por quem pediu): ${reason}.${warn} A nota sai da busca e do recall, continua no git e o undo a traz de volta.`;
 }
 
 function noteOutput(note: IndexedNote): ForgetOutput['note'] {
@@ -174,23 +162,26 @@ export async function forget(
     throw toBrainError(error);
   }
   const contentHash = hashContent(read.text);
-  const secret = await confirmSecret(ctx.root);
   const lines = read.text.split('\n').length - (read.text.endsWith('\n') ? 1 : 0);
-  const summary = summaryOf(note, reason, lines);
+  const elevated =
+    ctx.actor === 'agent'
+      ? noteElevationReasons(ctx, { path: note.path, kind: 'update', before: read.note.frontmatter }).filter(
+          (item) => !item.startsWith('"trust'),
+        )
+      : [];
+  const summary = summaryOf(note, reason, lines, elevated);
 
   const token = input.confirm_token;
   const confirmed = options.userConfirmed === true ? 'user' : null;
   if (token === undefined && confirmed === null) {
-    const expires = (Math.floor(ctx.now().getTime() / 1000) + CONFIRM_TOKEN_TTL_MS / 1000).toString(36);
-    const sig = signature(secret, tokenFields(note, contentHash, session, expires));
-    const confirmToken = `${CONFIRM_TOKEN_PREFIX}${expires}_${sig}`;
+    const issued = await issueConfirmToken(ctx, 'forget', tokenParts(note, contentHash), session);
     return {
       data_notice: DATA_NOTICE,
       status: 'confirmation_required',
       note: noteOutput(note),
       summary,
-      confirm_token: confirmToken,
-      token_expires_at: new Date(Number.parseInt(expires, 36) * 1000).toISOString(),
+      confirm_token: issued.confirm_token,
+      token_expires_at: issued.token_expires_at,
       confirmed_by: null,
       op: null,
       commit: null,
@@ -201,28 +192,7 @@ export async function forget(
   }
 
   if (token !== undefined) {
-    const match = TOKEN_RE.exec(token.trim());
-    if (match === null) {
-      throw invalid(
-        '"confirm_token" não tem o formato de um token do forget',
-        'Chame forget sem confirm_token para receber um novo.',
-      );
-    }
-    const [, expires = '', sig = ''] = match;
-    if (Number.parseInt(expires, 36) * 1000 < ctx.now().getTime()) {
-      throw invalid(
-        'o confirm_token venceu',
-        'Chame forget sem confirm_token para receber um novo e confirme logo em seguida.',
-      );
-    }
-    const expected = Buffer.from(signature(secret, tokenFields(note, contentHash, session, expires)));
-    const given = Buffer.from(sig);
-    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-      throw invalid(
-        'o confirm_token não confere: é de outra nota, de outra sessão, foi alterado, ou a nota mudou depois do resumo',
-        'Chame forget sem confirm_token para ver o resumo atual e receber um token novo.',
-      );
-    }
+    await verifyConfirmToken(ctx, 'forget', tokenParts(note, contentHash), session, token, 'forget');
   }
 
   const out = await executeBatch(ctx, input.session_handle, async (config) => {

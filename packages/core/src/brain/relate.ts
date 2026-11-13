@@ -16,6 +16,8 @@ import {
   resolveWikiLink,
   updateNote,
 } from '../vault/index.ts';
+import type { ConfirmOptions } from './confirm.ts';
+import { tokenOf } from './confirm.ts';
 import type { BrainContext } from './context.ts';
 import { withFreshIndex } from './context.ts';
 import type { IssueOutput } from './errors.ts';
@@ -30,6 +32,8 @@ import {
   existingNote,
   frontmatterTargets,
   invalid,
+  noteElevationReasons,
+  noteParts,
 } from './write.ts';
 
 export interface RelateInput {
@@ -41,6 +45,8 @@ export interface RelateInput {
   /** Nota de destino: título, caminho, wikilink ou id. Tem de existir. */
   readonly to: string;
   readonly session_handle?: string;
+  /** O token da primeira chamada, quando a nota é elevada (uma regra, uma fonte de `raw/`...). */
+  readonly confirm_token?: string;
 }
 
 export interface RelateOutput extends WriteOutput {
@@ -74,8 +80,13 @@ export function linkFor(paths: readonly string[], fromPath: string, to: Pick<Ind
   );
 }
 
-export async function relate(ctx: BrainContext, input: RelateInput): Promise<RelateOutput> {
+export async function relate(
+  ctx: BrainContext,
+  input: RelateInput,
+  options: ConfirmOptions = {},
+): Promise<RelateOutput> {
   if (typeof input !== 'object' || input === null) throw invalid('relate precisa de um objeto com from, type e to');
+  const token = tokenOf(input.confirm_token);
   const fromRef = requireRef(input.from, 'from');
   const toRef = requireRef(input.to, 'to');
   if (typeof input.type !== 'string' || !RELATION_NAME_RE.test(input.type)) {
@@ -86,72 +97,92 @@ export async function relate(ctx: BrainContext, input: RelateInput): Promise<Rel
   assertAgentText(ctx, toRef, '"to"', 'path');
 
   let relation: RelateOutput['relation'] | null = null;
-  const output = await executeWrite(ctx, input.session_handle, async (config) => {
-    const allowed = linkListFields(config);
-    if (!allowed.includes(type)) {
-      throw invalid(
-        `relação desconhecida: ${JSON.stringify(type)}; as relações são: ${allowed.join(', ')}`,
-        'Use uma das relações listadas; o usuário acrescenta outras no .cabecao.json ("relations").',
-      );
-    }
-    const { from, to, paths } = await withFreshIndex(ctx, () => ({
-      from: resolveOrThrow(ctx, fromRef, 'from').note,
-      to: resolveOrThrow(ctx, toRef, 'to').note,
-      paths: connection(ctx.index)
-        .prepare('select path from notes where conflict_of is null')
-        .all()
-        .map((row) => String(row.path)),
-    }));
-    if (from.id === to.id) throw invalid('"from" e "to" são a mesma nota; uma nota não se relaciona com ela mesma');
-    if (to.conflictOf !== null) {
-      throw invalid(`${to.path} é uma cópia de conflito do sync; relacione com a nota original (${to.conflictOf})`);
-    }
-    // as restrições de agente (regra, controle, instrução, conflito, raw/) e a releitura do disco
-    const read = await existingNote(ctx, from.path);
-    const before = read.note.frontmatter;
-    const current = before[type];
-    if (current !== undefined && current !== null && current !== '' && !Array.isArray(current)) {
-      throw new BrainError('invalid_note', `"${type}" em ${read.path} não é uma lista de wikilinks`, {
-        details: { path: read.path },
-        nextStep: 'Peça ao usuário para corrigir o campo (deveria ser uma lista, como ["[[Nota]]"]).',
-      });
-    }
-    const list = Array.isArray(current) ? (current as unknown[]) : [];
-    const index = buildLinkIndex(paths);
-    const existing = list.find((item) => {
-      if (typeof item !== 'string' || !isWikilinkText(item)) return false;
-      return resolveWikiLink(index, stripWikilink(item), read.path).path === to.path;
-    });
-    const link = typeof existing === 'string' ? existing.trim() : linkFor(paths, read.path, to);
-    relation = { from: read.path, type, to: to.path, link };
-
-    const set: Record<string, unknown> = existing === undefined ? { [type]: [...list, link] } : {};
-    const warnings: IssueOutput[] = [];
-    if (existing === undefined) {
-      const provenance = agentEditProvenance(ctx, before);
-      if (provenance !== null) {
-        Object.assign(set, provenance.fields);
-        warnings.push(provenance.warning);
+  const output = await executeWrite(
+    ctx,
+    input.session_handle,
+    async (config, approval) => {
+      const allowed = linkListFields(config);
+      if (!allowed.includes(type)) {
+        throw invalid(
+          `relação desconhecida: ${JSON.stringify(type)}; as relações são: ${allowed.join(', ')}`,
+          'Use uma das relações listadas; o usuário acrescenta outras no .cabecao.json ("relations").',
+        );
       }
-      checkUpdate(read, set, [], localDate(ctx.now()), config);
-    }
-    return {
-      target: { path: read.path, diskPath: read.diskPath },
-      checks: frontmatterTargets(set, config, before),
-      warnings,
-      apply: () =>
-        updateNote(
-          ctx.root,
-          read.diskPath,
-          { frontmatter: set },
-          { config, now: ctx.now(), ifUnchangedSince: read.stamp },
-        ),
-    };
-  });
+      const { from, to, paths } = await withFreshIndex(ctx, () => ({
+        from: resolveOrThrow(ctx, fromRef, 'from').note,
+        to: resolveOrThrow(ctx, toRef, 'to').note,
+        paths: connection(ctx.index)
+          .prepare('select path from notes where conflict_of is null')
+          .all()
+          .map((row) => String(row.path)),
+      }));
+      if (from.id === to.id) throw invalid('"from" e "to" são a mesma nota; uma nota não se relaciona com ela mesma');
+      if (to.conflictOf !== null) {
+        throw invalid(`${to.path} é uma cópia de conflito do sync; relacione com a nota original (${to.conflictOf})`);
+      }
+      // as restrições de agente (regra, controle, instrução, conflito, raw/) e a releitura do disco
+      const read = await existingNote(ctx, from.path);
+      const before = read.note.frontmatter;
+      const current = before[type];
+      if (current !== undefined && current !== null && current !== '' && !Array.isArray(current)) {
+        throw new BrainError('invalid_note', `"${type}" em ${read.path} não é uma lista de wikilinks`, {
+          details: { path: read.path },
+          nextStep: 'Peça ao usuário para corrigir o campo (deveria ser uma lista, como ["[[Nota]]"]).',
+        });
+      }
+      const list = Array.isArray(current) ? (current as unknown[]) : [];
+      const index = buildLinkIndex(paths);
+      const existing = list.find((item) => {
+        if (typeof item !== 'string' || !isWikilinkText(item)) return false;
+        return resolveWikiLink(index, stripWikilink(item), read.path).path === to.path;
+      });
+      const link = typeof existing === 'string' ? existing.trim() : linkFor(paths, read.path, to);
+      relation = { from: read.path, type, to: to.path, link };
+
+      const set: Record<string, unknown> = existing === undefined ? { [type]: [...list, link] } : {};
+      const warnings: IssueOutput[] = [];
+      const reasons =
+        existing === undefined ? noteElevationReasons(ctx, { path: read.path, kind: 'update', before }) : [];
+      const approved = reasons.length > 0 ? approval : null;
+      if (existing === undefined) {
+        const provenance = agentEditProvenance(ctx, before, approved);
+        if (provenance !== null) {
+          Object.assign(set, provenance.fields);
+          warnings.push(provenance.warning);
+        }
+        checkUpdate(read, set, [], localDate(ctx.now()), config);
+      }
+      return {
+        target: { path: read.path, diskPath: read.diskPath },
+        checks: frontmatterTargets(set, config, before),
+        warnings,
+        ...(reasons.length === 0
+          ? {}
+          : {
+              elevation: {
+                reasons,
+                path: read.path,
+                summary: `Acrescentar a relação ${type} → ${to.path} em ${read.path} (${String(before.type ?? 'sem tipo')}). Por quê pede confirmação: ${reasons.join('; ')}`,
+                parts: noteParts('relate', read.path, { type, to: to.path }, read.text),
+              },
+            }),
+        apply: () =>
+          updateNote(
+            ctx.root,
+            read.diskPath,
+            { frontmatter: set },
+            { config, now: ctx.now(), ifUnchangedSince: read.stamp },
+          ),
+      };
+    },
+    { tool: 'relate', token, options },
+  );
   if (relation === null) throw new BrainError('invalid_argument', 'relate não montou a relação');
   return {
     ...output,
     relation,
-    ...(output.changed ? {} : { next_step: 'A relação já existia; nada foi gravado.' }),
+    ...(output.changed || output.status === 'confirmation_required'
+      ? {}
+      : { next_step: 'A relação já existia; nada foi gravado.' }),
   };
 }

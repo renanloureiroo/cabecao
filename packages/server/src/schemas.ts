@@ -46,6 +46,23 @@ const list = () =>
 export const sessionHandle = shortText()
   .describe('session_handle returned by recall; ties the commits of this task together.')
   .exactOptional();
+
+/** O token da primeira chamada de uma ação elevada (decisão 37). */
+export const confirmToken = shortText()
+  .describe(
+    "Only for actions that need the user's explicit request (rules, control/instruction files, raw/ edits, trust: high, undoing user operations): the confirm_token returned by the first call, after the user said yes.",
+  )
+  .exactOptional();
+
+/** Campos que toda resposta de escrita pode ganhar quando a ação precisa de confirmação (decisão 37). */
+export const confirmationShape = {
+  status: z.enum(['confirmation_required', 'declined']).exactOptional(),
+  summary: z.string().exactOptional(),
+  reasons: z.array(z.string()).exactOptional(),
+  confirm_token: z.string().exactOptional(),
+  token_expires_at: z.string().exactOptional(),
+  confirmed_by: z.enum(['token', 'user']).exactOptional(),
+};
 const scope = shortText().describe('"global" or "project:<slug>".');
 const noteType = z.enum(NOTE_TYPES);
 
@@ -285,6 +302,7 @@ export const rememberInput = z.object({
   resolution: shortText()
     .describe('Answer to decision "needs_resolution": create, skip, update:<id> or supersede:<id> (a candidate id).')
     .exactOptional(),
+  confirm_token: confirmToken,
 });
 
 export const writePageInput = z.object({
@@ -297,9 +315,12 @@ export const writePageInput = z.object({
     ),
   frontmatter: z
     .record(shortText(), z.unknown())
-    .describe('YAML fields; id/created/updated/origin/edited_by are managed, and "type: rule" is user-only.')
+    .describe(
+      'YAML fields; id/created/updated/origin/edited_by/approved_by/approved_at are managed. "type: rule" and "trust: high" need the user\'s explicit request (confirmation).',
+    )
     .exactOptional(),
   session_handle: sessionHandle,
+  confirm_token: confirmToken,
 });
 
 export const patchPageInput = z.object({
@@ -307,6 +328,7 @@ export const patchPageInput = z.object({
   old: text(INPUT_LIMITS.content).min(1).describe('Exact text from the body; must appear exactly once.'),
   new: text(INPUT_LIMITS.content).describe('Replacement text.'),
   session_handle: sessionHandle,
+  confirm_token: confirmToken,
 });
 
 export const writeOutput = z.object({
@@ -318,6 +340,7 @@ export const writeOutput = z.object({
   commit: z.string().nullable(),
   warnings: z.array(issue),
   next_step: z.string().exactOptional(),
+  ...confirmationShape,
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -384,13 +407,16 @@ export const syncOutput = z.object({
 export const undoInput = z.object({
   op: shortText()
     .min(1)
-    .describe('Full operation id (op from a write result). Omit to undo your last operation.')
+    .describe(
+      'Operation id (op from a write result). Omit to undo your last operation. A user operation, or only the start of the id, needs confirmation.',
+    )
     .exactOptional(),
   session: shortText()
     .min(1)
-    .describe('Full session_handle: undo every write of that session, in one commit.')
+    .describe('Full session_handle: undo every agent write of that session, in one commit.')
     .exactOptional(),
   session_handle: sessionHandle,
+  confirm_token: confirmToken,
 });
 
 export const undoOutput = z.object({
@@ -400,4 +426,5 @@ export const undoOutput = z.object({
   changed_paths: z.array(z.string()),
   warnings: z.array(issue),
   next_step: z.string().exactOptional(),
+  ...confirmationShape,
 });

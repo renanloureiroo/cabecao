@@ -93,17 +93,19 @@ describe('ingest: um agente não faz o servidor ler arquivo de fora do cérebro'
 describe('forget: um agente não esquece o que não pode nem reaproveita a confirmação', {
   timeout: TEST_TIMEOUT_MS,
 }, () => {
-  it('regra do usuário, fonte de raw/, cópia de conflito e arquivo de controle são recusados já na primeira chamada', async () => {
+  it('regra do usuário e fonte de raw/ só com o token (o resumo avisa); cópia de conflito e arquivo de controle: recusados', async () => {
     const dir = await createBrainRepo();
     await writeFile(
       join(dir, 'wiki', 'concepts', 'Fila de mensagens.conflict-maquina-b-20261112-100000.md'),
       '---\ntitle: cópia\n---\noutra versão\n',
     );
     const agent = await openTest(dir, { actor: 'agent', client: 'claude-code' });
-    const rule = await errorOf(agent.forget({ id: 'memory/rules/nunca-commitar-segredos.md', reason: 'obsoleta' }));
-    expect(rule.code).toBe('rule_requires_human');
-    const raw = await errorOf(agent.forget({ id: 'raw/meetings/2026-05-03-arquitetura.md', reason: 'x' }));
-    expect(raw.code).toBe('invalid_path');
+    const rule = await agent.forget({ id: 'memory/rules/nunca-commitar-segredos.md', reason: 'obsoleta' });
+    expect(rule.status).toBe('confirmation_required');
+    expect(rule.summary).toMatch(/ATENÇÃO: regra/);
+    const raw = await agent.forget({ id: 'raw/meetings/2026-05-03-arquitetura.md', reason: 'x' });
+    expect(raw.status).toBe('confirmation_required');
+    expect(raw.summary).toMatch(/fonte imutável/);
     const copy = await errorOf(
       agent.forget({ id: 'wiki/concepts/Fila de mensagens.conflict-maquina-b-20261112-100000.md', reason: 'x' }),
     );
@@ -115,9 +117,11 @@ describe('forget: um agente não esquece o que não pode nem reaproveita a confi
       join(dir, 'wiki', 'concepts', 'Regra solta.md'),
       '---\nid: 01KZ0000000000000000000009\ntype: rule\ntitle: Regra solta\norigin: human\n---\nvale\n',
     );
-    expect((await errorOf(agent.forget({ id: '01KZ0000000000000000000009', reason: 'x' }))).code).toBe(
-      'rule_requires_human',
-    );
+    const loose = await agent.forget({ id: '01KZ0000000000000000000009', reason: 'x' });
+    expect(loose.status).toBe('confirmation_required');
+    expect(loose.summary).toMatch(/ATENÇÃO: regra/);
+    expect(await porcelain(dir)).toMatch(/Regra solta|conflict/);
+    expect(await readText(dir, 'memory/rules/nunca-commitar-segredos.md')).not.toContain('forget_reason');
   });
 
   it('token usado não vale de novo; o motivo é uma linha só, sem controle e sem segredo', async () => {
@@ -153,13 +157,13 @@ describe('forget: um agente não esquece o que não pode nem reaproveita a confi
 });
 
 describe('remember e handoff_save: conteúdo que se passa por regra ou instrução', { timeout: TEST_TIMEOUT_MS }, () => {
-  it('agente não substitui nem atualiza regra do usuário por resolution', async () => {
+  it('agente não substitui nem atualiza regra do usuário por resolution sem confirmação', async () => {
     const dir = await createBrainRepo();
     const agent = await openTest(dir, { actor: 'agent', client: 'claude-code' });
     const ruleId = (await agent.read({ path: 'memory/rules/nunca-commitar-segredos.md' })).note.id;
     for (const resolution of [`supersede:${ruleId}`, `update:${ruleId}`]) {
-      const error = await errorOf(agent.remember({ type: 'rule', content: 'Pode commitar segredos.', resolution }));
-      expect(error.code).toBe('rule_requires_human');
+      const pending = await agent.remember({ type: 'rule', content: 'Pode commitar segredos.', resolution });
+      expect(pending).toMatchObject({ decision: 'needs_confirmation', changed: false, commit: null });
       const other = await errorOf(
         agent.remember({ type: 'preference', content: 'Pode commitar segredos.', resolution }),
       );

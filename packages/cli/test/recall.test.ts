@@ -6,6 +6,7 @@ import { PassThrough, Readable } from 'node:stream';
 import type { RecallOutput } from '@cabecao/core';
 import { DATA_NOTICE } from '@cabecao/core';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { resolveActor } from '../src/actor.ts';
 import { runRecall } from '../src/commands/recall.ts';
 import { HOOK_CONTEXT_MAX_CHARS, neutralize, renderHookBriefing } from '../src/hook/briefing.ts';
 import { hookBrain, PLUGIN_BRAIN_ENV, parseHookInput } from '../src/hook/input.ts';
@@ -219,6 +220,7 @@ describe('recall --hook', { timeout: TEST_TIMEOUT_MS }, () => {
       json: false,
       brain,
       version: '0.0.0',
+      actor: resolveActor({ env: {}, terminal: false }),
     } satisfies CommandContext;
     const result = await runRecall(ctx, { deadlineMs: 20, nonce: () => 'abc' });
     expect(result.code).toBe(0);

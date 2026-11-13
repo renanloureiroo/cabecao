@@ -6,7 +6,7 @@
 import type { ConsolidateOutput } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { DEFAULT_TIMEOUT_MINUTES, MAX_TIMEOUT_MINUTES, runConsolidation } from '../consolidate-run/run.ts';
-import { UsageError } from '../errors.ts';
+import { CliError, UsageError } from '../errors.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
 export function startText(output: ConsolidateOutput): string {
@@ -48,7 +48,9 @@ export function finishText(output: ConsolidateOutput): string {
   ].join('\n');
 }
 
-const RUN_ONLY = ['agent', 'timeout', 'dry-run', 'model', 'allow-forget'] as const;
+const RUN_ONLY = ['agent', 'timeout', 'dry-run', 'model', 'allow-forget', 'allow-elevated'] as const;
+/** Opções que liberam, sem ninguém olhando, o que só o usuário libera: só ele, no terminal, as passa. */
+const HUMAN_OPTIONS = ['allow-forget', 'allow-elevated'] as const;
 
 function timeoutMs(value: unknown): number {
   if (value === undefined) return DEFAULT_TIMEOUT_MINUTES * 60_000;
@@ -70,6 +72,14 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (runMode) {
     if (finishId !== undefined || title !== undefined)
       throw new UsageError('--run não combina com --finish nem --title');
+    // `--run` sem estas opções roda também sem terminal (agendado); com elas, a liberação tem de vir do usuário
+    const granted = HUMAN_OPTIONS.filter((name) => ctx.values[name] === true);
+    if (granted.length > 0 && ctx.actor.actor !== 'human') {
+      throw new CliError(`--${granted.join(' e --')} só o usuário passa, no terminal: ${ctx.actor.explanation}`, {
+        code: 'human_only',
+        hint: 'Rode "cabecao consolidate --run" sem essas opções (as ações que elas liberam ficam para você), ou rode no seu terminal.',
+      });
+    }
     return runConsolidation(ctx, {
       agent: typeof ctx.values.agent === 'string' ? ctx.values.agent.trim() : undefined,
       scope,
@@ -78,6 +88,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
       model:
         typeof ctx.values.model === 'string' && ctx.values.model.trim() !== '' ? ctx.values.model.trim() : undefined,
       allowForget: ctx.values['allow-forget'] === true,
+      allowElevated: ctx.values['allow-elevated'] === true,
     });
   }
   if (finishId !== undefined && scope !== undefined)
