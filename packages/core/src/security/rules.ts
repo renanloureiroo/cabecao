@@ -244,8 +244,7 @@ export const SECRET_RULES: readonly SecretRule[] = [
   },
   {
     id: 'cabecao-confirm-token',
-    description:
-      'Token de confirmação do forget do Cabeção (cbc_ct_...): vale poucos minutos e não deve ser gravado numa nota.',
+    description: 'Token de confirmação do Cabeção (cbc_ct_...): vale poucos minutos e não deve ser gravado numa nota.',
     pattern: /(?<![A-Za-z0-9_])cbc_ct_[0-9a-z]{1,12}_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/dg,
     locate: wholeMatch,
   },

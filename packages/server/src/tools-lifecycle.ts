@@ -115,7 +115,7 @@ export function registerForgetTool(server: McpServer, brainOf: BrainOf, log: (me
     {
       title: 'Forget',
       description:
-        'Archive a note in memory/_archive/ (never deletes; undo restores). First call returns a summary and a short-lived confirm_token; call again with it to archive. May ask the user. User rules are off limits.',
+        'Archive a note in memory/_archive/ (never deletes; undo restores). First call returns a summary and a short-lived confirm_token; call again with it to archive. May ask the user.',
       inputSchema: forgetInput,
       outputSchema: forgetOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
