@@ -9,7 +9,12 @@ import { describeEntry, detectLlm, loadLlmMachine } from '../llm/machine.ts';
 import { runAsk } from '../llm/run.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
-export const ASK_EXIT = { answered: 0, not_found: 3, low_confidence: 4, unavailable: 5 } as const;
+/**
+ * Código de saída por status. 3 e 4 já querem dizer, em toda a CLI, "pede o pedido explícito do usuário" e "só o
+ * usuário, no terminal": o `ask` não os usa. Respondeu, respondeu com pouco apoio ou "o cérebro não tem isso" saem com 0
+ * (o comando funcionou; o `status` diz qual); 5 é "nenhum provedor gerou a resposta" (vêm os trechos).
+ */
+export const ASK_EXIT = { answered: 0, not_found: 0, low_confidence: 0, unavailable: 5 } as const;
 
 function parseLimit(value: unknown): number | undefined {
   if (value === undefined) return undefined;
