@@ -1,10 +1,12 @@
-// O plugin do Claude Code em `integrations/claude-code/` e o marketplace na raiz do repositório. O bundle da CLI vai
-// commitado dentro do plugin (o Claude Code instala clonando o repositório, sem passo de build): este teste falha quando
-// ele fica defasado (outra versão que a do pacote, arquivo que não bate com o `build.json`) e roda os hooks com o
-// bundle embutido, do jeito que o Claude Code roda.
+// O plugin do Claude Code em `integrations/claude-code/` e o marketplace na raiz do repositório. O bundle da CLI e as
+// skills vão commitados dentro do plugin (o Claude Code instala clonando o repositório, sem passo de build) e são
+// refeitos SÓ no passo de versão (`pnpm version-packages`): o plugin corresponde à versão PUBLICADA, não ao código do
+// meio do desenvolvimento. Por isso este teste NÃO exige que o bundle bata com o código atual: confere que o que está
+// commitado é íntegro (cada arquivo bate com o `build.json`), é da versão declarada no `plugin.json`, e roda os hooks
+// com o bundle embutido, do jeito que o Claude Code roda.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -116,15 +118,20 @@ describe('manifestos do plugin e do marketplace', () => {
     }
   });
 
-  it('a skill tem nome e descrição curtos e só cita tools que existem', () => {
-    const skill = readFileSync(join(PLUGIN, 'skills', 'memory', 'SKILL.md'), 'utf8');
-    const front = /^---\n([\s\S]*?)\n---\n/.exec(skill)?.[1] ?? '';
-    expect(/^name: memory$/m.test(front)).toBe(true);
-    const description = /^description: (.+)$/m.exec(front)?.[1] ?? '';
-    expect(description.length).toBeGreaterThan(50);
-    expect(description.length).toBeLessThanOrEqual(1024);
-    expect(skill).not.toMatch(MISSING);
-    for (const tool of skill.matchAll(/\*\*`(\w+)`\*\*/g)) expect(TOOLS).toContain(tool[1]);
+  it('as skills do plugin têm nome igual ao da pasta, descrição curta e só citam tools que existem', () => {
+    const dir = join(PLUGIN, 'skills');
+    const names = readdirSync(dir).filter((name) => statSync(join(dir, name)).isDirectory());
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      const skill = readFileSync(join(dir, name, 'SKILL.md'), 'utf8');
+      const front = /^---\n([\s\S]*?)\n---\n/.exec(skill)?.[1] ?? '';
+      expect(new RegExp(`^name: ${name}$`, 'm').test(front), name).toBe(true);
+      const description = /^description: (.+)$/m.exec(front)?.[1] ?? '';
+      expect(description.length).toBeGreaterThan(50);
+      expect(description.length).toBeLessThanOrEqual(1024);
+      expect(skill).not.toMatch(MISSING);
+      for (const tool of skill.matchAll(/\*\*`(\w+)`\*\*/g)) expect(TOOLS).toContain(tool[1]);
+    }
     const rules = HOOK_USAGE_RULES.join('\n');
     expect(rules).not.toMatch(MISSING);
     for (const tool of rules.matchAll(/`([a-z_]+)`/g)) {
@@ -135,9 +142,10 @@ describe('manifestos do plugin e do marketplace', () => {
 });
 
 describe('bundle embutido no plugin', () => {
-  it('corresponde ao build.json e à versão do pacote (rode "pnpm build:plugin" se falhar)', () => {
+  it('é íntegro: cada arquivo bate com o build.json, da versão declarada no plugin.json', () => {
     const build = readJson(join(SERVER, 'build.json'));
-    expect(build.version).toBe(version);
+    const declared: string = readJson(join(PLUGIN, '.claude-plugin', 'plugin.json')).version;
+    expect(build.version).toBe(declared);
     const listed = Object.keys(build.files).sort();
     const present = readdirSync(SERVER)
       .filter((name) => name.endsWith('.mjs'))
@@ -149,7 +157,15 @@ describe('bundle embutido no plugin', () => {
         .digest('hex');
       expect(hash, `${name} mudou desde o build.json`).toBe(build.files[name]);
     }
-    expect(readFileSync(join(SERVER, 'main.mjs'), 'utf8')).toContain(version);
+    expect(readFileSync(join(SERVER, 'main.mjs'), 'utf8')).toContain(declared);
+    // as skills copiadas no passo de versão (a partir de então, o build.json traz o hash de cada arquivo)
+    for (const [rel, hash] of Object.entries((build.skills ?? {}) as Record<string, string>)) {
+      const file = join(PLUGIN, 'skills', ...rel.split('/'));
+      expect(existsSync(file), rel).toBe(true);
+      expect(createHash('sha256').update(readFileSync(file)).digest('hex'), `${rel} mudou desde o build.json`).toBe(
+        hash,
+      );
+    }
   });
 
   it('roda como o Claude Code roda: --version, recall --hook e sync --hook', { timeout: TEST_TIMEOUT_MS }, async () => {
