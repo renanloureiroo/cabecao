@@ -23,9 +23,8 @@ A command to measure search quality on your own brain, with your own questions, 
 
 ## Planned
 
-- **Brain review (lint)**: broken links, mentions that could become links, expired notes that nobody replaced, duplicate memories.
-- **Consolidation**: merge similar memories and propose syntheses, always as a reviewable suggestion.
-- **Forget**: take a memory out of circulation by moving it to `memory/_archive/`, in a reversible way.
+- **Scheduled consolidation**: run the consolidation with a non-interactive agent, without you opening a session. Today it is prepared and closed by `cabecao consolidate`, and an agent in a session of yours does the work.
+- **Delete for good** (`cabecao purge`): remove a note from the git history, for the rare case of something that should never have been there. Today `forget` archives, and the archived note stays in git.
 - **Obsidian integration**: vault configuration and ready-made dashboards in `dashboards/`.
 - **Claude Desktop package**, to install the server with one click.
 

@@ -49,6 +49,7 @@ What it recognizes:
 | `slack-token`, `stripe-key`, `google-api-key` | Slack tokens, Stripe and Google keys |
 | `anthropic-api-key`, `openai-api-key`, `npm-token` | Anthropic and OpenAI keys, and npm tokens |
 | `jwt` | Signed JSON Web Tokens |
+| `cabecao-confirm-token` | The `forget` `confirm_token` (`cbc_ct_...`): valid for minutes and must not stay in a note |
 | `url-credentials` | URL with an embedded password (`esquema://usuario:senha@host`) |
 | `generic-assignment` | A sensitive name (`password`, `senha`, `secret`, `token`, `api_key`...) being assigned a value that looks like a secret |
 
@@ -75,7 +76,10 @@ Through the MCP tools, an agent:
 - does not change sources that already exist in `raw/`, or conflict copies;
 - does not choose its own provenance (`origin`, `edited_by`) or give itself `trust: high`;
 - does not write anything that looks like a secret;
-- does not undo your operations.
+- does not undo your operations;
+- does not archive (`forget`) your rules, sources in `raw/`, or conflict copies, and only archives after a two-call confirmation (or after you answer, when the client asks);
+- does not make `ingest` read files outside the brain: a file of yours goes in through `cabecao ingest`, which is you;
+- does not write rules in a consolidation: at most it proposes one in `wiki/syntheses/`, and the whole consolidation is undone with one `undo`.
 
 When it changes a note of yours, the note gets `edited_by` and its `trust` drops. And every write it makes is a commit that you can undo with `cabecao undo`.
 

@@ -11,6 +11,15 @@ npm i -g cabecao@beta
 
 ## Not yet released
 
+- **The memory lifecycle.** Five new MCP server tools and four CLI commands:
+  - `handoff_save`: the handoff, with an expiry, plus the session's episode; `recall` delivers the project's latest handoff and warns when it was already delivered to another session.
+  - `remember` handles duplicates and contradictions in the same scope and type: the same memory is skipped, one that complements updates, a fact with another object supersedes the old one, and the ambiguous case goes back to the agent to decide.
+  - `ingest` and [`cabecao ingest`](./referencia/cli.md#cabecao-ingest): register a source in `raw/` with `trust: low` and return the ingestion plan.
+  - `lint` and [`cabecao lint`](./referencia/cli.md#cabecao-lint): problem report by rules, read-only.
+  - `forget` and [`cabecao forget`](./referencia/cli.md#cabecao-forget): archive in `memory/_archive/`, with confirmation; they never delete.
+  - `consolidate` and [`cabecao consolidate`](./referencia/cli.md#cabecao-consolidate): maintenance with a restore point, closed in one commit that `undo` reverts entirely.
+  - MCP prompts `ingest`, `review`, and `consolidate`.
+- **Old memories never confirmed lose weight.** A preference, gotcha, or procedure without `confirmed` and not updated for 180 days ranks lower in search, without disappearing.
 - **Claude Code plugin.** `/plugin marketplace add renanloureiroo/cabecao` and `/plugin install cabecao@cabecao` install the bundled MCP server (no `npx`), the brain's briefing at the start of every session, and a background sync at the end, plus the `cabecao:memory` skill. No hook captures the conversation. See [Claude Code plugin](./guias/claude-code.md).
 - **Automatic sync.** `cabecao schedule on|off|status` registers a periodic sync with the system scheduler (LaunchAgent, user systemd timer or crontab, Task Scheduler), without administrator rights. See [Automatic sync](./guias/sync-automatico.md).
 - **New commands:** `cabecao recall` shows a task's briefing in the terminal; `cabecao sync` gains `--detach` (background), `--hook`, and `--log`. `doctor` now checks the schedule.

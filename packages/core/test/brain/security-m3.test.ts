@@ -111,7 +111,7 @@ describe('S2: um agente não vence uma regra do usuário pelo encadeamento', { t
       relations: { supersedes: ['nunca-commitar-segredos'] },
     });
     const other = await brain.remember({ type: 'gotcha', title: 'Ponte para a regra', content: 'texto\n' });
-    await brain.relate({ from: other.path, type: 'supersedes', to: 'Nunca commitar segredos' });
+    await brain.relate({ from: String(other.path), type: 'supersedes', to: 'Nunca commitar segredos' });
     const recall = await brain.recall({ task: 'commitar segredos' });
     expect(recall.rules.map((item) => item.path)).toEqual([RULE]);
     expect((await brain.read({ path: RULE })).note.validity).toBe('current');

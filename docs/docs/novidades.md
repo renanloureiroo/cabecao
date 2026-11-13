@@ -11,6 +11,15 @@ npm i -g cabecao@beta
 
 ## Ainda não publicado
 
+- **O ciclo de vida da memória.** Cinco tools novas no servidor MCP e quatro comandos na CLI:
+  - `handoff_save`: a passagem de bastão, com validade, e o episódio da sessão; o `recall` entrega o último handoff do projeto e avisa quando ele já foi entregue a outra sessão.
+  - O `remember` trata duplicatas e contradições no mesmo escopo e tipo: igual é ignorado, o que complementa atualiza, um fato com outro objeto substitui o antigo, e o caso ambíguo volta para o agente decidir.
+  - `ingest` e [`cabecao ingest`](./referencia/cli.md#cabecao-ingest): registram uma fonte em `raw/` com `trust: low` e devolvem o plano de ingestão.
+  - `lint` e [`cabecao lint`](./referencia/cli.md#cabecao-lint): relatório de problemas por regras, só de leitura.
+  - `forget` e [`cabecao forget`](./referencia/cli.md#cabecao-forget): arquivam em `memory/_archive/`, com confirmação; nunca apagam.
+  - `consolidate` e [`cabecao consolidate`](./referencia/cli.md#cabecao-consolidate): manutenção com ponto de restauração, fechada num commit que o `undo` desfaz inteiro.
+  - Prompts MCP `ingest`, `review` e `consolidate`.
+- **Memórias velhas nunca confirmadas perdem peso.** Uma preferência, armadilha ou procedimento sem `confirmed` e sem atualização há 180 dias vem mais abaixo na busca, sem sumir.
 - **Plugin do Claude Code.** `/plugin marketplace add renanloureiroo/cabecao` e `/plugin install cabecao@cabecao` instalam o servidor MCP embutido (sem `npx`), o briefing do cérebro no início de cada sessão e o sync em segundo plano no fim, além da skill `cabecao:memory`. Nenhum hook captura a conversa. Veja [Plugin do Claude Code](./guias/claude-code.md).
 - **Sync automático.** `cabecao schedule on|off|status` registra o sync periódico no agendador do sistema (LaunchAgent, timer do systemd de usuário ou crontab, Agendador de Tarefas), sem administrador. Veja [Sync automático](./guias/sync-automatico.md).
 - **Comandos novos:** `cabecao recall` mostra o briefing de uma tarefa no terminal; `cabecao sync` ganha `--detach` (em segundo plano), `--hook` e `--log`. O `doctor` passa a verificar o agendamento.

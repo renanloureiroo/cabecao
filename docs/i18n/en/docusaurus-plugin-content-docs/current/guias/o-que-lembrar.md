@@ -16,7 +16,8 @@ A useful brain is small and reliable. Each memory takes up room in the `recall` 
 | A gotcha you discovered | `gotcha` | "Integration tests fail if the local database is not cleaned first." |
 | A step-by-step that repeats | `procedure` | "How to publish a new version." |
 | A fact that changes over time, with the date | `fact` | "Bruno has led Atlas since 2026-09-01." |
-| Where the session stopped | `handoff` | "Three consumers left; start with the billing one." |
+| Where the session stopped | `handoff`, with the `handoff_save` tool | "Three consumers left; start with the billing one." |
+| An outside source (article, meeting notes) | in `raw/`, with `ingest` | "The article on queue costs on AWS." |
 
 ## Not worth remembering
 
@@ -27,8 +28,9 @@ A useful brain is small and reliable. Each memory takes up room in the `recall` 
 
 ## Habits that help
 
-- **Ask for a handoff at the end.** "Before you stop, leave a handoff" makes the next session start where this one stopped. Give it an `expires_at`, because a stale handoff only confuses.
-- **Search before writing.** A repeated memory, worded differently, splits the agent's attention. The server instructions already ask for this; reinforce it if you notice repetition.
+- **Ask for a handoff at the end.** "Before you stop, leave a handoff" makes the agent call `handoff_save`, and the next session starts where this one stopped. The handoff is valid for 30 days (`expires_at`) and the next one for the same project supersedes the previous one, because a stale handoff only confuses.
+- **Let `remember` handle repetition.** Before writing, it looks for similar memories in the same scope and type: the same one is not written again, one that adds updates the existing one, and a fact that changed supersedes the old one, which stays in history. When the rule cannot decide, the agent gets the candidates and chooses. Still, ask for a search before saving something important.
+- **Run `lint` now and then.** [`cabecao lint`](../referencia/cli.md#cabecao-lint) points out facts that contradict each other, broken links, memories nobody confirmed for months, and expired notes. For old memories: confirm the ones that hold (`confirmed` with today's date) and forget the ones that do not with [`cabecao forget`](../referencia/cli.md#cabecao-forget). An old memory never confirmed already loses weight in search.
 - **Do not delete what changed: supersede it.** When a decision changes, the new note carries `supersedes: ["[[decisão-antiga]]"]`. The old one stays there, expired, and answers questions about the past with `--as-of`.
 - **Use project scope.** What only applies to one project goes with `scope: project:<nome>`, so it does not show up in the others.
 - **Review now and then.** `cabecao undo --list` shows what agents wrote. Undo or fix whatever is wrong.

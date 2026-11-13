@@ -51,6 +51,20 @@ Afterward, run `cabecao sync` to carry the undo to the other machines.
 
 An agent can also undo, through the `undo` tool: its own last operation, an operation by its full identifier, or a whole session. It only reaches agent operations, never yours. Ask, for example: "undo what you wrote in this session".
 
+## Forget and bring back
+
+[`cabecao forget`](../referencia/cli.md#cabecao-forget) (or the `forget` tool, with confirmation) archives a note in `memory/_archive/`. It leaves search and `recall`, but archiving is an operation like the others: `cabecao undo --op <id>` brings it back to where it was.
+
+## Undo a consolidation
+
+A consolidation ([`cabecao consolidate`](../referencia/cli.md#cabecao-consolidate) or the `consolidate` tool) closes everything the agent wrote in it in one commit. To undo it all at once, use the consolidation id as the session:
+
+```bash
+cabecao undo --session 01M7AF1JJ6VKSJXDM09CZ3ZP28
+```
+
+Before starting, the consolidation creates a restore point, the local tag `cabecao/restore/<date>-<id>`. If you need to take the whole brain back to that moment (also discarding what came after), use git: `git reset --hard <tag>`. That rewrites the local branch; only do it if none of that went to the remote.
+
 ## What undo does not reach
 
 Undo only knows Cabeção operations. Edits you made in Obsidian, sync commits, and the `init` commit are left out. For those, use git in the brain folder:

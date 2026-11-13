@@ -51,6 +51,20 @@ Depois, rode `cabecao sync` para levar o undo às outras máquinas.
 
 Um agente também desfaz, pela tool `undo`: a última operação dele, uma operação pelo identificador completo ou uma sessão inteira. Ele só alcança operações de agentes, nunca as suas. Peça, por exemplo: "desfaça o que você gravou nesta sessão".
 
+## Esquecer e trazer de volta
+
+[`cabecao forget`](../referencia/cli.md#cabecao-forget) (ou a tool `forget`, com confirmação) arquiva uma nota em `memory/_archive/`. Ela sai da busca e do `recall`, mas o arquivamento é uma operação como as outras: `cabecao undo --op <id>` a traz de volta para onde estava.
+
+## Desfazer uma consolidação
+
+Uma consolidação ([`cabecao consolidate`](../referencia/cli.md#cabecao-consolidate) ou a tool `consolidate`) fecha num commit tudo o que o agente gravou nela. Para desfazer tudo de uma vez, use o id da consolidação como sessão:
+
+```bash
+cabecao undo --session 01M7AF1JJ6VKSJXDM09CZ3ZP28
+```
+
+Antes de começar, a consolidação cria um ponto de restauração, a tag local `cabecao/restore/<data>-<id>`. Se precisar voltar o cérebro inteiro para aquele instante (descartando também o que veio depois), use o git: `git reset --hard <tag>`. Isso reescreve a branch local; faça só se nada daquilo foi para o remoto.
+
 ## O que o undo não alcança
 
 O undo só conhece operações do Cabeção. Edições que você fez no Obsidian, os commits do sync e o commit do `init` ficam de fora. Para esses, use o git na pasta do cérebro:

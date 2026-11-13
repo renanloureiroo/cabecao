@@ -12,6 +12,7 @@ import { listNotes } from '../db/index.ts';
 import type { CommitChange } from '../git/index.ts';
 import {
   commitPaths,
+  formatChangeLine,
   formatCommitMessage,
   GitError,
   headSha,
@@ -102,6 +103,11 @@ export interface RememberInput {
   readonly sources?: readonly string[];
   /** O `session_handle` do `recall`; vai para o rodapé `Cabecao-Session`. */
   readonly session_handle?: string;
+  /**
+   * Resposta a um `remember` que voltou com `decision: needs_resolution` (ou para pular a procura de duplicatas):
+   * `create`, `skip`, `update:<id>` ou `supersede:<id>`, com o id de uma das candidatas.
+   */
+  readonly resolution?: string;
 }
 
 /**
@@ -140,7 +146,7 @@ export function invalid(message: string, nextStep?: string): BrainError {
   return new BrainError('invalid_argument', message, nextStep === undefined ? {} : { nextStep });
 }
 
-function invalidNote(path: string, issues: readonly NoteIssue[]): BrainError {
+export function invalidNote(path: string, issues: readonly NoteIssue[]): BrainError {
   const errors = issues.filter((issue) => issue.severity === 'error');
   return new BrainError('invalid_note', `nota inválida (${path}): ${errors.map((issue) => issue.message).join('; ')}`, {
     details: { path, issues: issues.map(issueOutput) },
@@ -148,11 +154,11 @@ function invalidNote(path: string, issues: readonly NoteIssue[]): BrainError {
   });
 }
 
-function warning(code: string, field: string | null, message: string): IssueOutput {
+export function warning(code: string, field: string | null, message: string): IssueOutput {
   return { severity: 'warning', code, field, message };
 }
 
-function ruleRefused(): BrainError {
+export function ruleRefused(): BrainError {
   return new BrainError(
     'rule_requires_human',
     'regras (type: rule) só o usuário cria e altera; um agente não pode gravá-las',
@@ -163,7 +169,7 @@ function ruleRefused(): BrainError {
   );
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Campos que o Cabeção preenche; o que vier do chamador nesses campos é ignorado. */
@@ -174,7 +180,8 @@ const MANAGED_ON_UPDATE: ReadonlySet<string> = new Set(['origin', 'created', 'up
 const KEPT_ON_OVERWRITE = new Set(['id', 'type', 'created', 'updated', 'origin', 'trust', 'edited_by']);
 
 /** `type: rule`, com qualquer caixa e espaço em volta (o banco guarda o tipo sem os espaços). */
-const isRuleType = (value: unknown): boolean => typeof value === 'string' && value.trim().toLowerCase() === 'rule';
+export const isRuleType = (value: unknown): boolean =>
+  typeof value === 'string' && value.trim().toLowerCase() === 'rule';
 /** Texto de um campo para comparar: sem espaços em volta e em minúsculas. */
 const fieldKey = (value: unknown): unknown => (typeof value === 'string' ? value.trim().toLowerCase() : value);
 
@@ -193,7 +200,7 @@ const RAW_DIR_PREFIX = `${RAW_DIR.toLowerCase()}/`;
  *
  * `path` já vem canônico, com a grafia do disco.
  */
-function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'create' | 'update'): void {
+export function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'create' | 'update'): void {
   if (ctx.actor === 'human') return;
   if (isBrainControlFile(path, ctx.config)) {
     throw new BrainError(
@@ -278,21 +285,21 @@ export function agentEditProvenance(
 }
 
 /** `Nota`, `pasta/Nota` ou `[[Nota]]` → `[[Nota]]`; o que não serve de nome de nota (uma URL) fica como veio. */
-function toLink(value: string): string {
+export function toLink(value: string): string {
   const text = value.trim();
   // `isWikilinkText` estreita o tipo; aplicado a uma cópia, não transforma `text` em `never` no ramo falso
   if (isWikilinkText(`${text}`)) return text;
   return /^[^[\]\n|#]+$/.test(text) && !text.includes('://') ? `[[${text}]]` : text;
 }
 
-function stringList(value: unknown, name: string): string[] {
+export function stringList(value: unknown, name: string): string[] {
   if (!Array.isArray(value) || !value.every((item) => typeof item === 'string' && item.trim() !== '')) {
     throw invalid(`"${name}" deveria ser uma lista de textos`);
   }
   return value.map((item: string) => item.trim());
 }
 
-function sessionOf(value: unknown): string | undefined {
+export function sessionOf(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isUlid(value)) {
     throw invalid(
@@ -304,7 +311,7 @@ function sessionOf(value: unknown): string | undefined {
 }
 
 /** Título a partir da primeira linha com texto do conteúdo, sem marcação de Markdown e com até 80 caracteres. */
-function titleFromContent(content: string): string {
+export function titleFromContent(content: string): string {
   const line = content
     .split(/\r?\n/)
     .map((text) =>
@@ -336,7 +343,7 @@ function introducedErrors(before: readonly NoteIssue[], after: readonly NoteIssu
 // ---------------------------------------------------------------------------------------------------------------
 // Scanner de segredos
 
-interface ScanTarget {
+export interface ScanTarget {
   readonly where: 'content' | 'frontmatter' | 'path';
   readonly field: string | null;
   readonly text: string;
@@ -479,7 +486,7 @@ export function assertAgentText(ctx: BrainContext, text: string, where: string, 
 }
 
 /** Confere, recursivamente, as chaves e os textos dos campos do frontmatter enviados por um agente. */
-function assertAgentFields(ctx: BrainContext, fields: Readonly<Record<string, unknown>>): void {
+export function assertAgentFields(ctx: BrainContext, fields: Readonly<Record<string, unknown>>): void {
   if (ctx.actor === 'human') return;
   for (const [key, value] of Object.entries(fields)) {
     assertAgentText(ctx, key, `o nome do campo ${JSON.stringify(key)}`, 'name');
@@ -494,7 +501,7 @@ function assertAgentFields(ctx: BrainContext, fields: Readonly<Record<string, un
  * e um `---` logo depois dele viraria frontmatter numa nota que não tinha (a camada do vault ainda confere o texto
  * relido, de qualquer jeito).
  */
-function assertNoLeadingBom(ctx: BrainContext, body: string, before = ''): void {
+export function assertNoLeadingBom(ctx: BrainContext, body: string, before = ''): void {
   // um corpo que já começava com o caractere (nota editada à mão) não trava a escrita: só o que o agente introduz
   if (ctx.actor === 'human' || body.charCodeAt(0) !== 0xfeff || before.charCodeAt(0) === 0xfeff) return;
   throw invalid(
@@ -529,7 +536,7 @@ function secretError(hits: readonly SecretHit[]): BrainError {
 // ---------------------------------------------------------------------------------------------------------------
 // Git
 
-async function git(ctx: BrainContext, args: readonly string[]): Promise<{ exitCode: number; stdout: string }> {
+export async function git(ctx: BrainContext, args: readonly string[]): Promise<{ exitCode: number; stdout: string }> {
   return runGit(args, { cwd: ctx.root, allowFailure: true });
 }
 
@@ -571,7 +578,7 @@ async function committedLines(ctx: BrainContext, head: string, path: string): Pr
   return new Set(shown.exitCode === 0 ? linesOf(shown.stdout) : []);
 }
 
-async function commitMessage(
+export async function commitMessage(
   ctx: BrainContext,
   input: {
     op: string;
@@ -630,14 +637,40 @@ async function commitPendingEdits(ctx: BrainContext, paths: readonly string[]): 
 // ---------------------------------------------------------------------------------------------------------------
 // Fluxo de escrita
 
-interface Prepared {
+/** Um passo de uma escrita: uma nota criada, alterada ou movida. */
+export interface Prepared {
   /** Nota existente que será alterada (caminho canônico e caminho no disco); `null` numa criação. */
   readonly target: { readonly path: string; readonly diskPath: string } | null;
   /** O que passa pelo scanner de segredos. */
   readonly checks: readonly ScanTarget[];
   readonly warnings: readonly IssueOutput[];
-  /** Grava pelo vault (passo 3). */
-  apply(): Promise<WriteResult>;
+  /** Grava pelo vault (passo 3). Recebe o resultado dos passos anteriores da mesma operação. */
+  apply(previous: readonly WriteResult[]): Promise<WriteResult>;
+  /** Linha do corpo do commit; padrão: `toCommitChange(result)` (`add gotcha: título`). */
+  change?(result: WriteResult): CommitChange;
+}
+
+/**
+ * Uma operação que grava várias notas num commit só (doc 12: "uma operação que toca várias notas é um commit, com
+ * uma linha por nota no corpo"): substituição de uma memória, handoff com episódio, ingestão, arquivamento.
+ */
+export interface PreparedBatch {
+  readonly steps: readonly Prepared[];
+  /** Primeira linha do corpo do commit (`consolidate: semana 46`); sem ela, a primeira linha é a do primeiro passo. */
+  readonly header?: string;
+}
+
+/** Resultado de uma escrita de vários passos. */
+export interface BatchOutput {
+  readonly op: string;
+  /** SHA do commit; `null` quando nada mudou. */
+  readonly commit: string | null;
+  /** Um por passo, na ordem. */
+  readonly results: readonly WriteResult[];
+  readonly changed: boolean;
+  readonly warnings: readonly IssueOutput[];
+  /** Linhas do corpo do commit (sem o cabeçalho), uma por nota alterada. */
+  readonly changes: readonly string[];
 }
 
 type Snapshot = Map<string, Buffer | null>;
@@ -686,141 +719,189 @@ export function catalogFromIndex(ctx: BrainContext): string {
   return renderIndexMd(entries, { groupOrder: ctx.config.noteDirs });
 }
 
+/** Releitura do `.cabecao.json` e do HEAD, comum a toda escrita (já sob a trava). Devolve o HEAD. */
+export async function refreshForWrite(ctx: BrainContext): Promise<string> {
+  try {
+    ctx.config = await readBrainConfig(ctx.root);
+  } catch (error) {
+    throw toBrainError(error);
+  }
+  return requireHead(ctx);
+}
+
 export async function executeWrite(
   ctx: BrainContext,
   sessionHandle: unknown,
   prepare: (config: BrainConfig) => Promise<Prepared>,
 ): Promise<WriteOutput> {
+  const out = await executeBatch(ctx, sessionHandle, async (config) => ({ steps: [await prepare(config)] }));
+  const result = out.results[0];
+  if (result === undefined) throw new BrainError('invalid_argument', 'a escrita não montou nenhuma nota');
+  return {
+    op: out.op,
+    path: result.path,
+    id: result.id,
+    action: result.action === 'add' ? 'add' : 'update',
+    changed: out.changed,
+    commit: out.commit,
+    warnings: out.warnings,
+    ...(out.changed ? {} : { next_step: 'A nota já estava assim; nada foi gravado.' }),
+  };
+}
+
+/**
+ * O fluxo de escrita inteiro (validação, scanner de segredos, gravação atômica, banco, catálogo, diário e UM commit)
+ * para uma operação de um ou mais passos, sob a trava da pasta de trabalho. `prepare` valida e monta os passos, que
+ * gravam em ordem; uma falha em qualquer passo desfaz todos.
+ */
+export async function executeBatch(
+  ctx: BrainContext,
+  sessionHandle: unknown,
+  prepare: (config: BrainConfig) => Promise<PreparedBatch>,
+): Promise<BatchOutput> {
   const session = sessionOf(sessionHandle);
+  return withWriteLock(ctx, () => executeBatchLocked(ctx, session, prepare));
+}
+
+/** `executeBatch` para quem já segura a trava de escrita. */
+export async function executeBatchLocked(
+  ctx: BrainContext,
+  session: string | undefined,
+  prepare: (config: BrainConfig) => Promise<PreparedBatch>,
+): Promise<BatchOutput> {
   const op = ulid();
-  return withWriteLock(ctx, async () => {
-    try {
-      ctx.config = await readBrainConfig(ctx.root);
-    } catch (error) {
-      throw toBrainError(error);
-    }
-    const head = await requireHead(ctx);
+  const head = await refreshForWrite(ctx);
 
-    // 1. Validação (argumentos, caminho, esquema).
-    let prepared: Prepared;
-    try {
-      prepared = await prepare(ctx.config);
-    } catch (error) {
-      throw toBrainError(error);
-    }
+  // 1. Validação (argumentos, caminho, esquema).
+  let batch: PreparedBatch;
+  try {
+    batch = await prepare(ctx.config);
+  } catch (error) {
+    throw toBrainError(error);
+  }
+  if (batch.steps.length === 0) throw new BrainError('invalid_argument', 'a operação não tem nada a gravar');
 
-    // 2. Scanner de segredos: no conteúdo, nos campos, no caminho e nas edições de fora que iriam junto. As edições
-    // de fora são do usuário (o marcador vale nelas); o texto da operação vale pelo `actor`.
-    const target = prepared.target?.diskPath ?? null;
-    const previous = target === null ? new Set<string>() : await committedLines(ctx, head, target);
-    const secrets: SecretHit[] = [];
-    const pending = await pendingEdits(ctx, [...(target === null ? [] : [target]), LOG_MD]);
-    for (const path of pending) {
-      const data = await readFile(join(ctx.root, ...path.split('/')), 'utf8').catch(() => null); // apagado: nada a ler
-      if (data === null) continue;
-      const committed = await committedLines(ctx, head, path);
-      const raw = newSecrets(data, committed, 'pending', path, true);
-      secrets.push(...raw);
-      if (/\.md$/i.test(path)) secrets.push(...newFrontmatterSecrets(data, committed, path, raw));
-      // a edição do usuário entra num commit `edit` antes da operação: as linhas dela já não são "novas"
-      if (path === target) for (const line of linesOf(data)) previous.add(line);
-    }
-    const honorAllowMarker = ctx.actor === 'human';
-    for (const check of prepared.checks) {
+  // 2. Scanner de segredos: no conteúdo, nos campos, no caminho e nas edições de fora que iriam junto. As edições
+  // de fora são do usuário (o marcador vale nelas); o texto da operação vale pelo `actor`.
+  const targets = batch.steps.flatMap((step) => (step.target === null ? [] : [step.target.diskPath]));
+  const previousOf = new Map<string, Set<string>>();
+  for (const target of targets) {
+    if (!previousOf.has(target)) previousOf.set(target, await committedLines(ctx, head, target));
+  }
+  const secrets: SecretHit[] = [];
+  const pending = await pendingEdits(ctx, [...targets, LOG_MD]);
+  for (const path of pending) {
+    const data = await readFile(join(ctx.root, ...path.split('/')), 'utf8').catch(() => null); // apagado: nada a ler
+    if (data === null) continue;
+    const committed = await committedLines(ctx, head, path);
+    const raw = newSecrets(data, committed, 'pending', path, true);
+    secrets.push(...raw);
+    if (/\.md$/i.test(path)) secrets.push(...newFrontmatterSecrets(data, committed, path, raw));
+    // a edição do usuário entra num commit `edit` antes da operação: as linhas dela já não são "novas"
+    const previous = previousOf.get(path);
+    if (previous !== undefined) for (const line of linesOf(data)) previous.add(line);
+  }
+  const honorAllowMarker = ctx.actor === 'human';
+  for (const step of batch.steps) {
+    const previous = (step.target === null ? undefined : previousOf.get(step.target.diskPath)) ?? new Set<string>();
+    for (const check of step.checks) {
       secrets.push(...newSecrets(check.text, previous, check.where, check.field, honorAllowMarker));
     }
-    if (secrets.length > 0) throw secretError(secrets);
-    if (pending.length > 0) {
-      try {
-        await commitPendingEdits(ctx, pending);
-      } catch (error) {
-        throw toBrainError(error);
-      }
-    }
-
-    // 3. Gravação atômica pelo vault.
-    const indexMd = ctx.config.indexMd;
-    const snapshot = await takeSnapshot(ctx, [
-      ...(prepared.target === null ? [] : [prepared.target.diskPath]),
-      indexMd,
-      LOG_MD,
-    ]);
-    let result: WriteResult;
+  }
+  if (secrets.length > 0) throw secretError(secrets);
+  if (pending.length > 0) {
     try {
-      result = await prepared.apply();
+      await commitPendingEdits(ctx, pending);
     } catch (error) {
-      throw toBrainError(error); // o vault não grava nada quando recusa
-    }
-    const warnings = [...prepared.warnings, ...result.warnings.map(issueOutput)];
-    const notePath = prepared.target?.diskPath ?? result.path;
-    if (!snapshot.has(notePath)) snapshot.set(notePath, null);
-    if (!result.changed) {
-      return {
-        op,
-        path: result.path,
-        id: result.id,
-        action: result.action === 'add' ? 'add' : 'update',
-        changed: false,
-        commit: null,
-        warnings,
-        next_step: 'A nota já estava assim; nada foi gravado.',
-      };
-    }
-
-    const before = await headSha(ctx.root).catch(() => head);
-    try {
-      await fault(ctx, 'written');
-      // 4. Banco local, e o catálogo calculado dele na mesma passada.
-      const catalog = await withFreshIndex(ctx, () => catalogFromIndex(ctx));
-      await fault(ctx, 'indexed');
-      await writeIndexMd(ctx.root, ctx.config, catalog);
-      await appendLogLine(ctx.root, { action: result.action, type: result.type, title: result.title, date: ctx.now() });
-      await fault(ctx, 'cataloged');
-      // 5. Um commit com a nota, o catálogo e o diário.
-      const message = await commitMessage(ctx, {
-        op,
-        session,
-        client: ctx.client,
-        body: [toCommitChange(result)],
-        numFiles: 3,
-      });
-      const commit = await commitPaths(ctx.root, [notePath, indexMd, LOG_MD], message);
-      return {
-        op,
-        path: result.path,
-        id: result.id,
-        action: result.action === 'add' ? 'add' : 'update',
-        changed: true,
-        commit,
-        warnings,
-      };
-    } catch (error) {
-      // o commit pode ter saído e a falha ter vindo depois (ao ler o HEAD): aí a operação valeu
-      const now = await headSha(ctx.root).catch(() => before);
-      if (now !== null && now !== before) {
-        const shown = await git(ctx, ['log', '-1', '--format=%B', now]);
-        if (parseCommitTrailers(shown.stdout).op === op) {
-          return {
-            op,
-            path: result.path,
-            id: result.id,
-            action: result.action === 'add' ? 'add' : 'update',
-            changed: true,
-            commit: now,
-            warnings,
-          };
-        }
-      }
-      await rollback(ctx, snapshot);
       throw toBrainError(error);
     }
+  }
+
+  // 3. Gravação atômica pelo vault, passo a passo.
+  const indexMd = ctx.config.indexMd;
+  const snapshot = await takeSnapshot(ctx, [...targets, indexMd, LOG_MD]);
+  const results: WriteResult[] = [];
+  const warnings: IssueOutput[] = [];
+  try {
+    for (const step of batch.steps) {
+      const result = await step.apply(results);
+      results.push(result);
+      warnings.push(...step.warnings, ...result.warnings.map(issueOutput));
+      for (const path of [result.path, ...(result.from === undefined ? [] : [result.from])]) {
+        if (!snapshot.has(path)) snapshot.set(path, null);
+      }
+    }
+  } catch (error) {
+    // o vault não grava nada quando recusa; o que os passos anteriores gravaram volta
+    if (results.some((result) => result.changed)) await rollback(ctx, snapshot);
+    throw toBrainError(error);
+  }
+  const lines = batch.steps.map((step, i) => {
+    const result = results[i];
+    return result === undefined || !result.changed ? null : (step.change?.(result) ?? toCommitChange(result));
   });
+  const changes = lines.filter((line): line is CommitChange => line !== null).map(formatChangeLine);
+  if (changes.length === 0) return { op, commit: null, results, changed: false, warnings, changes };
+
+  const before = await headSha(ctx.root).catch(() => head);
+  try {
+    await fault(ctx, 'written');
+    // 4. Banco local, e o catálogo calculado dele na mesma passada.
+    const catalog = await withFreshIndex(ctx, () => catalogFromIndex(ctx));
+    await fault(ctx, 'indexed');
+    await writeIndexMd(ctx.root, ctx.config, catalog);
+    for (const line of lines) {
+      if (line === null) continue;
+      await appendLogLine(ctx.root, {
+        action: line.action,
+        type: line.noteType ?? null,
+        title: line.title,
+        date: ctx.now(),
+      });
+    }
+    await fault(ctx, 'cataloged');
+    // 5. Um commit com as notas, o catálogo e o diário.
+    const paths = [
+      ...new Set([
+        ...results.flatMap((result) =>
+          result.changed ? [result.path, ...(result.from === undefined ? [] : [result.from])] : [],
+        ),
+        indexMd,
+        LOG_MD,
+      ]),
+    ];
+    const header = batch.header?.trim();
+    const message = await commitMessage(ctx, {
+      op,
+      session,
+      client: ctx.client,
+      body:
+        header === undefined || header === ''
+          ? lines.filter((line): line is CommitChange => line !== null)
+          : [header, ...changes.map((line) => `- ${line}`)],
+      numFiles: paths.length,
+    });
+    const commit = await commitPaths(ctx.root, paths, message);
+    return { op, commit, results, changed: true, warnings, changes };
+  } catch (error) {
+    // o commit pode ter saído e a falha ter vindo depois (ao ler o HEAD): aí a operação valeu
+    const now = await headSha(ctx.root).catch(() => before);
+    if (now !== null && now !== before) {
+      const shown = await git(ctx, ['log', '-1', '--format=%B', now]);
+      if (parseCommitTrailers(shown.stdout).op === op) {
+        return { op, commit: now, results, changed: true, warnings, changes };
+      }
+    }
+    await rollback(ctx, snapshot);
+    throw toBrainError(error);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // remember
 
-export async function remember(ctx: BrainContext, input: RememberInput): Promise<WriteOutput> {
+/** Confere o que não depende da configuração: o objeto, o tipo, a regra e o conteúdo. Devolve o tipo. */
+export function checkMemoryInput(ctx: BrainContext, input: RememberInput): NoteType {
   if (!isRecord(input)) throw invalid('remember precisa de um objeto com content e type');
   if (!isNoteType(input.type)) {
     throw invalid(
@@ -831,73 +912,100 @@ export async function remember(ctx: BrainContext, input: RememberInput): Promise
   if (type === 'rule' && ctx.actor !== 'human') throw ruleRefused();
   if (typeof input.content !== 'string') throw invalid('"content" deveria ser um texto');
   assertNoLeadingBom(ctx, input.content);
-  return executeWrite(ctx, input.session_handle, async (config) => {
-    const now = ctx.now();
-    const day = localDate(now);
-    const origin = ctx.actor === 'human' ? 'human' : `agent:${ctx.client}`;
-    const fields: Record<string, unknown> = {};
-    let title = typeof input.title === 'string' ? input.title.trim() : undefined;
-    if (input.title !== undefined && typeof input.title !== 'string') throw invalid('"title" deveria ser um texto');
-    if ((title === undefined || title === '') && type !== 'fact') title = titleFromContent(input.content);
-    if (title !== undefined && title !== '') fields.title = title;
-    else if (type !== 'fact') throw invalid('informe "title": o conteúdo está vazio');
-    if (input.scope !== undefined) {
-      if (!isValidScope(input.scope)) throw invalid('"scope" deveria ser "global" ou "project:<slug>"');
-      fields.scope = input.scope;
-    }
-    if (input.tags !== undefined) fields.tags = stringList(input.tags, 'tags');
-    if (input.aliases !== undefined) fields.aliases = stringList(input.aliases, 'aliases');
-    if (input.sources !== undefined) fields.sources = stringList(input.sources, 'sources').map(toLink);
-    for (const key of ['valid_from', 'valid_until', 'expires_at'] as const) {
-      const value = input[key];
-      if (value === undefined) continue;
-      if (typeof value !== 'string') throw invalid(`"${key}" deveria ser uma data AAAA-MM-DD`);
-      fields[key] = value;
-    }
-    if (type === 'fact') {
-      if (input.subject !== undefined) fields.subject = toLink(String(input.subject));
-      if (input.predicate !== undefined) fields.predicate = input.predicate;
-      if (input.object !== undefined) fields.object = input.object;
-    } else if (input.subject !== undefined || input.predicate !== undefined || input.object !== undefined) {
-      throw invalid('"subject", "predicate" e "object" só valem em type: fact');
-    }
-    if (input.relations !== undefined) {
-      if (!isRecord(input.relations)) throw invalid('"relations" deveria ser um objeto { relação: [alvos] }');
-      const allowed = linkListFields(config);
-      for (const [relation, targets] of Object.entries(input.relations)) {
-        if (!allowed.includes(relation)) {
-          throw invalid(`relação desconhecida: ${JSON.stringify(relation)}; as relações são: ${allowed.join(', ')}`);
-        }
-        fields[relation] = stringList(targets, `relations.${relation}`).map(toLink);
-      }
-    }
+  return type;
+}
 
-    assertAgentFields(ctx, fields);
-    const frontmatter: Record<string, unknown> = {
-      id: ulid(now.getTime()),
-      type,
-      ...fields,
-      trust: ctx.actor === 'human' ? 'high' : 'medium',
-      origin,
-      created: day,
-      updated: day,
-    };
-    if (type !== 'fact') {
-      frontmatter.scope ??= 'global';
-      frontmatter.tags ??= [];
-      frontmatter.sources ??= [];
-    } else {
-      frontmatter.valid_from ??= day;
+/** Uma memória nova pronta para gravar: o passo do fluxo de escrita e o frontmatter montado. */
+export interface PreparedMemory extends Prepared {
+  readonly frontmatter: Readonly<Record<string, unknown>>;
+  readonly type: NoteType;
+}
+
+/**
+ * Valida e monta a nota de uma memória nova (o passo `create` do `remember`). `extra` são campos que o Cabeção
+ * acrescenta (o `supersedes` de uma substituição), já validados por quem chama.
+ */
+export function prepareMemory(
+  ctx: BrainContext,
+  input: RememberInput,
+  config: BrainConfig,
+  extra: Readonly<Record<string, unknown>> = {},
+): PreparedMemory {
+  const type = checkMemoryInput(ctx, input);
+  const now = ctx.now();
+  const day = localDate(now);
+  const origin = ctx.actor === 'human' ? 'human' : `agent:${ctx.client}`;
+  const fields: Record<string, unknown> = {};
+  let title = typeof input.title === 'string' ? input.title.trim() : undefined;
+  if (input.title !== undefined && typeof input.title !== 'string') throw invalid('"title" deveria ser um texto');
+  if ((title === undefined || title === '') && type !== 'fact') title = titleFromContent(input.content);
+  if (title !== undefined && title !== '') fields.title = title;
+  else if (type !== 'fact') throw invalid('informe "title": o conteúdo está vazio');
+  if (input.scope !== undefined) {
+    if (!isValidScope(input.scope)) throw invalid('"scope" deveria ser "global" ou "project:<slug>"');
+    fields.scope = input.scope;
+  }
+  if (input.tags !== undefined) fields.tags = stringList(input.tags, 'tags');
+  if (input.aliases !== undefined) fields.aliases = stringList(input.aliases, 'aliases');
+  if (input.sources !== undefined) fields.sources = stringList(input.sources, 'sources').map(toLink);
+  for (const key of ['valid_from', 'valid_until', 'expires_at'] as const) {
+    const value = input[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'string') throw invalid(`"${key}" deveria ser uma data AAAA-MM-DD`);
+    fields[key] = value;
+  }
+  if (type === 'fact') {
+    if (input.subject !== undefined) fields.subject = toLink(String(input.subject));
+    if (input.predicate !== undefined) fields.predicate = input.predicate;
+    if (input.object !== undefined) fields.object = input.object;
+  } else if (input.subject !== undefined || input.predicate !== undefined || input.object !== undefined) {
+    throw invalid('"subject", "predicate" e "object" só valem em type: fact');
+  }
+  if (input.relations !== undefined) {
+    if (!isRecord(input.relations)) throw invalid('"relations" deveria ser um objeto { relação: [alvos] }');
+    const allowed = linkListFields(config);
+    for (const [relation, targets] of Object.entries(input.relations)) {
+      if (!allowed.includes(relation)) {
+        throw invalid(`relação desconhecida: ${JSON.stringify(relation)}; as relações são: ${allowed.join(', ')}`);
+      }
+      fields[relation] = stringList(targets, `relations.${relation}`).map(toLink);
     }
-    const issues = validateNote({ frontmatter }, config);
-    if (hasErrors(issues)) throw invalidNote(`nova nota do tipo ${type}`, issues);
-    return {
-      target: null,
-      checks: [{ where: 'content', field: null, text: input.content }, ...frontmatterTargets(fields, config)],
-      warnings: [],
-      apply: () => createNote(ctx.root, config, { type, origin, body: input.content, frontmatter, now }),
-    };
-  });
+  }
+
+  assertAgentFields(ctx, fields);
+  const frontmatter: Record<string, unknown> = {
+    id: ulid(now.getTime()),
+    type,
+    ...fields,
+    ...extra,
+    trust: ctx.actor === 'human' ? 'high' : 'medium',
+    origin,
+    created: day,
+    updated: day,
+  };
+  if (type !== 'fact') {
+    frontmatter.scope ??= 'global';
+    frontmatter.tags ??= [];
+    frontmatter.sources ??= [];
+  } else {
+    frontmatter.valid_from ??= day;
+  }
+  const issues = validateNote({ frontmatter }, config);
+  if (hasErrors(issues)) throw invalidNote(`nova nota do tipo ${type}`, issues);
+  return {
+    type,
+    frontmatter,
+    target: null,
+    checks: [{ where: 'content', field: null, text: input.content }, ...frontmatterTargets(fields, config)],
+    warnings: [],
+    apply: () => createNote(ctx.root, config, { type, origin, body: input.content, frontmatter, now }),
+  };
+}
+
+/** Cria uma memória, sem procurar duplicatas (o `remember` com duplicatas e contradições mora em `remember.ts`). */
+export async function createMemory(ctx: BrainContext, input: RememberInput): Promise<WriteOutput> {
+  checkMemoryInput(ctx, input);
+  return executeWrite(ctx, input.session_handle, async (config) => prepareMemory(ctx, input, config));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
