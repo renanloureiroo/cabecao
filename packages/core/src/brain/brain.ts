@@ -8,8 +8,8 @@ import { EmbeddingEngine } from '../embeddings/index.ts';
 import type { SyncStep } from '../sync/index.ts';
 import type { BrainConfig, EmbeddingConfig } from '../vault/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
-import type { ConsolidateInput, ConsolidateOutput } from './consolidate.ts';
-import { consolidate } from './consolidate.ts';
+import type { ConsolidateInput, ConsolidateOutput, ConsolidationState } from './consolidate.ts';
+import { consolidate, consolidationState } from './consolidate.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
 import { assertOpen, machineName } from './context.ts';
 import type {
@@ -155,6 +155,8 @@ export interface Brain {
    * as tools normais usando o id como `session_handle`; `finish` fecha tudo num commit, uma linha por nota.
    */
   consolidate(input: ConsolidateInput): Promise<ConsolidateOutput>;
+  /** Se a consolidação foi fechada e o que mudou desde o ponto de restauração (só lê; usado pelo `consolidate --run`). */
+  consolidationState(consolidationId: string): Promise<ConsolidationState>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -305,6 +307,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     ingest: (input, options) => ingest(ctx, input, options),
     forget: (input, options) => forget(ctx, input, options),
     consolidate: (input) => consolidate(ctx, input),
+    consolidationState: (id) => consolidationState(ctx, id),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {

@@ -1,5 +1,5 @@
 import type { EmbeddingProvider, SyncOutput } from '@cabecao/core';
-import { readBrainConfig } from '@cabecao/core';
+import { isUlid, readBrainConfig } from '@cabecao/core';
 import { readMachine, resolveBrain, toCliError } from '../brain.ts';
 import { embeddingProvider } from '../embeddings.ts';
 import { CliError, UsageError } from '../errors.ts';
@@ -20,6 +20,8 @@ export interface StdioServerOptions {
   syncRunner?: SyncRunner;
   /** Runtime de embeddings; criar não carrega nada (o modelo carrega na primeira busca que precisa dele). */
   embeddings?: EmbeddingProvider;
+  /** Modo sem ninguém olhando, preso a uma consolidação (`--consolidation <id>`). */
+  unattended?: { consolidationId: string; allowForget: boolean };
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
@@ -91,6 +93,13 @@ const DEFAULT_DEPS: McpDeps = {
  */
 export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS): Promise<CommandResult> {
   if (ctx.positionals.length > 0) throw new UsageError(`argumento a mais: ${ctx.positionals.join(' ')}`);
+  const consolidation =
+    typeof ctx.values.consolidation === 'string' ? ctx.values.consolidation.trim().toUpperCase() : undefined;
+  const allowForget = ctx.values['allow-forget'] === true;
+  if (consolidation !== undefined && !isUlid(consolidation)) {
+    throw new UsageError('--consolidation espera o consolidation_id inteiro (26 caracteres)');
+  }
+  if (allowForget && consolidation === undefined) throw new UsageError('--allow-forget vale só com --consolidation');
   const brainRoot = await resolveBrain(ctx);
   // Confere antes de subir: um cliente MCP mostra o stderr de um servidor que não sobe, e a mensagem diz o que fazer.
   try {
@@ -118,6 +127,7 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     ...(machine === undefined ? {} : { machine }),
     syncRunner: createSyncRunner(ctx, brainRoot),
     embeddings: embeddingProvider(ctx),
+    ...(consolidation === undefined ? {} : { unattended: { consolidationId: consolidation, allowForget } }),
   });
   return {};
 }
