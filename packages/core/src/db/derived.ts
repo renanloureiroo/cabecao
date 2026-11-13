@@ -12,22 +12,29 @@ import type { DatabaseSync } from './sqlite.ts';
 /** Recalcula `notes.superseded_on` de todas as notas (uma consulta só; as arestas `supersedes` são poucas). */
 export function refreshSupersededOn(db: DatabaseSync): void {
   db.exec(`update notes set superseded_on = null where superseded_on is not null`);
+  // Uma regra do usuário (`type: rule` ou em memory/rules/) só é substituída por outra regra do usuário
+  // (`origin: human` em memory/rules/): senão, um agente venceria a regra (e a tiraria do `recall`) só escrevendo
+  // `supersedes: [[regra]]` numa nota dele.
   db.exec(`
-    with sup(old, d) as (
-      select e.dst_note, coalesce(s.valid_from, s.created)
+    with sup(old, d, newer_origin, newer_path) as (
+      select e.dst_note, coalesce(s.valid_from, s.created), s.origin, s.path
       from edges e join notes s on s.id = e.src_note
       where e.origin = 'supersedes' and e.type = 'supersedes' and e.dst_note is not null
         and e.dst_note <> e.src_note and s.conflict_of is null
       union all
-      select e.src_note, coalesce(t.valid_from, t.created)
+      select e.src_note, coalesce(t.valid_from, t.created), t.origin, t.path
       from edges e join notes t on t.id = e.dst_note
       where e.origin = 'supersedes' and e.type = 'superseded_by'
         and e.dst_note <> e.src_note and t.conflict_of is null
+    ),
+    allowed(old, d) as (
+      select sup.old, sup.d from sup join notes o on o.id = sup.old
+      where sup.d is not null
+        and (not (coalesce(lower(trim(o.type)), '') = 'rule' or lower(o.path) like 'memory/rules/%')
+          or (sup.newer_origin = 'human' and lower(sup.newer_path) like 'memory/rules/%'))
     )
-    update notes set superseded_on = (
-      select min(substr(sup.d, 1, 10)) from sup where sup.old = notes.id and sup.d is not null
-    )
-    where id in (select old from sup where d is not null)`);
+    update notes set superseded_on = (select min(substr(allowed.d, 1, 10)) from allowed where allowed.old = notes.id)
+    where id in (select old from allowed)`);
 }
 
 export interface DerivedInput {
