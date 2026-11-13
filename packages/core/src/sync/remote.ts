@@ -75,19 +75,45 @@ function asRemoteError(error: unknown): RemoteError {
 }
 
 /**
- * Atualiza a referência local do remoto e devolve a ponta remota da branch (`null` se o remoto ainda não tem a
- * branch). Uma ida ao remoto quando nada mudou (`ls-remote`); duas quando há commits novos (mais o `fetch`).
- * Lança {@link RemoteError}.
+ * Referências do remoto que casam com os padrões (`git ls-remote`), num mapa referência → SHA. Uma ida ao remoto
+ * para várias branches: o sync lista o conteúdo e a branch de índice juntos. Lança {@link RemoteError}.
  */
-export async function fetchRemote(ctx: GitContext, remote: RemoteTarget): Promise<string | null> {
+export async function listRemoteRefs(
+  ctx: GitContext,
+  remote: RemoteTarget,
+  patterns: readonly string[],
+): Promise<Map<string, string>> {
+  try {
+    const listed = await git(ctx, ['ls-remote', '--', remote.name, ...patterns], { network: true });
+    const refs = new Map<string, string>();
+    for (const line of listed.stdout.split('\n')) {
+      const [oid, ref] = line.split('\t');
+      if (oid && ref) refs.set(ref, oid);
+    }
+    return refs;
+  } catch (error) {
+    throw asRemoteError(error);
+  }
+}
+
+/**
+ * Atualiza a referência local do remoto e devolve a ponta remota da branch (`null` se o remoto ainda não tem a
+ * branch). Uma ida ao remoto quando nada mudou (`ls-remote`, ou nenhuma com `advertised`, a saída de um
+ * {@link listRemoteRefs} já feito); mais o `fetch` quando há commits novos. Lança {@link RemoteError}.
+ */
+export async function fetchRemote(
+  ctx: GitContext,
+  remote: RemoteTarget,
+  advertised?: ReadonlyMap<string, string>,
+): Promise<string | null> {
   try {
     const ref = `refs/heads/${remote.branch}`;
-    const listed = await git(ctx, ['ls-remote', '--', remote.name, ref], { network: true });
-    const oid =
-      listed.stdout
-        .split('\n')
-        .map((line) => line.split('\t'))
-        .find((parts) => parts[1] === ref)?.[0] ?? null;
+    const oid = advertised
+      ? (advertised.get(ref) ?? null)
+      : ((await git(ctx, ['ls-remote', '--', remote.name, ref], { network: true })).stdout
+          .split('\n')
+          .map((line) => line.split('\t'))
+          .find((parts) => parts[1] === ref)?.[0] ?? null);
     const known = await revParse(ctx, remote.trackingRef);
     if (oid === null) {
       if (known !== null) await git(ctx, ['update-ref', '-d', remote.trackingRef]);

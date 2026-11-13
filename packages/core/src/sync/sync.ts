@@ -9,6 +9,17 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { commitPaths, GitError, headSha, statusPorcelain } from '../git/index.ts';
 import {
+  fetchRemoteIndex,
+  INDEX_REF_PATTERN,
+  type IndexPushRef,
+  indexManifestAt,
+  indexPushRef,
+  listIndexBranches,
+  parseGenerationRef,
+  recordIndexPushed,
+  trackingRef,
+} from '../indexstore/index.ts';
+import {
   acquireLock,
   defaultMachineName,
   isValidMachineName,
@@ -25,13 +36,22 @@ import { commitMessage, type SyncContext } from './context.ts';
 import { countCommits, git, gitText, handleGitLockError, isAncestor, listTree, revParse } from './git.ts';
 import { integrateDiverged, UnrelatedHistoriesError, withCatalogCommit } from './integrate.ts';
 import { atomicTempOwner, isSyncablePath, syncLayout } from './layout.ts';
-import { fetchRemote, MissingRemoteError, pushRefs, RemoteError, type RemoteTarget, resolveRemote } from './remote.ts';
+import {
+  fetchRemote,
+  listRemoteRefs,
+  MissingRemoteError,
+  pushRefs,
+  RemoteError,
+  type RemoteTarget,
+  resolveRemote,
+} from './remote.ts';
 import { SMALL_FILE_BYTES, scanFile, scanOutgoing, scanWorktreeFile } from './secrets.ts';
 import { clearJournal, readState, recover, type SyncState, writeJournal, writeState } from './state.ts';
 import type {
   SecretLocation,
   SyncChange,
   SyncConflict,
+  SyncIndexResult,
   SyncIntegration,
   SyncOptions,
   SyncResult,
@@ -445,12 +465,33 @@ function summary(result: SyncResult): string {
   if (result.committed > 0) parts.push(plural(result.committed, 'commit criado', 'commits criados'));
   if (result.pulled > 0) parts.push(plural(result.pulled, 'commit recebido', 'commits recebidos'));
   if (result.pushed > 0) parts.push(plural(result.pushed, 'commit enviado', 'commits enviados'));
+  const index = result.index;
+  if (index !== undefined) {
+    if (index.received > 0) parts.push(plural(index.received, 'vetor recebido', 'vetores recebidos'));
+    if (index.computed > 0) parts.push(plural(index.computed, 'vetor calculado', 'vetores calculados'));
+    if (index.pushed > 0) parts.push(plural(index.pushed, 'vetor enviado', 'vetores enviados'));
+  }
   const conflicts = result.conflicts.length;
   const tail =
     conflicts > 0
       ? ` ${plural(conflicts, 'conflito preservado', 'conflitos preservados')}: as duas versões ficaram no cérebro; resolva e apague a cópia .conflict-*.`
       : '';
   return parts.length === 0 && conflicts === 0 ? '' : `${parts.join(', ')}.${tail}`;
+}
+
+/** Geração corrente da branch de índice (local ou do remoto); `null` se não existe. */
+async function indexGeneration(root: string): Promise<number | null> {
+  const refs = await listIndexBranches(root);
+  return refs.length === 0 ? null : Math.max(...refs.map((ref) => ref.generation));
+}
+
+/** Vetores que o envio de `pushed` leva: os do manifesto enviado menos os do que o remoto já tinha nessa geração. */
+async function vectorsInPush(root: string, remote: string, pushed: IndexPushRef): Promise<number> {
+  const generation = parseGenerationRef(pushed.ref);
+  const sent = (await indexManifestAt(root, pushed.sha))?.vectors ?? 0;
+  if (generation === null) return sent;
+  const before = (await indexManifestAt(root, trackingRef(remote, generation)).catch(() => null))?.vectors ?? 0;
+  return Math.max(0, sent - before);
 }
 
 /**
@@ -619,6 +660,8 @@ async function runSync(
   result.remote = remote?.name ?? null;
 
   const maxAttempts = Math.max(1, options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
+  /** Totais do índice somados entre os ciclos (um ciclo recomeça quando o envio é recusado). */
+  const indexTotals = { received: 0, computed: 0, pushed: 0, graphWritten: false };
   const startHead = await revParse(ctx, 'HEAD^{commit}');
   const conflicts = new Map<string, SyncConflict>();
   let lastRetry: RetryCause | null = null;
@@ -675,14 +718,30 @@ async function runSync(
     }
     await ctx.fault('committed');
 
-    // 2. Remoto.
+    // 2. Remoto: o conteúdo e, quando pedido, a branch de índice, numa listagem só.
     let up: string | null = null;
     let online = false;
+    let indexFetchError: string | null = null;
     if (remote !== null) {
       try {
-        up = await fetchRemote(ctx, remote);
+        const advertised =
+          options.index === undefined
+            ? undefined
+            : await listRemoteRefs(ctx, remote, [`refs/heads/${remote.branch}`, INDEX_REF_PATTERN]);
+        up = await fetchRemote(ctx, remote, advertised);
         online = true;
         delete result.remoteError;
+        if (options.index !== undefined && advertised !== undefined) {
+          await options.index.beforeFetch?.();
+          const fetched = await fetchRemoteIndex(root, remote.name, {
+            advertised,
+            networkTimeoutMs: ctx.networkTimeoutMs,
+            staleGitLockMs: ctx.staleGitLockMs,
+          });
+          if (!fetched.ok) {
+            indexFetchError = `não consegui buscar a branch de índice (${fetched.category}: ${fetched.detail})`;
+          }
+        }
       } catch (error) {
         if (!(error instanceof RemoteError)) throw error;
         result.remoteError = { category: error.category, detail: error.detail };
@@ -784,6 +843,43 @@ async function runSync(
     }
     await flush(cycle);
 
+    // 4b. Índice: junta a branch de índice com a do remoto, calcula os vetores que faltam e grava o grafo exportado.
+    let indexReady = false;
+    if (options.index !== undefined) {
+      let update: Awaited<ReturnType<typeof options.index.update>>;
+      try {
+        update = await options.index.update({
+          remote: remote?.name ?? null,
+          online: online && indexFetchError === null,
+          contentCommit: target,
+        });
+      } catch (error) {
+        update = {
+          participating: true,
+          received: 0,
+          computed: 0,
+          pending: null,
+          graphWritten: false,
+          skipped: null,
+          error: errorText(error),
+        };
+      }
+      indexTotals.received += update.received;
+      indexTotals.computed += update.computed;
+      indexTotals.graphWritten ||= update.graphWritten;
+      const index: SyncIndexResult = {
+        ...update,
+        received: indexTotals.received,
+        computed: indexTotals.computed,
+        graphWritten: indexTotals.graphWritten,
+        pushed: indexTotals.pushed,
+        error: update.error ?? indexFetchError,
+        generation: update.participating ? await indexGeneration(root) : null,
+      };
+      result.index = index;
+      indexReady = index.participating && indexFetchError === null && update.error === null;
+    }
+
     // 5. Envio.
     if (remote === null) {
       result.message = `Sem remoto configurado: as mudanças ficaram em commits locais. ${summary(result)}`.trim();
@@ -799,24 +895,39 @@ async function runSync(
     }
     // depois da aplicação, a branch está em `target`
     const local = target;
-    if (local === null || local === up) {
+    const indexRef = local !== null && indexReady ? await indexPushRef(root, remote.name) : null;
+    const contentOut = local !== null && local !== up;
+    if (local === null || (!contentOut && indexRef === null)) {
       result.message = summary(result) || 'Nada a sincronizar: o cérebro já está igual ao remoto.';
       return;
     }
-    const outgoing = uniqueSecrets(await scanOutgoing(ctx, up, local));
-    if (outgoing.length > 0) {
-      stop({
-        status: 'blocked',
-        reason: 'secrets',
-        secrets: outgoing,
-        message: `Possível segredo em ${plural(outgoing.length, 'lugar', 'lugares')} de commits que seriam enviados (${describeSecrets(outgoing)}). Nada foi enviado. O segredo já está num commit local: tire-o do histórico (por exemplo desfazendo o commit) ou marque a linha com "cabecao:allow-secret" se não for um.`,
-      });
+    let sending = 0;
+    if (contentOut) {
+      const outgoing = uniqueSecrets(await scanOutgoing(ctx, up, local));
+      if (outgoing.length > 0) {
+        stop({
+          status: 'blocked',
+          reason: 'secrets',
+          secrets: outgoing,
+          message: `Possível segredo em ${plural(outgoing.length, 'lugar', 'lugares')} de commits que seriam enviados (${describeSecrets(outgoing)}). Nada foi enviado. O segredo já está num commit local: tire-o do histórico (por exemplo desfazendo o commit) ou marque a linha com "cabecao:allow-secret" se não for um.`,
+        });
+      }
+      sending = await countCommits(ctx, local, ...(up === null ? [] : ['--not', up]));
     }
-    const sending = await countCommits(ctx, local, ...(up === null ? [] : ['--not', up]));
-    const pushed = await pushRefs(ctx, remote.name, [{ sha: local, ref: `refs/heads/${remote.branch}` }]);
+    const indexVectors = indexRef === null ? 0 : await vectorsInPush(root, remote.name, indexRef);
+    // conteúdo e índice no MESMO envio atômico (decisão 15); sem suporte a --atomic, o conteúdo vai por último
+    const pushed = await pushRefs(ctx, remote.name, [
+      ...(indexRef === null ? [] : [indexRef]),
+      ...(contentOut ? [{ sha: local, ref: `refs/heads/${remote.branch}` }] : []),
+    ]);
     if (pushed.ok) {
       await ctx.fault('pushed');
-      await git(ctx, ['update-ref', remote.trackingRef, local]);
+      if (contentOut) await git(ctx, ['update-ref', remote.trackingRef, local]);
+      if (indexRef !== null) {
+        await recordIndexPushed(root, remote.name, indexRef);
+        indexTotals.pushed += indexVectors;
+        if (result.index !== undefined) result.index.pushed = indexTotals.pushed;
+      }
       result.pushed = sending;
       result.message = summary(result);
       return;

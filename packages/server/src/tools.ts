@@ -102,7 +102,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Search',
       description:
-        "Keyword search over the user's second brain. Each hit has validity on as_of (current, expired or not_yet_valid; default today) and provenance; a separate related block lists graph neighbors of the top hits. Search before stating anything about the user's history.",
+        "Search the user's second brain: hybrid (keywords + meaning) when semantic search is enabled on this machine, else keywords; mode_used and mode_reason say which ran. Each hit has validity on as_of (current, expired or not_yet_valid; default today) and provenance; a separate related block lists graph neighbors of the top hits. Search before stating anything about the user's history.",
       inputSchema: searchInput,
       outputSchema: searchOutput,
       annotations: READ_ONLY,

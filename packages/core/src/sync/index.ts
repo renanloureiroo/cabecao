@@ -9,6 +9,8 @@ export type {
   SyncBlockReason,
   SyncChange,
   SyncConflict,
+  SyncIndexHook,
+  SyncIndexResult,
   SyncIntegration,
   SyncOptions,
   SyncRemoteError,

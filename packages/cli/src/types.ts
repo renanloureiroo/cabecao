@@ -37,6 +37,11 @@ export interface CliIo {
   /** Caminho do arquivo do bin que está rodando (`process.argv[1]`), quando conhecido. */
   binPath?: string | undefined;
   exec: Exec;
+  /**
+   * Pergunta ao usuário e devolve a resposta (sem a quebra de linha), ou `null` se não há terminal interativo. Só
+   * existe quando a entrada e a saída são um terminal; nos testes, é injetada.
+   */
+  prompt?: ((question: string) => Promise<string | null>) | undefined;
 }
 
 /** Opção de linha de comando: a configuração do `parseArgs` mais o texto que aparece na ajuda. */

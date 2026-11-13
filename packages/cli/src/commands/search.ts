@@ -1,5 +1,5 @@
-import type { SearchInput, SearchOutput } from '@cabecao/core';
-import { BrainError } from '@cabecao/core';
+import type { SearchInput, SearchMode, SearchOutput } from '@cabecao/core';
+import { BrainError, SEARCH_MODES } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { UsageError } from '../errors.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
@@ -30,12 +30,21 @@ export function searchText(output: SearchOutput): string {
   if (output.hits.length === 0) {
     return [
       `Nada encontrado para "${output.query}".`,
+      ...output.warnings.map((warning) => `Aviso: ${warning}`),
       ...(output.next_step === undefined ? [] : [output.next_step]),
     ].join('\n');
   }
-  const how = output.mode === 'and' ? 'com todos os termos' : 'com algum dos termos (nenhuma nota tinha todos)';
+  const how =
+    output.mode_used === 'semantic'
+      ? 'por significado'
+      : output.mode_used === 'hybrid'
+        ? 'por palavra-chave e significado'
+        : output.mode === 'and'
+          ? 'com todos os termos'
+          : 'com algum dos termos (nenhuma nota tinha todos)';
   const lines = [
     `${output.hits.length} resultado(s) para "${output.query}", ${how} (validade em ${output.as_of}):`,
+    ...output.warnings.map((warning) => `Aviso: ${warning}`),
     '',
   ];
   output.hits.forEach((hit, i) => {
@@ -60,6 +69,7 @@ export function searchText(output: SearchOutput): string {
     lines.push('');
   }
   if (output.truncated) lines.push('Há mais resultados: use --limit para ver mais, ou refine a pergunta.');
+  lines.push(`Modo: ${output.mode_used} (${output.mode_reason}).`);
   return lines.join('\n').trimEnd();
 }
 
@@ -70,8 +80,13 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const types = typesOf(ctx.values.type);
   const scope = ctx.values.scope;
   const asOf = ctx.values['as-of'];
+  const mode = ctx.values.mode;
+  if (mode !== undefined && (typeof mode !== 'string' || !(SEARCH_MODES as readonly string[]).includes(mode))) {
+    throw new UsageError(`--mode deveria ser um de ${SEARCH_MODES.join(', ')}`);
+  }
   const input: SearchInput = {
     query,
+    ...(typeof mode === 'string' ? { mode: mode as SearchMode } : {}),
     ...(typeof asOf === 'string' ? { as_of: asOf } : {}),
     ...(limit === undefined ? {} : { limit }),
     ...(types === undefined ? {} : { types }),
