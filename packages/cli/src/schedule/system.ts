@@ -219,7 +219,7 @@ async function launchdProbe(io: ScheduleIo, names: ScheduleNames): Promise<Probe
   const result = await io.exec('launchctl', ['print', `${domain}/${names.launchd}`], { timeoutMs: EXEC_TIMEOUT_MS });
   if (result.code !== 0) return { loaded: false, detail: null };
   const lastExit = /last exit code = ([^\n]+)/.exec(result.stdout)?.[1]?.trim();
-  const state = /\bstate = (\w+)/.exec(result.stdout)?.[1];
+  const state = /\bstate = ([^\n]+)/.exec(result.stdout)?.[1]?.trim();
   const parts = [
     state === undefined ? null : `estado ${state}`,
     lastExit === undefined ? null : `último código ${lastExit}`,
