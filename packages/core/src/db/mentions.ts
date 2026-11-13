@@ -5,7 +5,8 @@
 //
 // O que segura a precisão:
 // - palavra inteira, sem diferenciar maiúsculas nem acentos (`nameKey`), e o que separa as palavras no texto tem de
-//   ser espaço ou o mesmo separador do título (`Reunião 2026-05-03` não casa com `reunião, 2026`);
+//   ser espaço ou o mesmo separador do título (`Reunião 2026-05-03` não casa com `reunião, 2026`); colado a `_`,
+//   `/`, `\` ou `@` não conta (`sqs_fila`, `filas/SQS`, `ana@sqs`);
 // - o nome mais longo vence e não há sobreposição (`Mensageria no Projeto Atlas` não vira também `Projeto Atlas`);
 // - fora do dicionário: nomes com menos de `MENTION_MIN_CHARS` letras e dígitos, com mais de `MENTION_MAX_WORDS`
 //   palavras, só de números, uma palavra só que é palavra vazia ou genérica demais, e nomes de mais de uma nota
@@ -50,6 +51,9 @@ const COMMON_WORDS = new Set(
     .split(/\s+/)
     .filter((word) => word !== ''),
 );
+
+/** Caracteres que, colados a um nome, indicam identificador, caminho ou endereço. */
+const IDENTIFIER_GLUE = new Set(['_', '/', '\\', '@']);
 
 const stripMarks = (text: string): string => text.normalize('NFD').replace(/\p{M}+/gu, '');
 const TOKEN_RE = /[\p{L}\p{N}]+/gu;
@@ -234,6 +238,10 @@ export function findMentions(text: string, dictionary: MentionDictionary): Menti
         gapsOk = /^[ \t]*\r?\n?[ \t]*$/.test(gap) && gap !== '' ? true : normalizeGap(gap) === entry.gaps[j - 1];
       }
       if (!gapsOk) continue;
+      // colado a `_`, `/`, `\` ou `@` é pedaço de identificador, caminho ou endereço, não prosa
+      const before = source[first.start - 1] ?? ' ';
+      const after = source[(words[size - 1] as Token).end] ?? ' ';
+      if (IDENTIFIER_GLUE.has(before) || IDENTIFIER_GLUE.has(after)) continue;
       hits.push({ entry, offset: first.start });
       matched = size;
       break;
