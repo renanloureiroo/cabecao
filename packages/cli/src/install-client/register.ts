@@ -6,7 +6,7 @@ import { CliError } from '../errors.ts';
 import type { CliIo } from '../types.ts';
 import type { ClientDef, ClientId, JsonEntry, JsonTarget, Location, Target, TomlTarget } from './clients.ts';
 import { CLIENT_IDS, CLIENTS, SERVER_NAME } from './clients.ts';
-import { editFile, findExecutable, isDirectory } from './files.ts';
+import { editFile, findExecutable, isDirectory, isFile } from './files.ts';
 import type { JsonObjectNode, JsonValue } from './jsonc.ts';
 import { deepEqual, findProp, isPlainObject, JsoncError, parseJsonc, removeEntry, setEntry, toValue } from './jsonc.ts';
 import type { Launch } from './launch.ts';
@@ -352,6 +352,9 @@ async function isDetected(ctx: ClientIo, def: ClientDef, location: Location): Pr
   for (const dir of def.detectDirs(location)) {
     if (await isDirectory(dir)) return true;
   }
+  for (const file of def.detectFiles?.(location) ?? []) {
+    if (await isFile(file)) return true;
+  }
   return def.binary !== undefined && (await findExecutable(def.binary, ctx)) !== undefined;
 }
 
@@ -376,6 +379,9 @@ export function reportText(reports: readonly ClientReport[]): string {
     if (report.status === 'failed') continue;
     const where = report.method === 'cli' ? ' pelo comando "claude mcp" (escopo user)' : '';
     lines.push(`${report.label}: ${OUTCOME_TEXT[report.status]}${where}`);
+    const notice = CLIENTS[report.client].notice;
+    if (notice !== undefined && report.status !== 'removed' && report.status !== 'absent')
+      lines.push(`  aviso: ${notice}`);
     if (report.replaced !== undefined) lines.push(`  ${replacedText(report.replaced)}`);
     for (const file of report.files) {
       const backup = file.backup === undefined ? '' : ` (original guardado em ${file.backup})`;

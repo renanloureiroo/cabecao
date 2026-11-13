@@ -12,6 +12,9 @@ describe('resolveClientName', () => {
     ['cursor-vscode', 'cursor'],
     ['Visual Studio Code', 'vscode'],
     ['gemini-cli-mcp-client', 'gemini-cli'],
+    ['antigravity-cli', 'antigravity'],
+    ['Antigravity', 'antigravity'],
+    ['agy', 'antigravity'],
     ['windsurf-client', 'windsurf'],
     ['Zed', 'zed'],
   ])('nome conhecido: %s → %s', (announced, expected) => {
