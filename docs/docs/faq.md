@@ -15,7 +15,7 @@ Não. Qualquer remoto git serve: GitHub, GitLab, Bitbucket, Gitea, Codeberg, um 
 
 Só para o remoto git que você configurou, quando você (ou um agente) roda o sync. O Cabeção não tem servidor próprio, conta nem telemetria. O que um agente lê do cérebro passa a fazer parte da conversa com o modelo de IA do seu cliente, como qualquer outro texto. Detalhes em [Segurança e privacidade](./seguranca.md).
 
-A única exceção é opcional: se você ativar as [respostas com um modelo de linguagem](./guias/respostas-com-modelo.md) (`cabecao llm on`), cada `ask` manda trechos das notas ao provedor que você escolheu (ou a um servidor na sua máquina, como o Ollama). Vem desligado; notas privadas (`private: true` ou a tag `private`), o nome delas e trechos com segredo nunca saem, e um agente não vê nem escolhe o provedor.
+A única exceção é opcional: se você ativar as [respostas com um modelo de linguagem](./guias/respostas-com-modelo.md) (`cabecao llm on`), cada `ask` manda trechos das notas ao provedor que você escolheu (ou a um servidor na sua máquina, como o Ollama). Vem desligado; notas privadas (`private: true`, a tag `private` ou `private/...`, ou `#private` no corpo), o nome delas e trechos com segredo nunca saem, e um agente não vê nem escolhe o provedor.
 
 ## Funciona sem o Obsidian?
 

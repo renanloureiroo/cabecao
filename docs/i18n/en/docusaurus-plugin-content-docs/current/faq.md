@@ -15,7 +15,7 @@ No. Any git remote works: GitHub, GitLab, Bitbucket, Gitea, Codeberg, your own s
 
 Only to the git remote you configured, when you (or an agent) run the sync. Cabeção has no server of its own, no account, and no telemetry. What an agent reads from the brain becomes part of the conversation with your client's AI model, like any other text. Details in [Security and privacy](./seguranca.md).
 
-The only exception is optional: if you turn on [answers with a language model](./guias/respostas-com-modelo.md) (`cabecao llm on`), each `ask` sends passages from your notes to the provider you chose (or to a server on your machine, such as Ollama). It comes off; private notes (`private: true` or the `private` tag), their names and passages with secrets never leave, and an agent neither sees nor chooses the provider.
+The only exception is optional: if you turn on [answers with a language model](./guias/respostas-com-modelo.md) (`cabecao llm on`), each `ask` sends passages from your notes to the provider you chose (or to a server on your machine, such as Ollama). It comes off; private notes (`private: true`, the `private` or `private/...` tag, or `#private` in the body), their names and passages with secrets never leave, and an agent neither sees nor chooses the provider.
 
 ## Does it work without Obsidian?
 
