@@ -41,4 +41,4 @@ Nada muda nas suas notas: elas são Markdown num repositório git. Tire o regist
 
 ## Por que "Cabeção"?
 
-É uma homenagem ao Cabeção da novela *Malhação*.
+É uma homenagem ao Cabeção de *Malhação*.

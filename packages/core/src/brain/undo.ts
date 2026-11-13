@@ -16,6 +16,15 @@ import {
 } from '../git/index.ts';
 import { isUlid, ulid } from '../util/index.ts';
 import { LOG_MD, readBrainConfig, writeIndexMd } from '../vault/index.ts';
+import type { Approval, ConfirmationFields, ConfirmOptions } from './confirm.ts';
+import {
+  approvedLine,
+  approvedTrailer,
+  candidateApproval,
+  confirmationRequest,
+  tokenOf,
+  verifyConfirmToken,
+} from './confirm.ts';
 import type { BrainContext } from './context.ts';
 import { machineName, rescan, withFreshIndex, withWriteLock } from './context.ts';
 import type { IssueOutput } from './errors.ts';
@@ -68,9 +77,10 @@ export interface ListOperationsOutput {
  * Quem pede importa (`actor` do cérebro):
  * - o usuário (CLI) desfaz qualquer operação e pode dar só o começo do ULID, com pelo menos
  *   `MIN_HUMAN_ID_PREFIX` caracteres e sem ambiguidade;
- * - um agente (MCP) informa o ULID COMPLETO (o `op` devolvido pela escrita, o `session_handle` do `recall`) e só
- *   desfaz operações de agentes: nunca as do usuário (`Cabecao-Client: cli`) nem edições de fora (`manual`). Sem
- *   argumento, um agente desfaz a operação de agente mais recente que ainda vale.
+ * - um agente (MCP) desfaz sem confirmação as operações de agentes que ele identifica pelo ULID COMPLETO (o `op`
+ *   devolvido pela escrita, o `session_handle` do `recall`). Desfazer uma operação do usuário (`Cabecao-Client: cli`)
+ *   ou dar só o começo do ULID é elevado (decisão 37): a primeira chamada devolve o resumo e o `confirm_token`, e só
+ *   a segunda, com o token, desfaz. Sem argumento, um agente desfaz a operação de agente mais recente que ainda vale.
  *
  * Em nenhum caso alcança o que não é operação do Cabeção (edições de fora, sync, conflito, init).
  */
@@ -79,6 +89,8 @@ export interface UndoInput {
   readonly session?: string;
   /** Sessão de quem está pedindo o undo, para o rodapé `Cabecao-Session` do commit de revert. */
   readonly session_handle?: string;
+  /** O token da primeira chamada, quando o undo é elevado (operação do usuário, ou o começo do ULID). */
+  readonly confirm_token?: string;
 }
 
 export interface UndoneOperation {
@@ -87,7 +99,7 @@ export interface UndoneOperation {
   readonly changes: readonly string[];
 }
 
-export interface UndoOutput {
+export interface UndoOutput extends ConfirmationFields {
   /** ULID da operação de undo (pode ser desfeita com outro `undo`). */
   readonly op: string;
   /** SHA do commit de revert; `null` quando desfazer não mudava nada. */
@@ -227,9 +239,8 @@ function identifier(value: unknown, name: string, prefix: number | null): string
   return text;
 }
 
-/** O identificador casa com `full`: igual, para um agente; começo, para o usuário. */
-const matchesId = (ctx: BrainContext, full: string | undefined, id: string): boolean =>
-  full !== undefined && (ctx.actor === 'human' ? full.startsWith(id) : full === id);
+/** O identificador casa com `full`: igual, ou o começo dele (com pelo menos `MIN_HUMAN_ID_PREFIX` caracteres). */
+const matchesId = (full: string | undefined, id: string): boolean => full?.startsWith(id) === true;
 
 export async function listOperations(
   ctx: BrainContext,
@@ -332,10 +343,17 @@ async function replaceWithCatalog(ctx: BrainContext, revert: string, scratch: st
   return commit;
 }
 
-export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<UndoOutput> {
-  const prefix = ctx.actor === 'human' ? MIN_HUMAN_ID_PREFIX : null;
-  const op = identifier(input.op, 'op', prefix);
-  const session = identifier(input.session, 'session', prefix);
+export async function undo(
+  ctx: BrainContext,
+  input: UndoInput = {},
+  options: ConfirmOptions = {},
+): Promise<UndoOutput> {
+  const op = identifier(input.op, 'op', MIN_HUMAN_ID_PREFIX);
+  const session = identifier(input.session, 'session', MIN_HUMAN_ID_PREFIX);
+  const token = tokenOf(input.confirm_token);
+  const candidate = ctx.actor === 'agent' ? candidateApproval(ctx, token, options) : null;
+  // um agente com o identificador inteiro desfaz as próprias operações sem confirmação; o resto é elevado
+  const partial = (id: string | undefined): boolean => id !== undefined && !isUlid(id);
   if (op !== undefined && session !== undefined) {
     throw new BrainError('invalid_argument', 'informe "op" ou "session", não os dois');
   }
@@ -366,8 +384,9 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
         ? 'Veja as operações que podem ser desfeitas com "cabecao undo --list".'
         : 'Use o "op" devolvido pela escrita, inteiro; o usuário vê todas as operações com "cabecao undo --list".';
     let targets: LoggedCommit[];
+    const reasons: string[] = [];
     if (op !== undefined) {
-      targets = commits.filter((commit) => matchesId(ctx, commit.trailers.op, op));
+      targets = commits.filter((commit) => matchesId(commit.trailers.op, op));
       const ops = new Set(targets.map((commit) => commit.trailers.op));
       if (targets.length === 0) {
         throw new BrainError('not_found', `nenhuma operação ${op} no histórico deste cérebro`, { nextStep: listHint });
@@ -393,12 +412,9 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
         );
       }
       if (!targets.every((commit) => mayUndo(ctx, commit))) {
-        throw new BrainError(
-          'invalid_argument',
-          `a operação ${op} foi feita pelo usuário (${targets[0]?.trailers.client ?? '?'}); um agente só desfaz operações de agentes`,
-          { nextStep: `Se for o caso, peça ao usuário para rodar "cabecao undo --op ${op}".` },
-        );
+        reasons.push(`a operação foi feita pelo usuário (${targets[0]?.trailers.client ?? '?'}), não por um agente`);
       }
+      if (ctx.actor === 'agent' && partial(op)) reasons.push('a operação foi indicada só pelo começo do identificador');
       const undone = targets.find((commit) => commit.undone);
       if (undone !== undefined) {
         throw new BrainError(
@@ -411,13 +427,20 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
         );
       }
     } else if (session !== undefined) {
+      // pelo começo do identificador (elevado), todas as operações da sessão; pelo identificador inteiro, um agente
+      // desfaz só as de agentes, sem confirmação
+      const byPrefix = ctx.actor === 'agent' && partial(session);
+      if (byPrefix) reasons.push('a sessão foi indicada só pelo começo do identificador');
       targets = commits.filter(
         (commit) =>
           isOperation(commit) &&
           !commit.undone &&
-          matchesId(ctx, commit.trailers.session, session) &&
-          mayUndo(ctx, commit),
+          matchesId(commit.trailers.session, session) &&
+          (byPrefix || mayUndo(ctx, commit)),
       );
+      if (byPrefix && !targets.every((commit) => mayUndo(ctx, commit))) {
+        reasons.push('a sessão tem operações feitas pelo usuário, não por um agente');
+      }
       if (targets.length === 0) {
         throw new BrainError('nothing_to_undo', `a sessão ${session} não tem operação que ainda valha`, {
           nextStep:
@@ -437,6 +460,42 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
     }
 
     const reverted = [...new Set(targets.map((commit) => commit.trailers.op ?? ''))];
+    // undo elevado (decisão 37): sem confirmação, nada é desfeito
+    let approval: Approval | null = null;
+    if (ctx.actor === 'agent' && reasons.length > 0) {
+      const parts = ['undo', ...[...reverted].sort(), ...targets.map((target) => target.sha).sort()];
+      const sessionKey = handle ?? '';
+      if (candidate === null) {
+        const request = await confirmationRequest(
+          ctx,
+          'undo',
+          {
+            reasons,
+            summary: `Desfazer ${reverted.length === 1 ? 'a operação' : `${reverted.length} operações`} ${reverted.join(', ')} (${targets
+              .map((target) => `${target.trailers.client ?? '?'}: ${target.changes.join('; ') || 'sem descrição'}`)
+              .join(' | ')}), com um commit de revert. Por quê pede confirmação: ${reasons.join('; ')}`,
+            parts,
+          },
+          sessionKey,
+        );
+        return {
+          op: '',
+          commit: null,
+          undone: targets.map((target) => ({
+            op: target.trailers.op ?? '',
+            commit: target.sha,
+            changes: target.changes,
+          })),
+          changed_paths: [],
+          warnings: [],
+          ...request,
+        };
+      }
+      if (candidate.by === 'token' && token !== undefined) {
+        await verifyConfirmToken(ctx, 'undo', parts, sessionKey, token, 'undo');
+      }
+      approval = candidate;
+    }
     const undoOp = ulid();
     const commit = ctx.config.commit;
     const message = formatCommitMessage({
@@ -444,9 +503,12 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
       ...(commit?.dateFormat === undefined ? {} : { dateFormat: commit.dateFormat }),
       date: ctx.now(),
       action: 'revert',
-      body: targets.flatMap((target) =>
-        target.changes.length === 0 ? [`revert: operação ${target.trailers.op}`] : target.changes.map(revertLine),
-      ),
+      body: [
+        ...targets.flatMap((target) =>
+          target.changes.length === 0 ? [`revert: operação ${target.trailers.op}`] : target.changes.map(revertLine),
+        ),
+        ...(approval === null ? [] : [approvedLine(approval)]),
+      ],
       numFiles: 0,
       trailers: {
         op: undoOp,
@@ -454,6 +516,7 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
         client: ctx.client,
         reverts: reverted,
         ...(handle === undefined ? {} : { session: handle }),
+        ...(approval === null ? {} : { approved: approvedTrailer(approval) }),
       },
     });
 
@@ -558,6 +621,7 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
         })),
         changed_paths: stdout.split('\0').filter((path) => path !== ''),
         warnings,
+        ...(approval === null ? {} : { confirmed_by: approval.by }),
         next_step: `Para refazer, desfaça este undo: undo({ op: "${undoOp}" }).`,
       };
     } finally {

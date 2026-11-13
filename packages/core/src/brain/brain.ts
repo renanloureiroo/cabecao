@@ -8,6 +8,7 @@ import { EmbeddingEngine } from '../embeddings/index.ts';
 import type { SyncStep } from '../sync/index.ts';
 import type { BrainConfig, EmbeddingConfig } from '../vault/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
+import type { ConfirmOptions } from './confirm.ts';
 import type { ConsolidateInput, ConsolidateOutput, ConsolidationState } from './consolidate.ts';
 import { consolidate, consolidationState } from './consolidate.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
@@ -76,10 +77,17 @@ export interface OpenBrainOptions {
   readonly client: string;
   /**
    * Quem escreve. `human` grava `origin: human` e `trust: high` e pode criar regras; `agent` grava
-   * `origin: agent:<client>` e `trust: medium`. Padrão: `human` só quando `client` é `cli`. O servidor MCP deve
+   * `origin: agent:<client>` e `trust: medium`, e as ações elevadas (regra, arquivo de controle, `raw/`, `trust: high`,
+   * undo de operação que não é de agente) só com confirmação (`confirm.ts`). Padrão: `human` só quando `client` é `cli`. O servidor MCP deve
    * passar `agent` explicitamente, para que um cliente que se apresente como "cli" não vire humano.
    */
   readonly actor?: Actor;
+  /**
+   * Com `actor: 'human'`, faz as ações elevadas (regra, arquivo de controle, alteração em `raw/`) devolverem
+   * `confirmation_required` como para um agente, para quem chama confirmar com o usuário (a CLI pergunta no terminal e
+   * chama de novo com `userConfirmed`). Padrão: `false`. Para um agente a confirmação vale sempre.
+   */
+  readonly confirmElevated?: boolean;
   /** Nome da máquina nos rodapés. Padrão: o da configuração da máquina (`cabecao init`), senão o hostname. */
   readonly machine?: string;
   /** Relógio (datas das notas, do assunto dos commits e da validade). Padrão: agora. */
@@ -133,15 +141,15 @@ export interface Brain {
   /**
    * Grava uma memória, tratando duplicatas e contradições no mesmo escopo e tipo: igual → ignora; complementa →
    * atualiza; contradiz → substitui; nova → cria; ambíguo → devolve as candidatas (`resolution` na segunda chamada).
-   * Regras só com `actor: 'human'`.
+   * Regra (`type: rule`) vinda de agente: só com confirmação (primeira chamada devolve `confirmation_required`).
    */
-  remember(input: RememberInput): Promise<RememberOutput>;
+  remember(input: RememberInput, options?: ConfirmOptions): Promise<RememberOutput>;
   /** Cria, sobrescreve ou acrescenta a uma página por caminho. */
-  writePage(input: WritePageInput): Promise<WriteOutput>;
+  writePage(input: WritePageInput, options?: ConfirmOptions): Promise<WriteOutput>;
   /** Substituição exata e única no corpo de uma nota. */
-  patchPage(input: PatchPageInput): Promise<WriteOutput>;
+  patchPage(input: PatchPageInput, options?: ConfirmOptions): Promise<WriteOutput>;
   /** Acrescenta uma relação tipada no frontmatter de uma nota (idempotente). */
-  relate(input: RelateInput): Promise<RelateOutput>;
+  relate(input: RelateInput, options?: ConfirmOptions): Promise<RelateOutput>;
   /** Passagem de bastão: o handoff (com validade) e, se a sessão fez algo, o episódio, num commit. */
   handoffSave(input: HandoffSaveInput): Promise<HandoffSaveOutput>;
   /**
@@ -165,7 +173,7 @@ export interface Brain {
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
   /** Desfaz a última operação, uma operação (`op`) ou uma sessão (`session`), com um commit de revert. */
-  undo(input?: UndoInput): Promise<UndoOutput>;
+  undo(input?: UndoInput, options?: ConfirmOptions): Promise<UndoOutput>;
   /** Operações do Cabeção, da mais nova para a mais antiga, com o que já foi desfeito. */
   listOperations(input?: ListOperationsInput): Promise<ListOperationsOutput>;
 
@@ -268,6 +276,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     config,
     client,
     actor: options.actor ?? (client === 'cli' ? 'human' : 'agent'),
+    confirmElevated: options.confirmElevated === true,
     now: now === undefined ? () => new Date() : typeof now === 'function' ? now : () => new Date(now.getTime()),
     index,
     machineOption: options.machine,
@@ -304,17 +313,17 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
       assertOpen(ctx);
       return status(ctx, await machineName(ctx));
     },
-    remember: (input) => rememberWithDedup(ctx, input),
-    writePage: (input) => writePage(ctx, input),
-    patchPage: (input) => patchPage(ctx, input),
-    relate: (input) => relate(ctx, input),
+    remember: (input, options) => rememberWithDedup(ctx, input, options),
+    writePage: (input, options) => writePage(ctx, input, options),
+    patchPage: (input, options) => patchPage(ctx, input, options),
+    relate: (input, options) => relate(ctx, input, options),
     handoffSave: (input) => handoffSave(ctx, input),
     ingest: (input, options) => ingest(ctx, input, options),
     forget: (input, options) => forget(ctx, input, options),
     consolidate: (input) => consolidate(ctx, input),
     consolidationState: (id) => consolidationState(ctx, id),
     sync: (input) => sync(ctx, input),
-    undo: (input) => undo(ctx, input),
+    undo: (input, options) => undo(ctx, input, options),
     listOperations: async (input) => {
       assertOpen(ctx);
       return listOperations(ctx, input);

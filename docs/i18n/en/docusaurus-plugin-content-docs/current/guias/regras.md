@@ -1,26 +1,30 @@
 ---
 title: Create rules
-description: Rules are instructions every agent follows. Only you create them; here is how to write one.
+description: Rules are instructions every agent follows. You create them, or ask an agent and confirm; here is how.
 sidebar_position: 6
 ---
 
 A rule is a `type: rule` note in `memory/rules/`. It comes first in the `recall` of every task, above preferences and memories, and only your instruction of the moment outranks it.
 
-## Only you create them
+## Only with your request
 
-An agent cannot write a rule. If it tries, it gets:
+An agent only saves a rule when you ask, and with confirmation. Without it, the first call saves nothing and returns the summary and a confirmation token:
 
 ```json
 {
-  "error": {
-    "code": "rule_requires_human",
-    "message": "regras (type: rule) só o usuário cria e altera; um agente não pode gravá-las",
-    "next_step": "Grave como preferência (type: preference) ou proponha a regra ao usuário; ele a cria com a CLI ou no Obsidian."
-  }
+  "decision": "needs_confirmation",
+  "status": "confirmation_required",
+  "summary": "Criar (ou atualizar, se já houver uma parecida) a REGRA \"Testes antes do push\" em memory/rules/, escopo global. Conteúdo (34 caracteres): \"Rode os testes antes de cada push.\".",
+  "confirm_token": "cbc_ct_...",
+  "next_step": "Isto exige pedido explícito do usuário. Mostre o resumo (summary) ao usuário e pergunte; só repita a chamada de remember com os mesmos argumentos e confirm_token se ele disser sim, em até 5 minutos. ..."
 }
 ```
 
-This protects you from a malicious note or a confused agent trying to change the behavior of all the others. An agent can **propose** a rule: it writes it as a synthesis in `wiki/syntheses/` and you decide.
+The agent shows the summary and asks; it only repeats the call with the token if you say yes. In a client that can ask (elicitation), the server itself asks you. A rule saved this way gets `origin: agent:<client>`, `approved_by: user`, and `approved_at`, and shows up in `cabecao lint` (rule `agent_approved`) for you to review.
+
+This protects you from a malicious note or an ingested source trying to make an agent change the behavior of all the others: a request that came from content that was read is not your request, and the response tells the agent so. **The token proves the action was intentional and is the one shown, not that you said yes**: in a client without elicitation, the one claiming it is the agent. So check `lint` now and then, and undo with `cabecao undo` what you did not ask for.
+
+From the CLI, at your terminal, `cabecao remember --type rule` asks and you confirm by typing; see [Who is human and who is an agent in the CLI](./humano-e-agente.md).
 
 ## Write a rule
 
@@ -39,7 +43,7 @@ Escreva mensagens de commit em português, no imperativo.
 The fields that matter:
 
 - `type: rule`;
-- `origin: human`: without it, the note does not enter `recall` as a rule. It is your signature;
+- `origin: human`: without it (or without the approval mark of a rule an agent saved at your request), the note does not enter `recall` as a rule. It is your signature;
 - `scope`: `global` to apply everywhere, or `project:<nome>` for one project;
 - `title`: short, so you can find it later.
 
@@ -79,4 +83,4 @@ Run `cabecao sync` to carry the rule to the other machines. On the same machine,
 
 ## Change or retire a rule
 
-Edit the file. To retire it without erasing history, add `valid_until: AAAA-MM-DD` or write a new rule with `supersedes: ["[[regra-antiga]]"]`. An agent note that claims to supersede your rule does not bring it down: only another rule of yours does that.
+Edit the file. To retire it without erasing history, add `valid_until: AAAA-MM-DD` or write a new rule with `supersedes: ["[[regra-antiga]]"]`. An agent note that claims to supersede your rule does not bring it down: only another rule of yours (or one you approved) does that.

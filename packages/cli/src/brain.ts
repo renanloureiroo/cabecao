@@ -16,6 +16,7 @@ import {
   readMachineConfig,
   VaultError,
 } from '@cabecao/core';
+import type { ResolvedActor } from './actor.ts';
 import { dirContext } from './dirs.ts';
 import { embeddingProvider } from './embeddings.ts';
 import { CliError } from './errors.ts';
@@ -81,6 +82,7 @@ export function toCliError(error: unknown): unknown {
     return new CliError(error.message, {
       code: error.code,
       ...(error.nextStep === null ? {} : { hint: error.nextStep }),
+      ...(Object.keys(error.details).length === 0 ? {} : { details: error.details }),
       cause: error,
     });
   }
@@ -122,23 +124,28 @@ export function toCliError(error: unknown): unknown {
   return error;
 }
 
-/** Nome com que a CLI aparece nos commits (`Cabecao-Client: cli`) e na proveniência (`origin: human`). */
+/** Nome com que o usuário aparece nos commits (`Cabecao-Client: cli`) e na proveniência (`origin: human`). */
 export const CLI_CLIENT = 'cli';
 
+/** O que abrir o cérebro precisa saber do processo: o ambiente e QUEM roda (resolvido pelo roteador, `actor.ts`). */
+/** O nome que vai para os commits: `cli` para o usuário, o do agente para um agente. */
+export const clientOf = (actor: ResolvedActor): string => (actor.actor === 'human' ? CLI_CLIENT : actor.client);
+
+export type BrainIo = Pick<CliIo, 'env' | 'platform' | 'homedir'> & { readonly actor: ResolvedActor };
+
 /**
- * Abre o cérebro de `root` como o usuário (cliente `cli`, ator `human`), com o nome da máquina tirado da configuração
- * do ambiente injetado. Feche com `close()`; prefira `withBrain`.
+ * Abre o cérebro de `root` com o ator resolvido: o usuário no terminal (cliente `cli`, ator `human`, com as ações
+ * elevadas confirmadas no terminal) ou um agente (o nome dele, ator `agent`: as MESMAS regras do servidor MCP). O nome
+ * da máquina vem da configuração do ambiente injetado. Feche com `close()`; prefira `withBrain`.
  */
-export async function openCliBrain(
-  io: Pick<CliIo, 'env' | 'platform' | 'homedir'>,
-  root: string,
-  extra: Partial<OpenBrainOptions> = {},
-): Promise<Brain> {
+export async function openCliBrain(io: BrainIo, root: string, extra: Partial<OpenBrainOptions> = {}): Promise<Brain> {
   const machine = (await readMachine(io))?.machine;
+  const human = io.actor.actor === 'human';
   try {
     return await openBrain(root, {
-      client: CLI_CLIENT,
-      actor: 'human',
+      client: clientOf(io.actor),
+      actor: human ? 'human' : 'agent',
+      confirmElevated: human,
       // o runtime de embeddings é injetado sempre: criar o provedor não carrega nada (o modelo só carrega na busca ou
       // no cálculo que precisar dele)
       embeddings: embeddingProvider(io),
@@ -152,7 +159,7 @@ export async function openCliBrain(
 
 /** Abre o cérebro de `root`, roda `fn` e fecha (no Windows o banco aberto impede apagar a pasta). */
 export async function withBrain<T>(
-  io: Pick<CliIo, 'env' | 'platform' | 'homedir'>,
+  io: BrainIo,
   root: string,
   fn: (brain: Brain) => Promise<T>,
   extra: Partial<OpenBrainOptions> = {},

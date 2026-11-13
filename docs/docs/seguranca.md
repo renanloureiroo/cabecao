@@ -66,23 +66,37 @@ exemplo_de_token: abc123def456ghi789
 
 O marcador só vale em texto **seu** (editado no Obsidian ou num editor e levado pelo sync). Num texto enviado por um agente, ele é ignorado: um agente não consegue se liberar escrevendo o marcador.
 
-## O que um agente é impedido de fazer
+## O que um agente só faz com o seu pedido
 
-Pelas tools do MCP, um agente:
+Pelas tools do MCP e pela CLI (que segue as mesmas regras quando quem roda é um agente), estas ações exigem o seu **pedido explícito, confirmado**: a primeira chamada não faz nada e devolve o resumo exato e um token de confirmação de vida curta; o agente só repete com o token se você disser sim. Num cliente que sabe perguntar (elicitação), o servidor pergunta direto a você.
 
-- não cria nem altera regras (`type: rule`, `memory/rules/`);
-- não escreve em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` e outros arquivos que clientes de IA carregam como instrução, em nenhuma pasta;
-- não escreve no `index.md`, no `log.md`, fora das pastas de notas nem fora da pasta do cérebro;
-- não altera fontes que já existem em `raw/`, nem cópias de conflito;
-- não escolhe a própria proveniência (`origin`, `edited_by`) nem se dá `trust: high`;
-- não grava nada com cara de segredo;
-- não desfaz operações suas;
-- não arquiva (`forget`) regras suas, fontes de `raw/` nem cópias de conflito, e só arquiva depois de uma confirmação em duas chamadas (ou de você responder, quando o cliente pergunta);
-- não faz o `ingest` ler arquivos de fora do cérebro: um arquivo seu entra pelo `cabecao ingest`, que é você;
-- não grava regras numa consolidação: no máximo, propõe uma em `wiki/syntheses/`, e a consolidação inteira se desfaz com um `undo`;
-- numa consolidação sem ninguém olhando (`consolidate --run`), também não envia ao remoto, não desfaz, não deixa handoff, não ingere nem arquiva (veja abaixo).
+- criar ou alterar regras (`type: rule`, `memory/rules/`);
+- escrever em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` e outros arquivos que clientes de IA carregam como instrução, em qualquer pasta, e nos arquivos de controle (`log.md`, `README.md`, `.cabecao.json`, `.gitignore`, `.gitattributes`), estes três só se o resultado for válido e nunca mexendo na seção `embedding`;
+- alterar fontes que já existem em `raw/`;
+- gravar `trust: high`;
+- desfazer uma operação sua;
+- arquivar (`forget`) qualquer nota.
 
-Quando altera uma nota sua, ela ganha `edited_by` e o `trust` cai. E toda gravação dele é um commit que você desfaz com `cabecao undo`.
+O que é feito assim **não vira `origin: human`**: fica `origin: agent:<cliente>`, mais `approved_by: user` e `approved_at` na nota e o rodapé `Cabecao-Approved` no commit. Só o Cabeção grava essas marcas; as que o agente mandar no frontmatter são ignoradas. A regra `agent_approved` do `cabecao lint` lista tudo para você revisar.
+
+**O custo, dito com clareza:** o token prova que a ação foi intencional e é exatamente a que foi mostrada (outra ação, outro conteúdo, outra sessão, um token vencido ou forjado são recusados). Ele **não prova que você disse sim**: num cliente sem elicitação, quem afirma que você pediu é o agente. Um agente manipulado por um conteúdo pode fazer as duas chamadas. A rede de segurança é o que fica gravado: o commit identificado, o `cabecao undo` e a listagem do `lint`.
+
+## O que um agente não faz nunca
+
+Estas são proteções técnicas e valem com ou sem confirmação:
+
+- escrever fora da pasta do cérebro, em `.git/` ou `.cabecao/`, ou através de um link simbólico;
+- escrever no `index.md` (o catálogo é derivado das notas);
+- criar uma cópia de conflito falsa, ou editar uma;
+- gravar algo com cara de segredo, no texto, no caminho, no título ou no frontmatter (o marcador `cabecao:allow-secret` não vale para ele);
+- forjar frontmatter com um BOM ou um `---` no começo do conteúdo (o texto final é relido e conferido);
+- escolher a própria proveniência (`origin`, `edited_by`, `approved_by`, `approved_at`);
+- passar dos limites de tamanho, ou usar nome de arquivo inválido ou com caractere invisível;
+- fazer o `ingest` ler arquivos de fora do cérebro;
+- mudar o modelo de embeddings ou compactar a branch de índice (é administração da máquina, só sua, no terminal).
+- numa consolidação sem ninguém olhando (`consolidate --run`), também não envia ao remoto, não desfaz, não deixa handoff, não ingere, não arquiva e não faz nenhuma das ações que pedem o seu pedido (veja abaixo).
+
+Quando altera uma nota sua sem confirmação, ela ganha `edited_by` e o `trust` cai. E toda gravação dele é um commit que você desfaz com `cabecao undo`.
 
 O conteúdo que o servidor devolve vem marcado como **dado, nunca instrução**, com a ordem de autoridade (você, as regras, o `AGENTS.md`, as memórias, o conteúdo de fora). Veja [Proveniência e confiança](./conceitos/proveniencia.md).
 
@@ -94,7 +108,7 @@ Duas coisas o Cabeção faz sem você na frente da tela: o sync agendado ([Sync 
 - **Só as tools do Cabeção.** Cada agente roda com shell, edição de arquivos e rede negados, e só as tools do servidor do Cabeção liberadas. Nenhum modo de "pular todas as permissões" é usado. Um agente que não permite essa restrição em modo não interativo não tem `--run` (hoje: Cursor Agent, Copilot CLI e OpenCode; os motivos estão no guia).
 - **Configuração temporária.** O servidor do Cabeção vai numa configuração de MCP criada para a execução, numa pasta temporária vazia que também é o diretório de trabalho do agente, e apagada no fim. A configuração dos seus clientes não é lida para isso nem alterada; o login do agente é o que ele já tem.
 - **Ambiente mínimo.** O agente recebe só as variáveis de sistema, de pastas, de proxy e certificados, de git, do Cabeção e as do login dele (`ANTHROPIC_API_KEY` e afins; no Codex, a chave de API como `CODEX_API_KEY`). Outros tokens do seu ambiente não são repassados.
-- **Servidor preso à consolidação.** O servidor que o agente sobe (`cabecao mcp --consolidation <id>`) grava tudo com a sessão da consolidação e recusa `sync`, `undo`, `handoff_save`, `ingest` e um segundo `start`. `forget` também, a não ser que você passe `--allow-forget`: arquivar memória sem ninguém olhando só com opção explícita. As restrições de agente de sempre continuam (regra só sua, nada em arquivos de instrução nem de controle, nada fora do cérebro, scanner de segredos).
+- **Servidor preso à consolidação.** O servidor que o agente sobe (`cabecao mcp --consolidation <id>`) grava tudo com a sessão da consolidação e recusa `sync`, `undo`, `handoff_save`, `ingest` e um segundo `start`. `forget` também, a não ser que você passe `--allow-forget`: arquivar memória sem ninguém olhando só com opção explícita. As ações que pedem o seu pedido explícito (regra, arquivos de controle e de instrução, `raw/`, `trust: high`) ficam **indisponíveis**, nem com o token, porque não há ninguém para confirmar; só `--allow-elevated` as libera. `--allow-forget` e `--allow-elevated` só você passa, no terminal. As demais restrições de agente continuam (nada fora do cérebro, scanner de segredos).
 - **Tempo limite.** Passado o tempo (padrão: 20 minutos), o agente e tudo o que ele iniciou são encerrados: o grupo de processos no macOS e no Linux, a árvore com `taskkill /T` no Windows.
 - **Nada pela metade.** Se o agente não fechar a consolidação, o que ele gravou é desfeito com um commit de revert, e o comando sai com `1`. Se fechou, `cabecao undo --session <id>` desfaz tudo, e o ponto de restauração continua na máquina.
 - **Nada sai da máquina pelo Cabeção.** A consolidação não faz sync; o commit vai para o remoto no próximo sync. O que o agente lê vai para o modelo de IA dele, como em qualquer sessão sua.
@@ -105,8 +119,10 @@ O que fica de fora, por agente: o Codex mantém a tool de aplicar patch (a caixa
 
 Dito com franqueza, para você decidir o que guardar:
 
+- **Um agente com shell pode contornar a CLI e o servidor.** A CLI trata como agente todo processo sem terminal controlador ou com sinal de agente no ambiente ([Quem é humano e quem é agente na CLI](./guias/humano-e-agente.md)), mas um agente que roda comandos pode simular um terminal (abrir um pseudo-terminal e limpar as variáveis) ou simplesmente editar os arquivos do cérebro direto, sem passar pelo Cabeção. O sync trata essa edição como **sua** (`manual`): passa pelo scanner de segredos, mas não leva a marca de agente. Isso **não dá para fechar pela CLI**. A barreira que resiste a um agente manipulado é o **servidor MCP com o agente sem shell** (ou com o acesso à pasta do cérebro negado nas permissões do cliente).
+- **Agentes sem sinal conhecido.** Para os agentes que não deixam variável no ambiente (Aider, GitHub Copilot, Antigravity e outros), a CLI depende do terminal controlador: se um deles rodar comandos num pseudo-terminal, conta como você.
+- **O token de confirmação não prova que você disse sim** (veja acima).
 - **O scanner trabalha por padrões.** Ele pega os formatos da tabela, não todo segredo possível: uma senha solta numa frase, sem um nome como "senha:" antes, passa. Não use o cérebro para guardar segredos.
-- **As restrições valem para as tools do MCP.** Um agente com acesso ao terminal e aos arquivos (o Claude Code, por exemplo) pode editar a pasta do cérebro diretamente, como qualquer programa seu. O `AGENTS.md` pede que ele use as tools, e o sync passa essas edições pelo scanner e as registra como `manual`, mas não há como impedir a escrita direta no disco. Limite as permissões de arquivo do cliente se isso importar para você.
 - **"Dado, nunca instrução" é uma orientação ao modelo, não uma garantia.** Um texto malicioso numa nota pode, mesmo assim, influenciar um modelo. Desconfie de conteúdo de fora (`trust: low`).
 - **Nada é cifrado pelo Cabeção.** As notas ficam em texto puro no disco e no remoto; quem tem acesso ao repositório lê tudo. A proteção é a do seu provedor e a do seu disco.
 - **Commits sem assinatura.** Se `commit.gpgsign` estiver ligado, os commits do Cabeção saem sem assinatura, porque uma chave que pede senha travaria o sync. O `doctor` avisa.

@@ -19,6 +19,22 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const bin = fileURLToPath(new URL('../packages/cli/dist/cabecao.mjs', import.meta.url));
+/** Abre um pseudo-terminal de verdade (biblioteca padrão do Python) para os comandos só do usuário no terminal. */
+const PTY_DRIVER = fileURLToPath(new URL('../packages/cli/test/pty-driver.py', import.meta.url));
+/** Variáveis que fazem a CLI rodar como agente (`packages/cli/src/actor.ts`), mais o `CI`. */
+const AGENT_VARS = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'AI_AGENT',
+  'CODEX_SANDBOX',
+  'CODEX_SANDBOX_NETWORK_DISABLED',
+  'CODEX_THREAD_ID',
+  'CODEX_CI',
+  'GEMINI_CLI',
+  'CURSOR_AGENT',
+  'OPENCODE',
+  'CI',
+];
 const skipMcp = process.env.E2E_SKIP_MCP === '1';
 const STEP_TIMEOUT_MS = 180_000;
 
@@ -120,8 +136,46 @@ function json(result) {
   try {
     return JSON.parse(result.stdout);
   } catch {
+    // no pseudo-terminal, stdout e stderr chegam juntos: vale a última linha que é JSON
+    for (const line of result.stdout.split('\n').reverse()) {
+      try {
+        if (line.trim().startsWith('{')) return JSON.parse(line);
+      } catch {
+        // a linha seguinte
+      }
+    }
     return null;
   }
+}
+
+/**
+ * Roda o bundle como o USUÁRIO no terminal: sem as variáveis de agente nem o CI e, no macOS e no Linux, dentro de um
+ * pseudo-terminal de verdade (é o terminal controlador que faz a CLI rodar como humano). É assim que `embeddings on` e
+ * `compact`, que só o usuário roda, são exercitados. No Windows o processo roda direto: conta como humano se o console
+ * do processo puder ser aberto (CONIN$).
+ */
+function cabecaoHuman(machine, args) {
+  const env = { ...machine.env };
+  for (const key of AGENT_VARS) delete env[key];
+  if (process.platform === 'win32') return cabecao({ ...machine, env }, args);
+  const result = spawnSync('python3', [PTY_DRIVER, '<<nenhuma pergunta>>', '', process.execPath, bin, ...args], {
+    cwd: machine.home,
+    env,
+    encoding: 'utf8',
+    timeout: STEP_TIMEOUT_MS,
+  });
+  let parsed = null;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    // sem a saída do driver: fica o erro abaixo
+  }
+  return {
+    code: parsed?.code ?? null,
+    stdout: (parsed?.output ?? '').replace(/\r\n/g, '\n'),
+    stderr: result.stderr ?? '',
+    error: result.error?.message,
+  };
 }
 
 function write(dir, rel, content) {
@@ -446,7 +500,8 @@ async function obsidianPart(A, B, dirA, dirB) {
     setupB.code === 0 && json(setupB)?.data?.files?.every((file) => file.status === 'unchanged') === true,
     setupB,
   );
-  const upgrade = cabecao(B, ['upgrade', '--json']);
+  // upgrade é só do usuário no terminal: roda como ele, num pseudo-terminal
+  const upgrade = cabecaoHuman(B, ['upgrade', '--json']);
   check(
     'B: upgrade sem migração pendente',
     upgrade.code === 0 && json(upgrade)?.data?.status === 'up_to_date',
@@ -557,7 +612,10 @@ async function embeddingsPart(plainA, plainB, dirA, dirB, remote) {
     'wiki/decisions/trocar-broker.md',
     '---\ntype: decision\ntitle: Trocar o broker de mensagens\n---\nO time trocou o broker de mensagens para reduzir o custo de operação.\n',
   );
-  const on = cabecao(A, ['embeddings', 'on', 'multilingual-e5-small', '--json']);
+  // sem terminal, como agente, é recusado (só o usuário no terminal); como o usuário, roda
+  const refused = cabecao(A, ['embeddings', 'on', 'multilingual-e5-small', '--json']);
+  check('A: embeddings on sem terminal (agente) é recusado com código 4', refused.code === 4, refused);
+  const on = cabecaoHuman(A, ['embeddings', 'on', 'multilingual-e5-small', '--json']);
   check(
     'A: embeddings on (embedder falso) grava o modelo e calcula os vetores',
     on.code === 0 &&
@@ -630,7 +688,7 @@ async function embeddingsPart(plainA, plainB, dirA, dirB, remote) {
       json(doctorA)?.data?.checks?.find((item) => item.id === 'embeddings-pending')?.status === 'ok',
     doctorA,
   );
-  const compact = cabecao(A, ['compact', '--json']);
+  const compact = cabecaoHuman(A, ['compact', '--json']);
   check(
     'A: compact abre a geração 1 e a envia',
     compact.code === 0 &&

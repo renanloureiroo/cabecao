@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { SyncOutput } from '@cabecao/core';
 import { BRAIN_CONFIG_FILE, BrainError, isInvalidConfigError, isUlid, syncBrain, toSyncOutput } from '@cabecao/core';
 import { appendSyncLog, logBlock, startDetachedSync } from '../background.ts';
-import { CLI_CLIENT, readMachine, resolveBrain, withBrain } from '../brain.ts';
+import { clientOf, readMachine, resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { EMPTY_HOOK_INPUT, hookBrain, readHookInput } from '../hook/input.ts';
 import { plural } from '../text.ts';
@@ -110,7 +110,7 @@ async function syncWithoutBrain(ctx: CommandContext, root: string, session: stri
   }
   const machine = (await readMachine(ctx))?.machine;
   return toSyncOutput(
-    await syncBrain(root, { client: CLI_CLIENT, session, ...(machine === undefined ? {} : { machine }) }),
+    await syncBrain(root, { client: clientOf(ctx.actor), session, ...(machine === undefined ? {} : { machine }) }),
   );
 }
 

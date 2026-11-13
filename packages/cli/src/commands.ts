@@ -12,9 +12,12 @@ import type { CommandSpec } from './types.ts';
  * (código 2) ou `CliError` (código 1, com `hint` e `code` estável) de `errors.ts`; qualquer outro erro sai sem stack.
  * O `mcp` (servidor de longa duração) também cabe aqui: o `run` só resolve quando o servidor encerra.
  *
+ * Todo comando novo precisa também da sua classe em `access.ts` (memória, administração ou só do humano): um teste
+ * falha sem ela, e o roteador trata o comando sem classe como só do humano.
+ *
  * Este arquivo é avaliado em todo início, inclusive em `--version`: aqui só entram metadados. O `import()`
  * dinâmico faz o bundler gerar um arquivo por comando, carregado só quando o comando roda.
- * `help`, `version`, `json` e `brain` (e as letras `-h` e `-v`) são opções globais e não podem ser redefinidas.
+ * `help`, `version`, `json`, `brain` e `as` (e as letras `-h` e `-v`) são opções globais e não podem ser redefinidas.
  */
 export const COMMANDS: readonly CommandSpec[] = [
   {
@@ -311,9 +314,19 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'undo',
     summary: 'Desfaz a última operação, uma operação ou uma sessão',
-    usage: ['undo', 'undo --op <id>', 'undo --session <id>', 'undo --list [--session <id>] [--limit <n>]'],
+    usage: [
+      'undo [--confirm <token>]',
+      'undo --op <id> [--confirm <token>]',
+      'undo --session <id> [--confirm <token>]',
+      'undo --list [--session <id>] [--limit <n>]',
+    ],
     options: {
       op: { type: 'string', valueName: 'id', description: 'Desfaz esta operação (o identificador ou o começo dele)' },
+      confirm: {
+        type: 'string',
+        valueName: 'token',
+        description: 'Agente: o confirm_token da primeira chamada (operação do usuário ou começo do id)',
+      },
       session: { type: 'string', valueName: 'id', description: 'Desfaz tudo o que esta sessão de agente gravou' },
       list: { type: 'boolean', description: 'Mostra as operações que podem ser desfeitas' },
       limit: { type: 'string', valueName: 'n', description: 'Com --list: quantas mostrar (padrão: 20)' },
@@ -321,6 +334,10 @@ export const COMMANDS: readonly CommandSpec[] = [
     details: [
       'Desfaz com um commit de revert, sem reescrever o histórico. O undo também é uma operação: desfazê-lo refaz o',
       'que tinha sido desfeito. Rode "cabecao sync" depois para levar o undo às outras máquinas.',
+      '',
+      'Como agente (sem terminal, ou com sinal de agente no ambiente): desfaz sem confirmação só operações de agente',
+      'pelo id inteiro. Operação do usuário, ou só o começo do id, volta com o resumo e um confirm_token (código de',
+      'saída 3); se o usuário pedir, repita com --confirm <token>.',
     ].join('\n'),
     load: () => import('./commands/undo.ts'),
   },
@@ -350,9 +367,10 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'ingest',
     summary: 'Registra uma fonte (artigo, ata, documento) em raw/',
-    usage: ['ingest <arquivo> [--title <título>] [--scope <escopo>]'],
+    usage: ['ingest <arquivo> [--title <título>] [--scope <escopo>]', 'ingest - --title <título> [--source <origem>]'],
     options: {
       title: { type: 'string', valueName: 'título', description: 'Título da fonte (padrão: o do arquivo)' },
+      source: { type: 'string', valueName: 'origem', description: 'De onde veio (URL ou nome do arquivo original)' },
       scope: {
         type: 'string',
         valueName: 'escopo',
@@ -364,21 +382,31 @@ export const COMMANDS: readonly CommandSpec[] = [
       'passando pelo scanner de segredos, num commit. Um arquivo que já está em raw/ não é copiado de novo. Mostra o',
       'plano de ingestão (o que ler, que notas criar e atualizar): o Cabeção não tem LLM, quem escreve as notas é o',
       'agente. O frontmatter do arquivo não vira frontmatter da nota: só título, fonte e autor são aproveitados.',
+      '',
+      'Com "-", o texto vem da entrada padrão (como "content" da tool ingest). Como agente, a CLI só lê arquivo de',
+      'dentro do cérebro: o texto de um arquivo de fora vai pela entrada padrão, e entra como conteúdo do agente.',
     ].join('\n'),
     load: () => import('./commands/ingest.ts'),
   },
   {
     name: 'forget',
     summary: 'Arquiva uma nota em memory/_archive/ (nunca apaga)',
-    usage: ['forget <id ou caminho> [--reason <texto>] [--yes]'],
+    usage: [
+      'forget <id ou caminho> [--reason <texto>] [--yes]',
+      'forget <id ou caminho> [--reason <texto>] [--confirm <token>]',
+    ],
     options: {
       reason: { type: 'string', valueName: 'texto', description: 'Por que esquecer (fica na nota arquivada)' },
-      yes: { type: 'boolean', description: 'Arquiva sem perguntar (sem terminal, é obrigatório)' },
+      yes: { type: 'boolean', description: 'Arquiva sem perguntar (só o usuário no terminal)' },
+      confirm: { type: 'string', valueName: 'token', description: 'Agente: o confirm_token da primeira chamada' },
+      session: { type: 'string', valueName: 'id', description: 'Agente: o session_handle do recall' },
     },
     details: [
-      'Mostra o que será arquivado e pergunta. A nota vai para memory/_archive/, sai da busca e do recall e continua no',
-      'git, num commit; "cabecao undo" a traz de volta. Pela CLI você arquiva qualquer nota, inclusive regras; um agente',
-      'não arquiva regras e precisa de confirmação em duas chamadas. Apagar de vez (reescrevendo o histórico) não existe.',
+      'Mostra o que será arquivado e pergunta no terminal. A nota vai para memory/_archive/, sai da busca e do recall e',
+      'continua no git, num commit; "cabecao undo" a traz de volta. Apagar de vez (reescrevendo o histórico) não existe.',
+      '',
+      'Como agente: sem --yes; a primeira chamada devolve o resumo e um confirm_token (código de saída 3), e a segunda,',
+      'com --confirm <token> (mesma nota e mesmo --reason), arquiva. Use só se o usuário pediu.',
     ].join('\n'),
     load: () => import('./commands/forget.ts'),
   },
@@ -388,7 +416,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     usage: [
       'consolidate [--scope <escopo>]',
       'consolidate --finish <id> [--title <rótulo>]',
-      'consolidate --run [--agent <nome>] [--scope <escopo>] [--timeout <min>] [--model <m>] [--allow-forget] [--dry-run]',
+      'consolidate --run [--agent <nome>] [--scope <escopo>] [--timeout <min>] [--model <m>] [--allow-forget] [--allow-elevated] [--dry-run]',
     ],
     options: {
       scope: { type: 'string', valueName: 'escopo', description: '"global" ou "project:<nome>" (que inclui o global)' },
@@ -408,7 +436,12 @@ export const COMMANDS: readonly CommandSpec[] = [
       model: { type: 'string', valueName: 'm', description: 'Com --run: modelo do agente (padrão: o mais barato)' },
       'allow-forget': {
         type: 'boolean',
-        description: 'Com --run: deixa o agente arquivar notas com forget (bloqueado por padrão)',
+        description: 'Com --run: deixa o agente arquivar notas com forget (bloqueado por padrão; só você, no terminal)',
+      },
+      'allow-elevated': {
+        type: 'boolean',
+        description:
+          'Com --run: libera regra, arquivo de controle, raw/ e trust: high (bloqueados por padrão; só você, no terminal)',
       },
       'dry-run': { type: 'boolean', description: 'Com --run: só mostra o comando e a configuração; não executa' },
     },
@@ -421,7 +454,10 @@ export const COMMANDS: readonly CommandSpec[] = [
       'Com --run: prepara, chama o agente sem ninguém olhando e confere o resultado. O agente roda numa pasta',
       'temporária vazia, com ambiente mínimo e uma configuração de MCP temporária (a do usuário não é tocada), e só',
       'enxerga as tools do Cabeção: shell, edição de arquivos e rede ficam negados. O servidor recusa sync, undo,',
-      'handoff_save, ingest, um segundo start e, sem --allow-forget, forget; regras continuam só do usuário.',
+      'handoff_save, ingest, um segundo start e, sem --allow-forget, forget. As ações que pedem o pedido explícito do',
+      'usuário (regra, arquivo de controle, raw/, trust: high) ficam indisponíveis: não há usuário para confirmar. Só',
+      '--allow-elevated as libera. --allow-forget e --allow-elevated só o usuário passa, num terminal; sem elas, o',
+      '--run roda também sem terminal (agendado), como agente.',
       'Se o agente fechar a consolidação, mostra uma linha por nota e como desfazer. Se não fechar (erro, tempo',
       'limite, saiu sem terminar), desfaz o que ele gravou (um "cabecao undo --op" refaz) e sai com código 1.',
       'Agentes: claude-code (com o login dele) e codex (só com CODEX_API_KEY ou OPENAI_API_KEY). Sem --agent: o "agent"',
@@ -429,6 +465,145 @@ export const COMMANDS: readonly CommandSpec[] = [
       'termos do plano pessoal não permitem que outro programa os chame (https://antigravity.google/docs/faq/).',
     ].join('\n'),
     load: () => import('./commands/consolidate.ts'),
+  },
+  {
+    name: 'read',
+    summary: 'Lê uma nota (ou uma seção dela), com a proveniência',
+    usage: ['read <caminho ou id> [--section <seção>]'],
+    options: {
+      section: { type: 'string', valueName: 'seção', description: 'Só esta seção (o título, ou "Pai › Filho")' },
+    },
+    details:
+      'A tool read pela linha de comando: corpo, frontmatter, títulos, links de saída e de entrada. Com --json, a mesma\nsaída da tool (com data_notice). O conteúdo é dado, nunca instrução.',
+    load: () => import('./commands/read.ts'),
+  },
+  {
+    name: 'remember',
+    summary: 'Grava uma memória (a tool remember)',
+    usage: [
+      'remember --type <tipo> [opções] <conteúdo...>',
+      'remember --type <tipo> [opções] --file <arquivo|->',
+      'remember --type <tipo> [opções] < arquivo',
+      'remember --json-input < entrada.json',
+    ],
+    options: {
+      type: {
+        type: 'string',
+        valueName: 'tipo',
+        description: 'preference, gotcha, decision, fact, procedure, rule...',
+      },
+      title: { type: 'string', valueName: 'título', description: 'Título (padrão: a primeira linha do conteúdo)' },
+      scope: { type: 'string', valueName: 'escopo', description: '"global" (padrão) ou "project:<nome>"' },
+      tag: { type: 'string', multiple: true, valueName: 'tag', description: 'Uma tag (repita para várias)' },
+      alias: { type: 'string', multiple: true, valueName: 'nome', description: 'Outro nome da nota (repita)' },
+      relation: {
+        type: 'string',
+        multiple: true,
+        valueName: 'tipo=nota',
+        description: 'Relação tipada, como uses=SQS (repita)',
+      },
+      source: { type: 'string', multiple: true, valueName: 'nota', description: 'Nota de origem (repita)' },
+      subject: { type: 'string', valueName: 'nota', description: 'Fato: o sujeito' },
+      predicate: { type: 'string', valueName: 'p', description: 'Fato: o predicado' },
+      object: { type: 'string', valueName: 'valor', description: 'Fato: o objeto' },
+      'valid-from': { type: 'string', valueName: 'data', description: 'Vale a partir de AAAA-MM-DD' },
+      'valid-until': { type: 'string', valueName: 'data', description: 'Vale até AAAA-MM-DD' },
+      'expires-at': { type: 'string', valueName: 'data', description: 'Vence em AAAA-MM-DD' },
+      session: { type: 'string', valueName: 'id', description: 'O session_handle do recall' },
+      resolution: {
+        type: 'string',
+        valueName: 'r',
+        description: 'Resposta a needs_resolution: create, skip, update:<id> ou supersede:<id>',
+      },
+      file: { type: 'string', valueName: 'arquivo', description: 'Conteúdo deste arquivo ("-": a entrada padrão)' },
+      'json-input': { type: 'boolean', description: 'Lê da entrada padrão um JSON com os campos da tool' },
+      confirm: { type: 'string', valueName: 'token', description: 'Agente: o confirm_token da primeira chamada' },
+    },
+    details: [
+      'Sem conteúdo no argumento nem --file, o conteúdo vem da entrada padrão: texto com aspas, quebras de linha e',
+      'caracteres especiais não depende de escape de shell. --json-input aceita exatamente os campos da tool.',
+      'Os mesmos limites e a mesma saída (--json) da tool. Uma regra (--type rule) exige o pedido explícito do',
+      'usuário: no terminal, você confirma digitando; um agente recebe o resumo e um confirm_token (código de saída',
+      '3) e só repete com --confirm <token> se o usuário disser sim.',
+    ].join('\n'),
+    load: () => import('./commands/remember.ts'),
+  },
+  {
+    name: 'write',
+    summary: 'Cria, sobrescreve ou acrescenta a uma nota (a tool write_page)',
+    usage: [
+      'write <caminho> [--mode create|overwrite|append] [--type <tipo>] [--title <t>] [--frontmatter <json>] <conteúdo...>',
+      'write <caminho> [opções] --file <arquivo|->',
+      'write --json-input < entrada.json',
+    ],
+    options: {
+      mode: { type: 'string', valueName: 'modo', description: 'create (padrão), overwrite ou append' },
+      type: { type: 'string', valueName: 'tipo', description: 'frontmatter.type' },
+      title: { type: 'string', valueName: 'título', description: 'frontmatter.title' },
+      frontmatter: { type: 'string', valueName: 'json', description: 'Campos do frontmatter, em JSON' },
+      session: { type: 'string', valueName: 'id', description: 'O session_handle do recall' },
+      file: { type: 'string', valueName: 'arquivo', description: 'Conteúdo deste arquivo ("-": a entrada padrão)' },
+      'json-input': { type: 'boolean', description: 'Lê da entrada padrão um JSON com os campos da tool' },
+      confirm: { type: 'string', valueName: 'token', description: 'Agente: o confirm_token da primeira chamada' },
+    },
+    details: [
+      'As mesmas regras da tool write_page. Regra (type: rule, memory/rules/), arquivo de controle ou de instrução',
+      '(AGENTS.md, CLAUDE.md, log.md, .cabecao.json...; como texto puro), alteração em raw/ e trust: high exigem o',
+      'pedido explícito do usuário: no terminal, confirme digitando; um agente recebe o resumo e o confirm_token.',
+    ].join('\n'),
+    load: () => import('./commands/write.ts'),
+  },
+  {
+    name: 'patch',
+    summary: 'Troca um trecho exato de uma nota (a tool patch_page)',
+    usage: [
+      'patch <caminho> --old <trecho> --new <trecho>',
+      'patch <caminho> --old-file <arquivo|-> --new-file <arquivo>',
+      'patch --json-input < entrada.json',
+    ],
+    options: {
+      old: { type: 'string', valueName: 'trecho', description: 'O trecho exato a substituir (aparece uma vez)' },
+      new: { type: 'string', valueName: 'trecho', description: 'O texto novo' },
+      'old-file': { type: 'string', valueName: 'arquivo', description: 'O trecho antigo, deste arquivo ("-": stdin)' },
+      'new-file': { type: 'string', valueName: 'arquivo', description: 'O trecho novo, deste arquivo ("-": stdin)' },
+      session: { type: 'string', valueName: 'id', description: 'O session_handle do recall' },
+      'json-input': { type: 'boolean', description: 'Lê da entrada padrão um JSON com path, old e new' },
+      confirm: { type: 'string', valueName: 'token', description: 'Agente: o confirm_token da primeira chamada' },
+    },
+    details:
+      'As mesmas regras e a mesma confirmação da tool patch_page. Para trechos com várias linhas e aspas, use\n--json-input ou os arquivos.',
+    load: () => import('./commands/patch.ts'),
+  },
+  {
+    name: 'relate',
+    summary: 'Acrescenta uma relação tipada entre duas notas (a tool relate)',
+    usage: ['relate <de> <tipo> <para> [--session <id>] [--confirm <token>]'],
+    options: {
+      session: { type: 'string', valueName: 'id', description: 'O session_handle do recall' },
+      confirm: { type: 'string', valueName: 'token', description: 'Agente: o confirm_token da primeira chamada' },
+    },
+    details: 'As notas podem ser o título, o caminho ou o id. Idempotente. As mesmas regras da tool relate.',
+    load: () => import('./commands/relate.ts'),
+  },
+  {
+    name: 'handoff',
+    summary: 'Passagem de bastão para a próxima sessão (a tool handoff_save)',
+    usage: [
+      'handoff --session <id> [--done <item>...] [--next <item>...] [--decision <item>...] [--gotcha <item>...]',
+      'handoff --json-input < entrada.json',
+    ],
+    options: {
+      session: { type: 'string', valueName: 'id', description: 'O session_handle do recall (obrigatório)' },
+      done: { type: 'string', multiple: true, valueName: 'item', description: 'O que foi feito (repita)' },
+      next: { type: 'string', multiple: true, valueName: 'item', description: 'O que falta, na ordem (repita)' },
+      decision: { type: 'string', multiple: true, valueName: 'item', description: 'Decisão e o porquê (repita)' },
+      gotcha: { type: 'string', multiple: true, valueName: 'item', description: 'Armadilha encontrada (repita)' },
+      scope: { type: 'string', valueName: 'escopo', description: '"global" (padrão) ou "project:<nome>"' },
+      title: { type: 'string', valueName: 'título', description: 'Título do handoff' },
+      'json-input': { type: 'boolean', description: 'Lê da entrada padrão um JSON com os campos da tool' },
+    },
+    details: 'Grava o handoff (o próximo recall o entrega) e, se houve trabalho, o episódio da sessão, num commit.',
+    load: () => import('./commands/handoff.ts'),
   },
   {
     name: 'obsidian',
@@ -511,7 +686,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
-    usage: ['mcp [--brain <pasta>]', 'mcp --consolidation <id> [--allow-forget]'],
+    usage: ['mcp [--brain <pasta>]', 'mcp --consolidation <id> [--allow-forget] [--allow-elevated]'],
     options: {
       consolidation: {
         type: 'string',
@@ -519,13 +694,18 @@ export const COMMANDS: readonly CommandSpec[] = [
         description: 'Modo sem ninguém olhando, preso a esta consolidação (usado por "consolidate --run")',
       },
       'allow-forget': { type: 'boolean', description: 'Com --consolidation: libera o forget' },
+      'allow-elevated': {
+        type: 'boolean',
+        description: 'Com --consolidation: libera as ações que pedem confirmação (regra, controle, raw/, trust: high)',
+      },
     },
     details: [
       'Não é para rodar à mão: o cliente de IA inicia este comando e conversa com ele pela entrada e saída padrão.',
       'Registre-o com "cabecao install-client". Mensagens de diagnóstico vão para stderr.',
       '',
       'Com --consolidation (é o que "cabecao consolidate --run" passa ao agente): toda escrita vai com a sessão da',
-      'consolidação; sync, undo, handoff_save, ingest, consolidate start e, sem --allow-forget, forget são recusados.',
+      'consolidação; sync, undo, handoff_save, ingest, consolidate start e, sem --allow-forget, forget são recusados;',
+      'sem --allow-elevated, também regra, arquivo de controle, raw/ e trust: high (não há usuário para confirmar).',
     ].join('\n'),
     ownsStdout: true,
     load: () => import('./commands/mcp.ts'),

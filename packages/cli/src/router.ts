@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
 import type { ParseArgsOptionsConfig } from 'node:util';
 import { parseArgs } from 'node:util';
+import { accessOf } from './access.ts';
+import { resolveActor } from './actor.ts';
 import { COMMANDS } from './commands.ts';
 import { CliError, UsageError } from './errors.ts';
 import type { CliIo, CommandContext, CommandSpec, OptionSpec, OptionValue } from './types.ts';
@@ -12,6 +14,13 @@ import { CLI_NAME, HOMEPAGE, VERSION } from './version.ts';
 export const EXIT_OK = 0;
 export const EXIT_ERROR = 1;
 export const EXIT_USAGE = 2;
+/** A ação precisa de confirmação (`status: confirmation_required`): nada foi feito; a saída traz o resumo e o token. */
+export const EXIT_CONFIRM = 3;
+/** Recusado pela regra de quem é quem: só o usuário, num terminal interativo, faz isto. */
+export const EXIT_HUMAN_ONLY = 4;
+
+/** Códigos de erro que saem com `EXIT_HUMAN_ONLY`. */
+const HUMAN_ONLY_CODES: ReadonlySet<string> = new Set(['human_only', 'rule_requires_human']);
 
 /** Variável de ambiente alternativa a `--brain`. */
 export const BRAIN_ENV = 'CABECAO_BRAIN';
@@ -21,6 +30,11 @@ export const DEBUG_ENV = 'CABECAO_DEBUG';
 export const GLOBAL_OPTIONS: Readonly<Record<string, OptionSpec>> = {
   brain: { type: 'string', valueName: 'pasta', description: `Pasta do cérebro (ou a variável ${BRAIN_ENV})` },
   json: { type: 'boolean', description: 'Saída estruturada em JSON, para scripts e hooks' },
+  as: {
+    type: 'string',
+    valueName: 'cliente',
+    description: 'Roda como o agente <cliente> (só dá o nome para a proveniência; nunca concede nada)',
+  },
   help: { type: 'boolean', short: 'h', description: 'Mostra a ajuda' },
   version: { type: 'boolean', short: 'v', description: 'Mostra a versão' },
 };
@@ -204,6 +218,7 @@ function reportError(
     io.stderr.write(`Rode ${help} para ver ${command === undefined ? 'o que existe' : 'o uso'}.\n`);
   }
   if (error instanceof CliError && error.hint !== undefined) io.stderr.write(`${error.hint}\n`);
+  const humanOnly = error instanceof CliError && error.code !== undefined && HUMAN_ONLY_CODES.has(error.code);
   if (debug) {
     if (error instanceof Error && error.stack !== undefined) io.stderr.write(`${error.stack}\n`);
   } else if (!expected) {
@@ -213,6 +228,7 @@ function reportError(
   if (json && !ownsStdout) {
     const code = error instanceof CliError ? error.code : undefined;
     const hint = error instanceof CliError ? error.hint : undefined;
+    const details = error instanceof CliError ? error.details : undefined;
     writeJson(io, {
       ok: false,
       command: command ?? null,
@@ -220,11 +236,13 @@ function reportError(
         kind: usage ? 'usage' : 'runtime',
         message,
         ...(code === undefined ? {} : { code }),
-        ...(hint === undefined ? {} : { hint }),
+        // `next_step` é o nome do mesmo campo nas tools do servidor MCP
+        ...(hint === undefined ? {} : { hint, next_step: hint }),
+        ...(details === undefined ? {} : { details }),
       },
     });
   }
-  return usage ? EXIT_USAGE : EXIT_ERROR;
+  return usage ? EXIT_USAGE : humanOnly ? EXIT_HUMAN_ONLY : EXIT_ERROR;
 }
 
 /**
@@ -263,6 +281,26 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
     if (values.version === true) return printVersion(io, json);
     if (values.help === true) return printCommandHelp(io, json, command);
 
+    // quem roda (`actor.ts`) e a classe do comando (`access.ts`). Todo comando registrado tem classe (um teste confere);
+    // um registro injetado (testes) sem classe roda como memória: abre o cérebro com o ator resolvido, sob as regras dele
+    const actor = resolveActor({
+      env: io.env,
+      terminal: io.terminal !== undefined,
+      as: typeof values.as === 'string' ? values.as : undefined,
+    });
+    if (values.as === '') throw new UsageError('a opção --as precisa do nome do agente');
+    const access = accessOf(command.name, positionals) ?? 'memory';
+    if (access === 'human' && actor.actor === 'agent') {
+      const what = [command.name, ...(positionals[0] === undefined ? [] : [positionals[0]])].join(' ');
+      throw new CliError(
+        `"${CLI_NAME} ${what}" só roda para o usuário, num terminal interativo; ${actor.explanation}`,
+        {
+          code: 'human_only',
+          hint: `Rode no seu terminal. Nenhuma opção, variável ou configuração muda isso (veja "${CLI_NAME} help").`,
+        },
+      );
+    }
+    const terminal = io.terminal;
     const ctx: CommandContext = {
       ...io,
       command: command.name,
@@ -271,6 +309,9 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
       json,
       brain: explicitBrain(io, values),
       version: VERSION,
+      actor,
+      // só o usuário recebe pergunta; ela vai direto ao terminal controlador, nunca ao stdin
+      prompt: actor.actor === 'human' && terminal !== undefined ? (question) => terminal.prompt(question) : undefined,
     };
     const { run } = await command.load();
     const result = await run(ctx);

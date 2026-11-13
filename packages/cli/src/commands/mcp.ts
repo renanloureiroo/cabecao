@@ -21,7 +21,7 @@ export interface StdioServerOptions {
   /** Runtime de embeddings; criar não carrega nada (o modelo carrega na primeira busca que precisa dele). */
   embeddings?: EmbeddingProvider;
   /** Modo sem ninguém olhando, preso a uma consolidação (`--consolidation <id>`). */
-  unattended?: { consolidationId: string; allowForget: boolean };
+  unattended?: { consolidationId: string; allowForget: boolean; allowElevated?: boolean };
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
@@ -96,10 +96,14 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
   const consolidation =
     typeof ctx.values.consolidation === 'string' ? ctx.values.consolidation.trim().toUpperCase() : undefined;
   const allowForget = ctx.values['allow-forget'] === true;
+  const allowElevated = ctx.values['allow-elevated'] === true;
   if (consolidation !== undefined && !isUlid(consolidation)) {
     throw new UsageError('--consolidation espera o consolidation_id inteiro (26 caracteres)');
   }
   if (allowForget && consolidation === undefined) throw new UsageError('--allow-forget vale só com --consolidation');
+  if (allowElevated && consolidation === undefined) {
+    throw new UsageError('--allow-elevated vale só com --consolidation');
+  }
   const brainRoot = await resolveBrain(ctx);
   // Confere antes de subir: um cliente MCP mostra o stderr de um servidor que não sobe, e a mensagem diz o que fazer.
   try {
@@ -127,7 +131,9 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     ...(machine === undefined ? {} : { machine }),
     syncRunner: createSyncRunner(ctx, brainRoot),
     embeddings: embeddingProvider(ctx),
-    ...(consolidation === undefined ? {} : { unattended: { consolidationId: consolidation, allowForget } }),
+    ...(consolidation === undefined
+      ? {}
+      : { unattended: { consolidationId: consolidation, allowForget, allowElevated } }),
   });
   return {};
 }

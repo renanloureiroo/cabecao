@@ -165,26 +165,31 @@ describe('fluxo de escrita', { timeout: TEST_TIMEOUT_MS }, () => {
     expect((await brain.search({ query: 'Token do CI' })).hits).toEqual([]);
   });
 
-  it('regra vinda de um agente é recusada; o usuário (CLI) pode criar', async () => {
+  it('regra vinda de um agente só com confirmação (sem ela, nada é gravado); o usuário (CLI) pode criar', async () => {
     const dir = await createBrainRepo();
     const agent = await openTest(dir);
     const sha = await head(dir);
-    const remembered = await errorOf(agent.remember({ type: 'rule', title: 'Sempre X', content: 'Sempre faça X.\n' }));
-    expect(remembered.code).toBe('rule_requires_human');
-    expect(remembered.nextStep).toMatch(/preference/);
-    const page = await errorOf(
-      agent.writePage({
-        path: 'memory/rules/sempre-x.md',
-        mode: 'create',
-        frontmatter: { type: 'rule', title: 'Sempre X' },
-        content: 'Sempre.\n',
-      }),
-    );
-    expect(page.code).toBe('rule_requires_human');
-    const patch = await errorOf(
-      agent.patchPage({ path: 'memory/rules/nunca-commitar-segredos.md', old: 'Nunca grave', new: 'Grave' }),
-    );
-    expect(patch.code).toBe('rule_requires_human');
+    const remembered = await agent.remember({ type: 'rule', title: 'Sempre X', content: 'Sempre faça X.\n' });
+    expect(remembered).toMatchObject({
+      decision: 'needs_confirmation',
+      status: 'confirmation_required',
+      changed: false,
+    });
+    expect(remembered.next_step).toMatch(/pedido explícito do usuário/);
+    expect(remembered.summary).toMatch(/REGRA "Sempre X"/);
+    const page = await agent.writePage({
+      path: 'memory/rules/sempre-x.md',
+      mode: 'create',
+      frontmatter: { type: 'rule', title: 'Sempre X' },
+      content: 'Sempre.\n',
+    });
+    expect(page).toMatchObject({ status: 'confirmation_required', changed: false, commit: null, op: '' });
+    const patch = await agent.patchPage({
+      path: 'memory/rules/nunca-commitar-segredos.md',
+      old: 'Nunca grave',
+      new: 'Grave',
+    });
+    expect(patch.status).toBe('confirmation_required');
     expect(await head(dir)).toBe(sha);
 
     const human = await openTest(dir, { client: 'cli' });
@@ -200,20 +205,23 @@ describe('fluxo de escrita', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(parseCommitTrailers(await commitMessageOf(dir)).client).toBe('cli');
   });
 
-  it('write_page: create, overwrite e append; campos do Cabeção protegidos; trust high de agente rebaixado', async () => {
+  it('write_page: create, overwrite e append; campos do Cabeção protegidos; trust high de agente só com confirmação', async () => {
     const dir = await createBrainRepo();
     const brain = await openTest(dir);
-    const created = await brain.writePage({
+    const asked = {
       path: 'wiki/concepts/Backpressure.md',
       mode: 'create',
       frontmatter: { type: 'concept', title: 'Backpressure', tags: ['filas'], origin: 'human', trust: 'high', id: 'X' },
       content: '# Backpressure\n\nQuando o consumidor não dá conta.\n',
-    });
+    } as const;
+    const pending = await brain.writePage(asked);
+    expect(pending).toMatchObject({ status: 'confirmation_required', changed: false });
+    expect(pending.reasons?.join(' ')).toMatch(/trust: high/);
+    const created = await brain.writePage({ ...asked, frontmatter: { ...asked.frontmatter, trust: 'medium' } });
     expect(created).toMatchObject({ action: 'add', path: 'wiki/concepts/Backpressure.md', changed: true });
     expect(created.warnings.map((w) => `${w.code}:${w.field}`).sort()).toEqual([
       'ignored_field:id',
       'ignored_field:origin',
-      'trust_lowered:trust',
     ]);
     let text = await readText(dir, created.path);
     expect(text).toMatch(/\norigin: agent:teste\n/);

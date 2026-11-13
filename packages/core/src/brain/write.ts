@@ -53,16 +53,34 @@ import {
   validateNote,
   writeIndexMd,
 } from '../vault/index.ts';
+import type { Approval, ConfirmationFields, ConfirmOptions, Elevation } from './confirm.ts';
+import {
+  approvalFields,
+  approvedLine,
+  approvedTrailer,
+  ConfirmationNeeded,
+  candidateApproval,
+  confirmationRequest,
+  digestOf,
+  gatesElevation,
+  sourcesNotice,
+  tokenOf,
+  verifyConfirmToken,
+} from './confirm.ts';
 import type { BrainContext, WriteStep } from './context.ts';
 import { machineName, rescan, withFreshIndex, withWriteLock } from './context.ts';
+import { controlTarget, patchControl, writeControl } from './control.ts';
 import type { IssueOutput, SecretHit } from './errors.ts';
 import { BrainError, issueOutput, toBrainError } from './errors.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Tipos públicos
 
-/** Resultado de toda escrita. */
-export interface WriteOutput {
+/**
+ * Resultado de toda escrita. Numa ação elevada sem confirmação (`status: "confirmation_required"`), nada foi feito:
+ * `op` vem vazio, `changed` é `false` e `summary`, `confirm_token` e `next_step` dizem o que fazer.
+ */
+export interface WriteOutput extends ConfirmationFields {
   /** ULID da operação (rodapé `Cabecao-Op`); é o que se passa ao `undo`. */
   readonly op: string;
   readonly path: string;
@@ -108,6 +126,8 @@ export interface RememberInput {
    * `create`, `skip`, `update:<id>` ou `supersede:<id>`, com o id de uma das candidatas.
    */
   readonly resolution?: string;
+  /** O token da primeira chamada de uma ação elevada (uma regra): só com pedido explícito do usuário. */
+  readonly confirm_token?: string;
 }
 
 /**
@@ -129,6 +149,8 @@ export interface WritePageInput {
   readonly content: string;
   readonly mode: WriteMode;
   readonly session_handle?: string;
+  /** O token da primeira chamada de uma ação elevada: só com pedido explícito do usuário. */
+  readonly confirm_token?: string;
 }
 
 export interface PatchPageInput {
@@ -137,6 +159,8 @@ export interface PatchPageInput {
   readonly old: string;
   readonly new: string;
   readonly session_handle?: string;
+  /** O token da primeira chamada de uma ação elevada: só com pedido explícito do usuário. */
+  readonly confirm_token?: string;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -161,10 +185,10 @@ export function warning(code: string, field: string | null, message: string): Is
 export function ruleRefused(): BrainError {
   return new BrainError(
     'rule_requires_human',
-    'regras (type: rule) só o usuário cria e altera; um agente não pode gravá-las',
+    'regras (type: rule) vindas de um agente só com pedido explícito do usuário, pelo fluxo de confirmação',
     {
       nextStep:
-        'Grave como preferência (type: preference) ou proponha a regra ao usuário; ele a cria com a CLI ou no Obsidian.',
+        'Use remember ou write_page: a primeira chamada devolve o resumo e o confirm_token; só repita com o token se o usuário pedir. Sem pedido, grave como preferência (type: preference).',
     },
   );
 }
@@ -173,11 +197,28 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Campos que o Cabeção preenche; o que vier do chamador nesses campos é ignorado. */
-const MANAGED_ON_CREATE = ['id', 'created', 'updated', 'origin', 'edited_by'] as const;
+const MANAGED_ON_CREATE = ['id', 'created', 'updated', 'origin', 'edited_by', 'approved_by', 'approved_at'] as const;
 /** Campos que o Cabeção preenche numa alteração; o que vier do chamador nesses campos é ignorado. */
-const MANAGED_ON_UPDATE: ReadonlySet<string> = new Set(['origin', 'created', 'updated', 'edited_by']);
+const MANAGED_ON_UPDATE: ReadonlySet<string> = new Set([
+  'origin',
+  'created',
+  'updated',
+  'edited_by',
+  'approved_by',
+  'approved_at',
+]);
 /** Campos mantidos num `overwrite` mesmo quando o frontmatter enviado não os traz. */
-const KEPT_ON_OVERWRITE = new Set(['id', 'type', 'created', 'updated', 'origin', 'trust', 'edited_by']);
+const KEPT_ON_OVERWRITE = new Set([
+  'id',
+  'type',
+  'created',
+  'updated',
+  'origin',
+  'trust',
+  'edited_by',
+  'approved_by',
+  'approved_at',
+]);
 
 /** `type: rule`, com qualquer caixa e espaço em volta (o banco guarda o tipo sem os espaços). */
 export const isRuleType = (value: unknown): boolean =>
@@ -189,7 +230,83 @@ const RULES_DIR_PREFIX = `${NOTE_TYPE_DIRS.rule.toLowerCase()}/`;
 const RAW_DIR_PREFIX = `${RAW_DIR.toLowerCase()}/`;
 
 /**
- * O que um agente nunca grava, qualquer que seja a tool ou o modo (o usuário, pela CLI, não passa por aqui):
+ * Cópia de conflito do sync: um agente nunca cria nem altera uma (proteção técnica: só o sync as cria), com ou sem
+ * confirmação. `path` já vem canônico.
+ */
+export function assertNotConflictCopy(ctx: BrainContext, path: string): void {
+  if (ctx.actor === 'human') return;
+  if (isConflictCopyPath(path) || isConflictCopyPath(path.toLowerCase())) {
+    throw new BrainError(
+      'invalid_path',
+      `${path} tem o formato de uma cópia de conflito do sync (nota.conflict-<máquina>-<data>.md); só o sync cria essas cópias, e um agente não cria nem altera uma`,
+      {
+        details: { path },
+        nextStep:
+          'Para resolver um conflito, leia a cópia e junte o que importa na nota original (o caminho sem ".conflict-..."); apagar a cópia é com o usuário. Para uma nota nova, escolha outro nome.',
+      },
+    );
+  }
+}
+
+/** O que torna elevada a escrita numa nota (decisão 37): os motivos, para o resumo da confirmação. */
+export interface NoteElevationInput {
+  readonly path: string;
+  readonly kind: 'create' | 'update';
+  /** `type` enviado (frontmatter da criação ou da alteração). */
+  readonly givenType?: unknown;
+  /** Frontmatter atual da nota, numa alteração. */
+  readonly before?: Readonly<Record<string, unknown>>;
+  /** O chamador pediu `trust: high` (e a nota ainda não tinha). */
+  readonly trustHigh?: boolean;
+}
+
+/**
+ * Motivos que tornam elevada uma escrita numa nota. Vazio quando a escrita é comum, ou quando quem escreve é o usuário
+ * sem a confirmação ligada (`confirmElevated`). Para o usuário só contam regra, `raw/` e arquivo de instrução; para um
+ * agente também `trust: high` e uma nota que o usuário aprovou.
+ */
+export function noteElevationReasons(ctx: BrainContext, input: NoteElevationInput): string[] {
+  if (!gatesElevation(ctx)) return [];
+  const reasons: string[] = [];
+  const key = input.path.toLowerCase();
+  if (isRuleType(input.givenType) || isRuleType(input.before?.type) || key.startsWith(RULES_DIR_PREFIX)) {
+    reasons.push('regra (type: rule ou memory/rules/): vira instrução para os agentes nos próximos recall');
+  }
+  if (isBrainControlFile(input.path, ctx.config) || isClientInstructionFile(input.path)) {
+    reasons.push(
+      'arquivo com nome de instrução de cliente de IA: clientes como Claude Code, Codex e Gemini CLI o carregam como instrução',
+    );
+  }
+  if (input.kind === 'update' && key.startsWith(RAW_DIR_PREFIX)) {
+    reasons.push(`fonte imutável de ${RAW_DIR}/: alterar muda o registro do que foi ingerido`);
+  }
+  if (ctx.actor === 'agent') {
+    if (input.trustHigh === true) reasons.push('"trust: high": a confiança que é do usuário');
+    const approved = input.before?.approved_by;
+    if (typeof approved === 'string' && approved.trim() !== '' && !reasons.some((r) => r.startsWith('regra'))) {
+      reasons.push('nota aprovada pelo usuário (approved_by): alterar exige a mesma aprovação');
+    }
+  }
+  return reasons;
+}
+
+/** Resumo de uma escrita em nota, para a confirmação. */
+export function noteSummary(
+  action: string,
+  path: string,
+  reasons: readonly string[],
+  content: string,
+  extra = '',
+): string {
+  const flat = content.replace(/\s+/g, ' ').trim();
+  const start = flat.length <= 280 ? flat : `${flat.slice(0, 280)}…`;
+  return `${action} ${path}${extra === '' ? '' : ` (${extra})`}. Por quê pede confirmação: ${reasons.join('; ')}. Conteúdo: ${content.length.toLocaleString('pt-BR')} caracteres, começando com "${start}"`;
+}
+
+/**
+ * O que um agente nunca grava SEM CONFIRMAÇÃO, nos caminhos que não têm o fluxo de confirmação (a ingestão, que só
+ * cria fontes em `raw/`). As escritas com confirmação (`write_page`, `patch_page`, `remember`, `relate`) usam
+ * `noteElevationReasons`. O usuário, pela CLI, não passa por aqui:
  *
  * - os arquivos de controle do cérebro (`AGENTS.md`, `CLAUDE.md`, catálogo, diário...), mesmo com `noteDirs: ["."]`;
  * - em QUALQUER pasta, um arquivo com nome de instrução de cliente de IA (`CLIENT_INSTRUCTION_FILES` do vault:
@@ -259,11 +376,27 @@ export function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'crea
 export function agentEditProvenance(
   ctx: BrainContext,
   before: Readonly<Record<string, unknown>>,
+  approval: Approval | null = null,
 ): { fields: Record<string, unknown>; warning: IssueOutput } | null {
   if (ctx.actor === 'human') return null;
   const trust = fieldKey(before.trust);
   const origin = fieldKey(before.origin);
   const byAgent = typeof origin === 'string' && origin.startsWith('agent:');
+  if (approval !== null) {
+    // alteração confirmada pelo usuário: a confiança fica como está, e a nota registra o agente e a aprovação
+    const fields: Record<string, unknown> = {
+      ...(byAgent ? {} : { edited_by: `agent:${ctx.client}` }),
+      ...approvalFields(ctx, approval),
+    };
+    return {
+      fields,
+      warning: warning(
+        'approved',
+        'approved_by',
+        `alteração feita por um agente com confirmação do usuário: gravada com "approved_by: user"${byAgent ? '' : ` e "edited_by: agent:${ctx.client}"`}`,
+      ),
+    };
+  }
   if (byAgent && trust !== 'high') return null;
   const lower = trust === 'high' || ((trust === undefined || trust === null || trust === '') && origin === 'human');
   const editedBy = `agent:${ctx.client}`;
@@ -586,6 +719,8 @@ export async function commitMessage(
     client: string;
     body: readonly (string | CommitChange)[];
     numFiles: number;
+    /** Rodapé `Cabecao-Approved` de uma ação confirmada pelo usuário. */
+    approved?: string;
   },
 ): Promise<string> {
   const commit = ctx.config.commit;
@@ -600,6 +735,7 @@ export async function commitMessage(
       machine: await machineName(ctx),
       client: input.client,
       ...(input.session === undefined ? {} : { session: input.session }),
+      ...(input.approved === undefined ? {} : { approved: input.approved }),
     },
   });
 }
@@ -648,7 +784,21 @@ export interface Prepared {
   apply(previous: readonly WriteResult[]): Promise<WriteResult>;
   /** Linha do corpo do commit; padrão: `toCommitChange(result)` (`add gotcha: título`). */
   change?(result: WriteResult): CommitChange;
+  /** A escrita é elevada (decisão 37): só com confirmação. Ausente ou sem motivos: escrita comum. */
+  readonly elevation?: Elevation;
 }
+
+/** Confirmação de uma escrita: a tool (para o token e as mensagens), o token enviado e as opções de quem chama. */
+export interface WriteConfirm {
+  readonly tool: string;
+  readonly token?: string | undefined;
+  readonly options?: ConfirmOptions | undefined;
+  /** Já conferida por quem chama (o `remember` confere antes da procura de duplicatas). */
+  readonly approved?: Approval | null;
+}
+
+/** Monta a função `prepare` recebe a configuração e a aprovação candidata (que só vale se a escrita for elevada). */
+export type PrepareBatch = (config: BrainConfig, approval: Approval | null) => Promise<PreparedBatch>;
 
 /**
  * Uma operação que grava várias notas num commit só (doc 12: "uma operação que toca várias notas é um commit, com
@@ -671,6 +821,8 @@ export interface BatchOutput {
   readonly warnings: readonly IssueOutput[];
   /** Linhas do corpo do commit (sem o cabeçalho), uma por nota alterada. */
   readonly changes: readonly string[];
+  /** A aprovação que valeu, numa escrita elevada; `null` numa escrita comum. */
+  readonly approval: Approval | null;
 }
 
 type Snapshot = Map<string, Buffer | null>;
@@ -732,9 +884,30 @@ export async function refreshForWrite(ctx: BrainContext): Promise<string> {
 export async function executeWrite(
   ctx: BrainContext,
   sessionHandle: unknown,
-  prepare: (config: BrainConfig) => Promise<Prepared>,
+  prepare: (config: BrainConfig, approval: Approval | null) => Promise<Prepared>,
+  confirm?: WriteConfirm,
 ): Promise<WriteOutput> {
-  const out = await executeBatch(ctx, sessionHandle, async (config) => ({ steps: [await prepare(config)] }));
+  let out: BatchOutput;
+  try {
+    out = await executeBatch(
+      ctx,
+      sessionHandle,
+      async (config, approval) => ({ steps: [await prepare(config, approval)] }),
+      confirm,
+    );
+  } catch (error) {
+    if (!(error instanceof ConfirmationNeeded)) throw error;
+    return {
+      op: '',
+      path: error.path,
+      id: null,
+      action: error.action,
+      changed: false,
+      commit: null,
+      warnings: [],
+      ...error.request,
+    };
+  }
   const result = out.results[0];
   if (result === undefined) throw new BrainError('invalid_argument', 'a escrita não montou nenhuma nota');
   return {
@@ -745,6 +918,7 @@ export async function executeWrite(
     changed: out.changed,
     commit: out.commit,
     warnings: out.warnings,
+    ...(out.approval === null ? {} : { confirmed_by: out.approval.by }),
     ...(out.changed ? {} : { next_step: 'A nota já estava assim; nada foi gravado.' }),
   };
 }
@@ -757,29 +931,50 @@ export async function executeWrite(
 export async function executeBatch(
   ctx: BrainContext,
   sessionHandle: unknown,
-  prepare: (config: BrainConfig) => Promise<PreparedBatch>,
+  prepare: PrepareBatch,
+  confirm?: WriteConfirm,
 ): Promise<BatchOutput> {
   const session = sessionOf(sessionHandle);
-  return withWriteLock(ctx, () => executeBatchLocked(ctx, session, prepare));
+  return withWriteLock(ctx, () => executeBatchLocked(ctx, session, prepare, confirm));
+}
+
+/** Junta as elevações dos passos de uma operação; `null` quando nenhum passo é elevado. */
+function mergedElevation(steps: readonly Prepared[]): Elevation | null {
+  const elevated = steps.flatMap((step) =>
+    step.elevation === undefined || step.elevation.reasons.length === 0 ? [] : [step.elevation],
+  );
+  if (elevated.length === 0) return null;
+  return {
+    reasons: [...new Set(elevated.flatMap((item) => item.reasons))],
+    summary: elevated.map((item) => item.summary).join(' Também: '),
+    parts: [digestOf(elevated.map((item) => item.parts))],
+  };
 }
 
 /** `executeBatch` para quem já segura a trava de escrita. */
 export async function executeBatchLocked(
   ctx: BrainContext,
   session: string | undefined,
-  prepare: (config: BrainConfig) => Promise<PreparedBatch>,
+  prepare: PrepareBatch,
+  confirm?: WriteConfirm,
 ): Promise<BatchOutput> {
   const op = ulid();
   const head = await refreshForWrite(ctx);
+  const token = tokenOf(confirm?.token);
+  const candidate =
+    confirm?.approved !== undefined && confirm.approved !== null
+      ? confirm.approved
+      : candidateApproval(ctx, token, confirm?.options);
 
   // 1. Validação (argumentos, caminho, esquema).
   let batch: PreparedBatch;
   try {
-    batch = await prepare(ctx.config);
+    batch = await prepare(ctx.config, gatesElevation(ctx) ? candidate : null);
   } catch (error) {
     throw toBrainError(error);
   }
   if (batch.steps.length === 0) throw new BrainError('invalid_argument', 'a operação não tem nada a gravar');
+  const elevation = gatesElevation(ctx) ? mergedElevation(batch.steps) : null;
 
   // 2. Scanner de segredos: no conteúdo, nos campos, no caminho e nas edições de fora que iriam junto. As edições
   // de fora são do usuário (o marcador vale nelas); o texto da operação vale pelo `actor`.
@@ -809,6 +1004,26 @@ export async function executeBatchLocked(
     }
   }
   if (secrets.length > 0) throw secretError(secrets);
+
+  // 2b. Ação elevada (decisão 37): sem confirmação, nada é gravado e volta o resumo com o token. Uma aprovação já
+  // conferida por quem chama (o `remember`) vale para a operação inteira.
+  let approval: Approval | null = confirm?.approved ?? null;
+  if (elevation !== null && approval === null) {
+    const tool = confirm?.tool ?? 'write_page';
+    if (candidate === null) {
+      const first = batch.steps.find((step) => (step.elevation?.reasons.length ?? 0) > 0);
+      throw new ConfirmationNeeded(await confirmationRequest(ctx, tool, elevation, session ?? ''), {
+        path: first?.elevation?.path ?? first?.target?.path ?? '',
+        action: first?.target === null || first?.target === undefined ? 'add' : 'update',
+      });
+    } else {
+      if (candidate.by === 'token' && token !== undefined) {
+        await verifyConfirmToken(ctx, tool, elevation.parts, session ?? '', token, tool);
+      }
+      approval = candidate;
+    }
+  }
+
   if (pending.length > 0) {
     try {
       await commitPendingEdits(ctx, pending);
@@ -841,7 +1056,7 @@ export async function executeBatchLocked(
     return result === undefined || !result.changed ? null : (step.change?.(result) ?? toCommitChange(result));
   });
   const changes = lines.filter((line): line is CommitChange => line !== null).map(formatChangeLine);
-  if (changes.length === 0) return { op, commit: null, results, changed: false, warnings, changes };
+  if (changes.length === 0) return { op, commit: null, results, changed: false, warnings, changes, approval };
 
   const before = await headSha(ctx.root).catch(() => head);
   try {
@@ -871,25 +1086,28 @@ export async function executeBatchLocked(
       ]),
     ];
     const header = batch.header?.trim();
+    const body: (string | CommitChange)[] =
+      header === undefined || header === ''
+        ? lines.filter((line): line is CommitChange => line !== null)
+        : [header, ...changes.map((line) => `- ${line}`)];
+    if (approval !== null && ctx.actor === 'agent') body.push(approvedLine(approval));
     const message = await commitMessage(ctx, {
       op,
       session,
       client: ctx.client,
-      body:
-        header === undefined || header === ''
-          ? lines.filter((line): line is CommitChange => line !== null)
-          : [header, ...changes.map((line) => `- ${line}`)],
+      body,
       numFiles: paths.length,
+      ...(approval !== null && ctx.actor === 'agent' ? { approved: approvedTrailer(approval) } : {}),
     });
     const commit = await commitPaths(ctx.root, paths, message);
-    return { op, commit, results, changed: true, warnings, changes };
+    return { op, commit, results, changed: true, warnings, changes, approval };
   } catch (error) {
     // o commit pode ter saído e a falha ter vindo depois (ao ler o HEAD): aí a operação valeu
     const now = await headSha(ctx.root).catch(() => before);
     if (now !== null && now !== before) {
       const shown = await git(ctx, ['log', '-1', '--format=%B', now]);
       if (parseCommitTrailers(shown.stdout).op === op) {
-        return { op, commit: now, results, changed: true, warnings, changes };
+        return { op, commit: now, results, changed: true, warnings, changes, approval };
       }
     }
     await rollback(ctx, snapshot);
@@ -900,8 +1118,11 @@ export async function executeBatchLocked(
 // ---------------------------------------------------------------------------------------------------------------
 // remember
 
-/** Confere o que não depende da configuração: o objeto, o tipo, a regra e o conteúdo. Devolve o tipo. */
-export function checkMemoryInput(ctx: BrainContext, input: RememberInput): NoteType {
+/**
+ * Confere o que não depende da configuração: o objeto, o tipo e o conteúdo. Devolve o tipo. Uma regra vinda de agente
+ * só passa com `approval` (a confirmação é conferida antes, por quem chama).
+ */
+export function checkMemoryInput(ctx: BrainContext, input: RememberInput, approval: Approval | null = null): NoteType {
   if (!isRecord(input)) throw invalid('remember precisa de um objeto com content e type');
   if (!isNoteType(input.type)) {
     throw invalid(
@@ -909,7 +1130,7 @@ export function checkMemoryInput(ctx: BrainContext, input: RememberInput): NoteT
     );
   }
   const type: NoteType = input.type;
-  if (type === 'rule' && ctx.actor !== 'human') throw ruleRefused();
+  if (type === 'rule' && ctx.actor !== 'human' && approval === null) throw ruleRefused();
   if (typeof input.content !== 'string') throw invalid('"content" deveria ser um texto');
   assertNoLeadingBom(ctx, input.content);
   return type;
@@ -923,15 +1144,17 @@ export interface PreparedMemory extends Prepared {
 
 /**
  * Valida e monta a nota de uma memória nova (o passo `create` do `remember`). `extra` são campos que o Cabeção
- * acrescenta (o `supersedes` de uma substituição), já validados por quem chama.
+ * acrescenta (o `supersedes` de uma substituição), já validados por quem chama. `approval`: a regra foi confirmada
+ * pelo usuário (vai para `approved_by` e `approved_at`).
  */
 export function prepareMemory(
   ctx: BrainContext,
   input: RememberInput,
   config: BrainConfig,
   extra: Readonly<Record<string, unknown>> = {},
+  approval: Approval | null = null,
 ): PreparedMemory {
-  const type = checkMemoryInput(ctx, input);
+  const type = checkMemoryInput(ctx, input, approval);
   const now = ctx.now();
   const day = localDate(now);
   const origin = ctx.actor === 'human' ? 'human' : `agent:${ctx.client}`;
@@ -973,6 +1196,7 @@ export function prepareMemory(
   }
 
   assertAgentFields(ctx, fields);
+  const approved = type === 'rule' ? approvalFields(ctx, approval) : {};
   const frontmatter: Record<string, unknown> = {
     id: ulid(now.getTime()),
     type,
@@ -980,6 +1204,7 @@ export function prepareMemory(
     ...extra,
     trust: ctx.actor === 'human' ? 'high' : 'medium',
     origin,
+    ...approved,
     created: day,
     updated: day,
   };
@@ -1011,17 +1236,15 @@ export async function createMemory(ctx: BrainContext, input: RememberInput): Pro
 // ---------------------------------------------------------------------------------------------------------------
 // write_page
 
-/** `trust` enviado por um agente: nunca `high` (isso é do usuário). Devolve o valor a gravar e o aviso, se houver. */
-function agentTrust(ctx: BrainContext, value: unknown): { trust: unknown; warning: IssueOutput | null } {
-  if (ctx.actor === 'agent' && value === 'high') {
-    return {
-      trust: 'medium',
-      warning: warning('trust_lowered', 'trust', '"trust: high" é só do usuário; a nota foi gravada com "medium"'),
-    };
-  }
-  return { trust: value, warning: null };
-}
+/** `trust: high` enviado por um agente: é elevado (só com confirmação). */
+const asksTrustHigh = (ctx: BrainContext, value: unknown): boolean =>
+  ctx.actor === 'agent' && typeof value === 'string' && value.trim().toLowerCase() === 'high';
 
+/**
+ * Lê uma nota existente para alterá-la: caminho canônico (com a grafia do disco), dentro das pastas de notas e que
+ * não é cópia de conflito (para um agente). As restrições de AUTORIDADE (regra, `raw/`...) não moram aqui: quem altera
+ * calcula a elevação com `noteElevationReasons` e passa pelo fluxo de confirmação.
+ */
 export async function existingNote(ctx: BrainContext, path: string): Promise<NoteRead> {
   // a grafia do disco (`wiki/entities/sqs.md` → `SQS.md`): é o nome que o git conhece, e é com ele que as
   // conferências abaixo (raw/, memory/rules/, arquivos de controle) não são contornadas por outra caixa
@@ -1035,9 +1258,32 @@ export async function existingNote(ctx: BrainContext, path: string): Promise<Not
       },
     );
   }
-  assertAgentMayWrite(ctx, canonical, 'update');
-  const read = await readNote(ctx.root, canonical);
-  if (ctx.actor !== 'human' && isRuleType(read.note.frontmatter.type)) throw ruleRefused();
+  assertNotConflictCopy(ctx, canonical);
+  return readNote(ctx.root, canonical);
+}
+
+/**
+ * `existingNote` para quem confirma ANTES (o `remember`): recusa a nota elevada sem aprovação, com a explicação de
+ * como fazer.
+ */
+export async function existingNoteApproved(
+  ctx: BrainContext,
+  path: string,
+  approval: Approval | null,
+): Promise<NoteRead> {
+  const read = await existingNote(ctx, path);
+  const reasons = noteElevationReasons(ctx, { path: read.path, kind: 'update', before: read.note.frontmatter });
+  if (reasons.length > 0 && approval === null) {
+    if (reasons.some((reason) => reason.startsWith('regra'))) throw ruleRefused();
+    throw new BrainError(
+      'invalid_path',
+      `${read.path} só se altera com confirmação do usuário: ${reasons.join('; ')}`,
+      {
+        details: { path: read.path },
+        nextStep: 'Use write_page ou patch_page nessa nota: a primeira chamada devolve o resumo e o confirm_token.',
+      },
+    );
+  }
   return read;
 }
 
@@ -1075,201 +1321,282 @@ export function checkUpdate(
   if (introduced.length > 0) throw invalidNote(read.path, introduced);
 }
 
-export async function writePage(ctx: BrainContext, input: WritePageInput): Promise<WriteOutput> {
+/** As partes que o token amarra numa escrita em nota: o que será gravado e o conteúdo atual do alvo. */
+export function noteParts(action: string, path: string, payload: unknown, current: string | null): string[] {
+  return [action, path, digestOf(payload), digestOf(current ?? '\u0000none')];
+}
+
+export async function writePage(
+  ctx: BrainContext,
+  input: WritePageInput,
+  options: ConfirmOptions = {},
+): Promise<WriteOutput> {
   if (!isRecord(input)) throw invalid('write_page precisa de um objeto com path, content e mode');
   if (!WRITE_MODES.includes(input.mode)) throw invalid('"mode" deveria ser "create", "overwrite" ou "append"');
   if (typeof input.path !== 'string' || input.path === '') throw invalid('"path" deveria ser o caminho da nota');
   if (typeof input.content !== 'string') throw invalid('"content" deveria ser um texto');
   if (input.frontmatter !== undefined && !isRecord(input.frontmatter))
     throw invalid('"frontmatter" deveria ser um objeto');
-  const given: Readonly<Record<string, unknown>> = input.frontmatter ?? {};
+  const token = tokenOf(input.confirm_token);
   assertAgentText(ctx, input.path, 'o caminho', 'path');
+  // arquivo de controle (AGENTS.md, CLAUDE.md, .cabecao.json...): texto puro, sempre elevado para um agente
+  const control = controlTarget(input.path, ctx.config);
+  if (control !== null) return writeControl(ctx, control, input, token, options);
+  const given: Readonly<Record<string, unknown>> = input.frontmatter ?? {};
   assertAgentFields(ctx, given);
+  const confirm: WriteConfirm = { tool: 'write_page', token, options };
 
-  return executeWrite(ctx, input.session_handle, async (config) => {
-    const now = ctx.now();
-    const day = localDate(now);
-    const warnings: IssueOutput[] = [];
+  return executeWrite(
+    ctx,
+    input.session_handle,
+    async (config, approval) => {
+      const now = ctx.now();
+      const day = localDate(now);
+      const warnings: IssueOutput[] = [];
 
-    if (input.mode === 'create') {
-      const path = (await diskCasePath(ctx.root, assertNotePath(input.path))).path;
-      if (!isInNoteDirs(path, config)) {
-        throw new BrainError(
-          'invalid_path',
-          `${path} fica fora das pastas de notas do cérebro (${config.noteDirs.join(', ')})`,
-          {
+      if (input.mode === 'create') {
+        const path = (await diskCasePath(ctx.root, assertNotePath(input.path))).path;
+        if (!isInNoteDirs(path, config)) {
+          throw new BrainError(
+            'invalid_path',
+            `${path} fica fora das pastas de notas do cérebro (${config.noteDirs.join(', ')})`,
+            {
+              details: { path },
+            },
+          );
+        }
+        const type = given.type;
+        if (!isNoteType(type)) {
+          throw new BrainError(
+            'invalid_note',
+            `"frontmatter.type" deveria ser um tipo de nota; veio ${JSON.stringify(type)}`,
+            {
+              details: { path },
+              nextStep: 'Informe frontmatter.type (concept, entity, decision, preference, gotcha...).',
+            },
+          );
+        }
+        assertNotConflictCopy(ctx, path);
+        if ((await fileStamp(await resolveVaultPath(ctx.root, path))) !== null) {
+          throw new BrainError('already_exists', `já existe uma nota em ${path}`, {
             details: { path },
-          },
-        );
-      }
-      const type = given.type;
-      if (!isNoteType(type)) {
-        throw new BrainError(
-          'invalid_note',
-          `"frontmatter.type" deveria ser um tipo de nota; veio ${JSON.stringify(type)}`,
-          {
-            details: { path },
-            nextStep: 'Informe frontmatter.type (concept, entity, decision, preference, gotcha...).',
-          },
-        );
-      }
-      if (type === 'rule' && ctx.actor !== 'human') throw ruleRefused();
-      assertAgentMayWrite(ctx, path, 'create');
-      if ((await fileStamp(await resolveVaultPath(ctx.root, path))) !== null) {
-        throw new BrainError('already_exists', `já existe uma nota em ${path}`, {
-          details: { path },
-          nextStep: 'Use mode "overwrite" ou "append", ou escolha outro caminho.',
+            nextStep: 'Use mode "overwrite" ou "append", ou escolha outro caminho.',
+          });
+        }
+        const fields: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(given)) {
+          if ((MANAGED_ON_CREATE as readonly string[]).includes(key)) {
+            warnings.push(
+              warning('ignored_field', key, `"${key}" é preenchido pelo Cabeção; o valor enviado foi ignorado`),
+            );
+          } else if (value !== undefined) {
+            fields[key] = value;
+          }
+        }
+        const reasons = noteElevationReasons(ctx, {
+          path,
+          kind: 'create',
+          givenType: type,
+          trustHigh: asksTrustHigh(ctx, fields.trust),
         });
+        const approved = reasons.length > 0 ? approval : null;
+        const origin = ctx.actor === 'human' ? 'human' : `agent:${ctx.client}`;
+        const frontmatter: Record<string, unknown> = {
+          ...fields,
+          id: ulid(now.getTime()),
+          origin,
+          ...approvalFields(ctx, approved),
+          created: day,
+          updated: day,
+        };
+        // na primeira chamada (sem aprovação), a nota elevada é validada como ficaria aprovada: o que se confere aqui
+        // é o resto dela, para o usuário não confirmar algo que depois seria recusado
+        const probe =
+          reasons.length > 0 && approved === null
+            ? { ...frontmatter, ...approvalFields(ctx, { by: 'token', day }) }
+            : frontmatter;
+        const issues = validateNote({ frontmatter: probe, path }, config);
+        if (hasErrors(issues)) throw invalidNote(path, issues);
+        assertNoLeadingBom(ctx, input.content);
+        const { type: _type, ...scanned } = fields;
+        return {
+          target: null,
+          // o caminho também: ele vai para o nome do arquivo, para o commit e para o index.md
+          checks: [
+            { where: 'content', field: null, text: input.content },
+            { where: 'path', field: 'path', text: path },
+            ...frontmatterTargets(scanned, config),
+          ],
+          warnings,
+          ...(reasons.length === 0
+            ? {}
+            : {
+                elevation: {
+                  reasons,
+                  path,
+                  summary: `${noteSummary('Criar a nota', path, reasons, input.content, `type: ${type}`)}.${sourcesNotice(fields.sources)}`,
+                  parts: noteParts('create', path, { fields, content: input.content }, null),
+                },
+              }),
+          apply: () => createNote(ctx.root, config, { type, origin, path, body: input.content, frontmatter, now }),
+        };
       }
-      const fields: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(given)) {
-        if ((MANAGED_ON_CREATE as readonly string[]).includes(key)) {
-          warnings.push(
-            warning('ignored_field', key, `"${key}" é preenchido pelo Cabeção; o valor enviado foi ignorado`),
-          );
-        } else if (value !== undefined) {
-          fields[key] = value;
-        }
-      }
-      const { trust, warning: lowered } = agentTrust(ctx, fields.trust);
-      if (lowered !== null) warnings.push(lowered);
-      const origin = ctx.actor === 'human' ? 'human' : `agent:${ctx.client}`;
-      const frontmatter: Record<string, unknown> = {
-        ...fields,
-        id: ulid(now.getTime()),
-        origin,
-        ...(trust === undefined ? {} : { trust }),
-        created: day,
-        updated: day,
-      };
-      const issues = validateNote({ frontmatter, path }, config);
-      if (hasErrors(issues)) throw invalidNote(path, issues);
-      assertNoLeadingBom(ctx, input.content);
-      const { type: _type, ...scanned } = fields;
-      return {
-        target: null,
-        // o caminho também: ele vai para o nome do arquivo, para o commit e para o index.md
-        checks: [
-          { where: 'content', field: null, text: input.content },
-          { where: 'path', field: 'path', text: path },
-          ...frontmatterTargets(scanned, config),
-        ],
-        warnings,
-        apply: () => createNote(ctx.root, config, { type, origin, path, body: input.content, frontmatter, now }),
-      };
-    }
 
-    // regra só o usuário cria: nem trocando o tipo, nem dando tipo a uma nota que não tinha
-    if (ctx.actor !== 'human' && isRuleType(given.type)) throw ruleRefused();
-    const read = await existingNote(ctx, input.path);
-    const set: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(given)) {
-      if (value === undefined) continue;
-      if (MANAGED_ON_UPDATE.has(key)) {
-        if (value !== read.note.frontmatter[key]) {
-          warnings.push(
-            warning('ignored_field', key, `"${key}" é preenchido pelo Cabeção; o valor enviado foi ignorado`),
-          );
+      const read = await existingNote(ctx, input.path);
+      const set: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(given)) {
+        if (value === undefined) continue;
+        if (MANAGED_ON_UPDATE.has(key)) {
+          if (value !== read.note.frontmatter[key]) {
+            warnings.push(
+              warning('ignored_field', key, `"${key}" é preenchido pelo Cabeção; o valor enviado foi ignorado`),
+            );
+          }
+          continue;
         }
-        continue;
+        set[key] = value;
       }
-      set[key] = value;
-    }
-    if ('trust' in set) {
-      const { trust, warning: lowered } = agentTrust(ctx, set.trust);
-      set.trust = trust;
-      if (lowered !== null) warnings.push(lowered);
-    }
-    const remove =
-      input.mode === 'overwrite' && input.frontmatter !== undefined
-        ? Object.keys(read.note.frontmatter).filter((key) => !KEPT_ON_OVERWRITE.has(key) && !(key in set))
-        : [];
-    let body = input.content;
-    if (input.mode === 'append') {
-      const current = read.note.body;
-      const eol = current.includes('\r\n') ? '\r\n' : '\n';
-      const base = current === '' || current.endsWith('\n') ? current : `${current}${eol}`;
-      const gap = base === '' || /\r?\n\r?\n$/.test(base) || base.trim() === '' ? '' : eol;
-      body = `${base}${gap}${input.content}`;
-    }
-    const before = read.note.frontmatter;
-    const sameText = (a: string, b: string): boolean => a.replace(/\r\n/g, '\n') === b.replace(/\r\n/g, '\n');
-    const changes =
-      !sameText(body, read.note.body) ||
-      Object.entries(set).some(([key, value]) => !isDeepStrictEqual(value, before[key])) ||
-      remove.some((key) => key in before);
-    const provenance = changes ? agentEditProvenance(ctx, before) : null;
-    if (provenance !== null) {
-      Object.assign(set, provenance.fields);
-      warnings.push(provenance.warning);
-    }
-    checkUpdate(read, set, remove, day, config);
-    assertNoLeadingBom(ctx, body, input.mode === 'append' ? read.note.body : '');
-    return {
-      target: { path: read.path, diskPath: read.diskPath },
-      // todos os campos enviados (um que não mudou já está commitado e não é acusado)
-      checks: [{ where: 'content', field: null, text: body }, ...frontmatterTargets(set, config, before)],
-      warnings,
-      apply: () =>
-        updateNote(
-          ctx.root,
-          read.diskPath,
-          { frontmatter: set, remove, body },
-          { config, now, ifUnchangedSince: read.stamp },
-        ),
-    };
-  });
+      const before = read.note.frontmatter;
+      const reasons = noteElevationReasons(ctx, {
+        path: read.path,
+        kind: 'update',
+        givenType: given.type,
+        before,
+        trustHigh: asksTrustHigh(ctx, set.trust) && fieldKey(before.trust) !== 'high',
+      });
+      const approved = reasons.length > 0 ? approval : null;
+      const remove =
+        input.mode === 'overwrite' && input.frontmatter !== undefined
+          ? Object.keys(read.note.frontmatter).filter((key) => !KEPT_ON_OVERWRITE.has(key) && !(key in set))
+          : [];
+      let body = input.content;
+      if (input.mode === 'append') {
+        const current = read.note.body;
+        const eol = current.includes('\r\n') ? '\r\n' : '\n';
+        const base = current === '' || current.endsWith('\n') ? current : `${current}${eol}`;
+        const gap = base === '' || /\r?\n\r?\n$/.test(base) || base.trim() === '' ? '' : eol;
+        body = `${base}${gap}${input.content}`;
+      }
+      const sameText = (a: string, b: string): boolean => a.replace(/\r\n/g, '\n') === b.replace(/\r\n/g, '\n');
+      const changes =
+        !sameText(body, read.note.body) ||
+        Object.entries(set).some(([key, value]) => !isDeepStrictEqual(value, before[key])) ||
+        remove.some((key) => key in before);
+      const provenance = changes ? agentEditProvenance(ctx, before, approved) : null;
+      if (provenance !== null) {
+        Object.assign(set, provenance.fields);
+        warnings.push(provenance.warning);
+      }
+      checkUpdate(read, set, remove, day, config);
+      assertNoLeadingBom(ctx, body, input.mode === 'append' ? read.note.body : '');
+      return {
+        target: { path: read.path, diskPath: read.diskPath },
+        // todos os campos enviados (um que não mudou já está commitado e não é acusado)
+        checks: [{ where: 'content', field: null, text: body }, ...frontmatterTargets(set, config, before)],
+        warnings,
+        ...(reasons.length === 0 || !changes
+          ? {}
+          : {
+              elevation: {
+                reasons,
+                path: read.path,
+                summary: noteSummary(
+                  input.mode === 'append' ? 'Acrescentar ao fim da nota' : 'Substituir o conteúdo da nota',
+                  read.path,
+                  reasons,
+                  input.content,
+                  `${String(before.type ?? 'sem tipo')}, origin ${String(before.origin ?? 'sem origin')}`,
+                ),
+                parts: noteParts(input.mode, read.path, { given, content: input.content }, read.text),
+              },
+            }),
+        apply: () =>
+          updateNote(
+            ctx.root,
+            read.diskPath,
+            { frontmatter: set, remove, body },
+            { config, now, ifUnchangedSince: read.stamp },
+          ),
+      };
+    },
+    confirm,
+  );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // patch_page
 
-export async function patchPage(ctx: BrainContext, input: PatchPageInput): Promise<WriteOutput> {
+export async function patchPage(
+  ctx: BrainContext,
+  input: PatchPageInput,
+  options: ConfirmOptions = {},
+): Promise<WriteOutput> {
   if (!isRecord(input)) throw invalid('patch_page precisa de um objeto com path, old e new');
   if (typeof input.path !== 'string' || input.path === '') throw invalid('"path" deveria ser o caminho da nota');
   if (typeof input.old !== 'string' || input.old === '') throw invalid('"old" deveria ser o trecho exato a substituir');
   if (typeof input.new !== 'string') throw invalid('"new" deveria ser um texto');
+  const token = tokenOf(input.confirm_token);
   assertAgentText(ctx, input.path, 'o caminho', 'path');
-  return executeWrite(ctx, input.session_handle, async (config) => {
-    const read = await existingNote(ctx, input.path);
-    const body = read.note.body;
-    let [from, to] = [input.old, input.new];
-    let count = occurrences(body, from);
-    if (count === 0 && body.includes('\r\n') && !from.includes('\r')) {
-      [from, to] = [from.replaceAll('\n', '\r\n'), to.replace(/\r?\n/g, '\r\n')];
-      count = occurrences(body, from);
-    }
-    if (count === 0) {
-      throw new BrainError('patch_not_found', `o trecho a substituir não aparece no corpo de ${read.path}`, {
-        details: { path: read.path },
-        nextStep: 'Leia a nota de novo com read e copie o trecho exato que quer substituir.',
-      });
-    }
-    if (count > 1) {
-      throw new BrainError(
-        'ambiguous_patch',
-        `o trecho a substituir aparece ${count} vezes no corpo de ${read.path}; ele precisa ser único`,
-        {
-          details: { path: read.path, occurrences: count },
-          nextStep: 'Inclua mais contexto em old (linhas vizinhas) para o trecho aparecer uma vez só.',
-        },
-      );
-    }
-    const at = body.indexOf(from);
-    const patched = body.slice(0, at) + to + body.slice(at + from.length);
-    assertNoLeadingBom(ctx, patched, body);
-    const provenance = patched === body ? null : agentEditProvenance(ctx, read.note.frontmatter);
-    return {
-      target: { path: read.path, diskPath: read.diskPath },
-      checks: [{ where: 'content', field: null, text: patched }],
-      warnings: provenance === null ? [] : [provenance.warning],
-      apply: () =>
-        patchNote(ctx.root, read.diskPath, input.old, input.new, {
-          config,
-          now: ctx.now(),
-          ifUnchangedSince: read.stamp,
-          ...(provenance === null ? {} : { frontmatter: provenance.fields }),
-        }),
-    };
-  });
+  const control = controlTarget(input.path, ctx.config);
+  if (control !== null) return patchControl(ctx, control, input, token, options);
+  return executeWrite(
+    ctx,
+    input.session_handle,
+    async (config, approval) => {
+      const read = await existingNote(ctx, input.path);
+      const body = read.note.body;
+      let [from, to] = [input.old, input.new];
+      let count = occurrences(body, from);
+      if (count === 0 && body.includes('\r\n') && !from.includes('\r')) {
+        [from, to] = [from.replaceAll('\n', '\r\n'), to.replace(/\r?\n/g, '\r\n')];
+        count = occurrences(body, from);
+      }
+      if (count === 0) {
+        throw new BrainError('patch_not_found', `o trecho a substituir não aparece no corpo de ${read.path}`, {
+          details: { path: read.path },
+          nextStep: 'Leia a nota de novo com read e copie o trecho exato que quer substituir.',
+        });
+      }
+      if (count > 1) {
+        throw new BrainError(
+          'ambiguous_patch',
+          `o trecho a substituir aparece ${count} vezes no corpo de ${read.path}; ele precisa ser único`,
+          {
+            details: { path: read.path, occurrences: count },
+            nextStep: 'Inclua mais contexto em old (linhas vizinhas) para o trecho aparecer uma vez só.',
+          },
+        );
+      }
+      const at = body.indexOf(from);
+      const patched = body.slice(0, at) + to + body.slice(at + from.length);
+      assertNoLeadingBom(ctx, patched, body);
+      const before = read.note.frontmatter;
+      const reasons = patched === body ? [] : noteElevationReasons(ctx, { path: read.path, kind: 'update', before });
+      const approved = reasons.length > 0 ? approval : null;
+      const provenance = patched === body ? null : agentEditProvenance(ctx, before, approved);
+      return {
+        target: { path: read.path, diskPath: read.diskPath },
+        checks: [{ where: 'content', field: null, text: patched }],
+        warnings: provenance === null ? [] : [provenance.warning],
+        ...(reasons.length === 0
+          ? {}
+          : {
+              elevation: {
+                reasons,
+                path: read.path,
+                summary: `Substituir um trecho de ${read.path} (${String(before.type ?? 'sem tipo')}, origin ${String(before.origin ?? 'sem origin')}). Por quê pede confirmação: ${reasons.join('; ')}. Trecho antigo: "${input.old.slice(0, 200)}"; novo: "${input.new.slice(0, 200)}"`,
+                parts: noteParts('patch', read.path, { old: input.old, new: input.new }, read.text),
+              },
+            }),
+        apply: () =>
+          patchNote(ctx.root, read.diskPath, input.old, input.new, {
+            config,
+            now: ctx.now(),
+            ifUnchangedSince: read.stamp,
+            ...(provenance === null ? {} : { frontmatter: provenance.fields }),
+          }),
+      };
+    },
+    { tool: 'patch_page', token, options },
+  );
 }

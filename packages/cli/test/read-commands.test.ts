@@ -7,6 +7,7 @@ import {
   closeOpened,
   disposeSandbox,
   git,
+  HUMAN,
   machine,
   openAsAgent,
   parseJson,
@@ -173,12 +174,13 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
 
   it('--op desfaz uma operação específica e --session desfaz a sessão inteira', async () => {
     const { first, session } = await twoOperations();
-    const one = await m.cabecao(['undo', '--op', first.slice(0, 12), '--brain', brain]);
+    // o usuário no terminal: o começo do id basta
+    const one = await m.cabecao(['undo', '--op', first.slice(0, 12), '--brain', brain], HUMAN);
     expect(one.code).toBe(0);
     await expect(readNote(brain, 'wiki/concepts/primeira.md')).rejects.toThrow();
     await expect(readNote(brain, 'wiki/concepts/segunda.md')).resolves.toContain('Segunda');
 
-    const all = await m.cabecao(['undo', '--session', session, '--brain', brain, '--json']);
+    const all = await m.cabecao(['undo', '--session', session, '--brain', brain, '--json'], HUMAN);
     expect(all.code).toBe(0);
     await expect(readNote(brain, 'wiki/concepts/segunda.md')).rejects.toThrow();
   });
@@ -197,9 +199,9 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
 
   it('o commit do undo vai com os rodapés da CLI', async () => {
     await twoOperations();
-    await m.cabecao(['undo', '--brain', brain]);
+    await m.cabecao(['undo', '--brain', brain], HUMAN);
     const message = await git(brain, ['log', '-1', '--format=%B']);
-    expect(message).toContain('Cabecao-Client: cli');
+    expect(message).toMatch(/^Cabecao-Client: cli$/m);
   });
 });
 
