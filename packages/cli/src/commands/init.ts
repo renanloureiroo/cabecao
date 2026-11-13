@@ -6,10 +6,15 @@ import type { DoctorReport } from '../doctor/checks.ts';
 import { renderReport } from '../doctor/checks.ts';
 import { UsageError } from '../errors.ts';
 import type { ClientId, Location } from '../install-client/clients.ts';
-import { resolveLaunch } from '../install-client/launch.ts';
+import { CLIENTS } from '../install-client/clients.ts';
+import { resolveLaunch, stableBin } from '../install-client/launch.ts';
+import type { PluginState } from '../install-client/plugin.ts';
+import { claudePlugin, pluginActive } from '../install-client/plugin.ts';
 import type { ClientReport } from '../install-client/register.ts';
-import { detectClients, registerClients, reportText } from '../install-client/register.ts';
-import { indent, plural } from '../text.ts';
+import { detectClients, OUTCOME_TEXT, registerClients, replacedText } from '../install-client/register.ts';
+import type { OptionalStep } from '../optional.ts';
+import { gatherOptional, optionalSteps, optionalText } from '../optional.ts';
+import { displayPath, indent, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 import { runDoctor } from './doctor.ts';
 
@@ -38,7 +43,13 @@ export interface InitData {
   init: InitResult;
   index?: IndexStep;
   clients?: ClientsStep;
+  /** O plugin do Cabeção no Claude Code (só lido; o `init` não o instala). */
+  plugin?: PluginState;
   doctor?: DoctorReport | { error: string };
+  /** O que pedir ao agente para conferir que deu certo. */
+  test?: string[];
+  /** Até três próximos passos opcionais detectados. */
+  optional?: OptionalStep[];
 }
 
 const message = (error: unknown): string => {
@@ -96,7 +107,8 @@ export function failureText(result: InitResult): string {
       'O que fazer: use um repositório vazio (de preferência privado) ou um vault de notas em Markdown. Ou comece só local: "cabecao init" sem a URL.',
     );
   } else if (result.case === 'target-not-empty') {
-    lines.push('O que fazer: escolha outra pasta com --dir <pasta>, ou esvazie esta e repita o comando.');
+    // o núcleo diz o que fazer para o caso exato (cérebro só local, vault, pasta qualquer)
+    for (const step of result.nextSteps) lines.push(`O que fazer: ${step}`);
   }
   lines.push(...warningLines(result.warnings));
   return lines.join('\n');
@@ -125,43 +137,118 @@ async function clientsStep(ctx: CommandContext, root: string): Promise<ClientsSt
   }
 }
 
-function successText(data: Required<InitData>): string {
+const AGENT_ACTION: Readonly<Record<string, string>> = {
+  installed: 'servidor MCP registrado',
+  updated: 'registro do servidor MCP atualizado',
+  unchanged: 'servidor MCP já estava registrado',
+};
+
+/** Uma linha por agente detectado: o que ficou configurado nele. */
+function agentLines(clients: ClientsStep, plugin: PluginState | undefined, home: string): string[] {
+  if (clients.skipped) {
+    return ['Agentes: pulados (--no-clients). Para registrar depois: cabecao install-client --all'];
+  }
+  if ('error' in clients) {
+    return [`Agentes: não consegui registrar (${clients.error}). Tente: cabecao install-client --all`];
+  }
+  if (clients.detected.length === 0) {
+    return [
+      'Agentes: nenhum encontrado nesta máquina.',
+      '  Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Antigravity), rode: cabecao install-client --all',
+    ];
+  }
+  const width = Math.max(...clients.reports.map((report) => report.label.length));
+  const lines = ['Agentes:'];
+  for (const report of clients.reports) {
+    const label = report.label.padEnd(width);
+    if (report.status === 'failed') {
+      lines.push(
+        `  ${label}  não registrado: ${report.error ?? 'falhou'} (rode "cabecao install-client ${report.client}")`,
+      );
+      continue;
+    }
+    const where =
+      report.method === 'cli'
+        ? ' (pelo comando "claude mcp", escopo user)'
+        : report.files.length > 0
+          ? ` em ${report.files.map((file) => displayPath(file.path, home)).join(', ')}`
+          : '';
+    lines.push(`  ${label}  ${AGENT_ACTION[report.status] ?? OUTCOME_TEXT[report.status]}${where}`);
+    if (report.replaced !== undefined) lines.push(`    ${replacedText(report.replaced)}`);
+    for (const file of report.files) {
+      if (file.backup !== undefined) lines.push(`    original guardado em ${displayPath(file.backup, home)}`);
+      if (file.replaced !== undefined) lines.push(`    ${replacedText(file.replaced)}`);
+    }
+    const notice = CLIENTS[report.client].notice;
+    if (notice !== undefined) lines.push(`    aviso: ${notice}`);
+    if (report.client === 'claude-code' && plugin !== undefined && pluginActive(plugin)) {
+      lines.push(
+        `    ATENÇÃO: o plugin do Cabeção também está instalado no Claude Code${plugin.version === null ? '' : ` (versão ${plugin.version})`}: com os dois, o agente vê as tools em dobro. Fique com um: "cabecao install-client --remove claude-code" tira o registro direto (o plugin já traz o servidor).`,
+      );
+    }
+  }
+  lines.push('  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.');
+  return lines;
+}
+
+/** O teste do primeiro sucesso: o que pedir ao agente e como conferir daqui. */
+function testLines(clients: ClientsStep): string[] {
+  const first =
+    !clients.skipped && !('error' in clients)
+      ? clients.reports.find((report) => report.status !== 'failed')?.label
+      : undefined;
+  return [
+    first === undefined
+      ? '1. Depois de conectar um agente, peça a ele: "guarde que eu prefiro respostas curtas, em tópicos"'
+      : `1. No ${first}, peça: "guarde que eu prefiro respostas curtas, em tópicos"`,
+    '2. Numa conversa nova, pergunte: "como eu prefiro as respostas?"',
+    '3. Ou confira aqui: cabecao search "respostas curtas"',
+  ];
+}
+
+function successText(data: Required<InitData>, home: string): string {
   const { init } = data;
   const paragraphs: string[] = [];
-  paragraphs.push(`Pasta do cérebro: ${init.root}${init.machine === null ? '' : ` (máquina ${init.machine})`}`);
+  const where = displayPath(init.root, home);
+  const machine = init.machine === null ? '' : ` (máquina ${init.machine})`;
   paragraphs.push(
-    [`Repositório: ${init.message}`, ...warningLines(init.warnings).map((line) => `  ${line}`)].join('\n'),
+    init.remote === null
+      ? `Pronto. Seu cérebro está em ${where}${machine}, só nesta máquina.`
+      : `Pronto. Seu cérebro está em ${where}${machine} e em ${init.remote}.`,
   );
-
   const { index } = data;
   paragraphs.push(
-    'error' in index
-      ? `Índice local: não consegui montar agora (${index.error}). Ele é montado no próximo uso; rode "cabecao status" para ver.`
-      : `Índice local: ${plural(index.notes, 'nota indexada', 'notas indexadas')}${index.ms === null ? '' : ` em ${index.ms} ms`}.`,
+    [
+      init.message,
+      ...warningLines(init.warnings),
+      'error' in index
+        ? `Índice local: não consegui montar agora (${index.error}). Ele é montado no próximo uso.`
+        : `Índice local: ${plural(index.notes, 'nota indexada', 'notas indexadas')}${index.ms === null ? '' : ` em ${index.ms} ms`}.`,
+    ].join('\n'),
   );
+  const adopted =
+    init.case === 'adopted' ? init.nextSteps.find((step) => step.startsWith('O cérebro é a pasta')) : undefined;
+  if (adopted !== undefined) paragraphs.push(`Obsidian: ${adopted.replaceAll(init.root, where)}`);
 
-  const { clients } = data;
-  if (clients.skipped) {
-    paragraphs.push('Clientes de IA: pulado (--no-clients). Para registrar depois: cabecao install-client --all');
-  } else if ('error' in clients) {
-    paragraphs.push(`Clientes de IA: não consegui registrar (${clients.error}). Tente: cabecao install-client --all`);
-  } else if (clients.detected.length === 0) {
-    paragraphs.push(
-      'Clientes de IA: nenhum encontrado nesta máquina. Depois de instalar um, rode: cabecao install-client --all',
-    );
-  } else {
-    paragraphs.push(`Clientes de IA:\n${indent(reportText(clients.reports))}`);
+  paragraphs.push(agentLines(data.clients, data.plugin, home).join('\n'));
+  paragraphs.push(['Teste agora:', ...data.test.map((line) => `  ${line}`)].join('\n'));
+  if (data.optional.length > 0) {
+    paragraphs.push(['Opcional (rode quando quiser):', optionalText(data.optional)].join('\n'));
   }
 
   const { doctor } = data;
-  paragraphs.push(
-    'error' in doctor
-      ? `Diagnóstico: não rodou (${doctor.error}). Rode "cabecao doctor".`
-      : `Diagnóstico (cabecao doctor, sem consultar o remoto de novo):\n${renderReport(doctor, '  ')}`,
-  );
+  if ('error' in doctor) paragraphs.push(`Diagnóstico: não rodou (${doctor.error}). Rode "cabecao doctor".`);
+  else {
+    const { ok, warn, fail } = doctor.summary;
+    const pending = doctor.checks.filter((check) => check.status !== 'ok' && check.id !== 'clients');
+    const head = `Diagnóstico: ${ok} ok, ${plural(warn, 'aviso', 'avisos')}, ${plural(fail, 'falha', 'falhas')}. Detalhes: cabecao doctor`;
+    paragraphs.push(
+      pending.length === 0 ? head : `${head}\n${renderReport({ ...doctor, checks: pending }, '  ').split('\n\n')[0]}`,
+    );
+  }
 
-  const steps = nextSteps(init);
-  if (steps.length > 0) paragraphs.push(['Próximos passos:', ...steps.map((step) => `  - ${step}`)].join('\n'));
+  const steps = nextSteps(init).filter((step) => step !== adopted);
+  if (steps.length > 0) paragraphs.push(['Depois:', ...steps.map((step) => `  - ${step}`)].join('\n'));
   return paragraphs.join('\n\n');
 }
 
@@ -227,6 +314,20 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   } catch (error) {
     doctor = { error: message(error) };
   }
-  const data: Required<InitData> = { init: result, index, clients, doctor };
-  return { data, text: successText(data) };
+  const location: Location = { platform: ctx.platform, env: ctx.env, home: homeDir(ctx) };
+  const plugin = await claudePlugin(location);
+  const facts = await gatherOptional(ctx, result.root, {
+    hasRemote: result.remote !== null,
+    stableInstall: (await stableBin(ctx.binPath)) !== undefined,
+  });
+  const data: Required<InitData> = {
+    init: result,
+    index,
+    clients,
+    plugin,
+    doctor,
+    test: testLines(clients),
+    optional: optionalSteps(facts),
+  };
+  return { data, text: successText(data, location.home) };
 }

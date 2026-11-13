@@ -1,7 +1,8 @@
 // Registro do servidor MCP nos clientes de IA: o que `install-client` faz e o que o `init` reusa no passo 4.
 // O `doctor` usa a leitura (`readRegistrations`), que só lê arquivos e nunca executa o cliente.
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { CliError } from '../errors.ts';
 import type { CliIo } from '../types.ts';
 import type { ClientDef, ClientId, JsonEntry, JsonTarget, Location, Target, TomlTarget } from './clients.ts';
@@ -451,6 +452,23 @@ export interface FileRegistration {
   state: RegistrationState;
   /** Em JSON, a entrada encontrada (para mostrar o que difere). */
   entry?: JsonValue;
+  /**
+   * Caminhos absolutos da entrada que não existem mais: o Node (removido com nvm, fnm ou Volta, por exemplo) ou o
+   * arquivo do cabecao. Com eles, o cliente nem consegue iniciar o servidor.
+   */
+  gone?: string[];
+}
+
+/** Os caminhos absolutos de uma entrada (`command` e o arquivo `.mjs`/`.js` em `args`) que não existem. */
+export function goneLaunchPaths(entry: unknown): string[] {
+  if (!isPlainObject(entry)) return [];
+  const candidates: string[] = [];
+  if (typeof entry.command === 'string') candidates.push(entry.command);
+  if (Array.isArray(entry.args)) {
+    const script = entry.args.find((arg): arg is string => typeof arg === 'string' && /\.[cm]?js$/.test(arg));
+    if (script !== undefined) candidates.push(script);
+  }
+  return candidates.filter((path) => (isAbsolute(path) || /^[A-Za-z]:[\\/]/.test(path)) && !existsSync(path));
 }
 
 export interface ClientRegistration {
@@ -478,14 +496,16 @@ function jsonRegistration(target: JsonTarget, text: string, launches: readonly L
   const entry = isPlainObject(servers) ? (servers[SERVER_NAME] as JsonValue | undefined) : undefined;
   if (entry === undefined) return { path: target.path, state: 'missing' };
   const current = launches.some((launch) => deepEqual(entry, jsonEntry(target, launch, entry)));
-  return { path: target.path, state: current ? 'current' : 'different', entry };
+  const gone = current ? [] : goneLaunchPaths(entry);
+  return { path: target.path, state: current ? 'current' : 'different', entry, ...(gone.length > 0 ? { gone } : {}) };
 }
 
 function tomlRegistration(target: TomlTarget, text: string, launches: readonly Launch[]): FileRegistration {
   try {
     if (!hasTomlTable(text, target.table)) return { path: target.path, state: 'missing' };
     const current = launches.some((launch) => setTomlTable(text, target.table, tomlEntries(launch)) === text);
-    return { path: target.path, state: current ? 'current' : 'different' };
+    const gone = current ? [] : goneLaunchPaths(readTomlTableValues(text, target.table));
+    return { path: target.path, state: current ? 'current' : 'different', ...(gone.length > 0 ? { gone } : {}) };
   } catch {
     return { path: target.path, state: 'unreadable' };
   }
