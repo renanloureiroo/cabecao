@@ -1,4 +1,4 @@
 packages:
   - packages/*
   # Site de documentação (Docusaurus). Fica fora do pacote publicado; o build é "pnpm docs:build".
-  - docs-site
+  - docs
