@@ -1,5 +1,7 @@
 import type { StatusOutput } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
+import type { LlmSummary } from '../llm/describe.ts';
+import { llmSummary } from '../llm/describe.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -74,9 +76,30 @@ export function statusText(status: StatusOutput): string {
   return lines.join('\n');
 }
 
+/** A linha do provedor de respostas (opcional), depois da busca por significado. */
+export function askLine(summary: LlmSummary): string {
+  switch (summary.state) {
+    case 'none':
+      return 'Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)';
+    case 'invalid':
+      return `Respostas (ask): configuração inválida (${summary.problem ?? '?'}); "cabecao llm on" refaz`;
+    case 'off':
+      return `Respostas (ask): desligadas nesta máquina (${summary.label}; "cabecao llm on" religa)`;
+    default:
+      return `Respostas (ask): ${summary.label} · modelo ${summary.model} · ${summary.leaves_machine === true ? `trechos saem da máquina para ${summary.destination}` : 'roda nesta máquina'}`;
+  }
+}
+
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   const root = await resolveBrain(ctx);
   const status = await withBrain(ctx, root, (brain) => brain.status());
+  const ask = await llmSummary(ctx).catch(() => null);
+  const text = statusText(status);
+  if (ask === null) return { data: status, text };
+  // a linha do ask vai antes de "Problemas"/"Saúde"
+  const lines = text.split('\n');
+  const at = lines.findIndex((line) => line === 'Problemas:' || line.startsWith('Saúde:'));
+  lines.splice(at === -1 ? lines.length : at, 0, askLine(ask));
   // Avisos (conflitos, sync com erro) não mudam o código de saída: o comando funcionou e mostrou o estado.
-  return { data: status, text: statusText(status) };
+  return { data: { ...status, ask }, text: lines.join('\n') };
 }

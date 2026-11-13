@@ -43,6 +43,16 @@ export interface CliIo {
    */
   prompt?: ((question: string) => Promise<string | null>) | undefined;
   /**
+   * Como `prompt`, mas sem mostrar o que é digitado (uma chave de API). Só existe com terminal interativo; nos testes,
+   * é injetada.
+   */
+  promptSecret?: ((question: string) => Promise<string | null>) | undefined;
+  /**
+   * Passa a tratar Ctrl+C (SIGINT/SIGTERM) como cancelamento: o sinal devolvido aborta, e `dispose` devolve o
+   * comportamento normal. Só os comandos longos e canceláveis usam (o `ask`); nos testes, não existe.
+   */
+  watchInterrupt?: (() => { signal: AbortSignal; dispose(): void }) | undefined;
+  /**
    * Lê a entrada padrão até o fim, com teto de tamanho e de tempo (`stdin.ts`). Devolve `null` quando a entrada é um
    * terminal, passa do teto ou não termina no prazo. Só os modos de hook usam (o Claude Code manda um JSON por ali);
    * nos testes, é injetada.
