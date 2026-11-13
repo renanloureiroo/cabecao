@@ -154,8 +154,8 @@ describe('erros de borda', () => {
     const bin = join(freshDir('global'), 'lib', 'node_modules', 'cabecao', 'dist', 'cabecao.mjs');
     const out = await m.cabecao(['status', '--brain', brain], { binPath: bin });
     expect(out.code).toBe(1);
+    // o canal vem da versão que está rodando: `beta` num pré-lançamento, `latest` numa versão final
     expect(out.stderr).toContain(`atualize com "npm i -g cabecao@${channel()}"`);
-    expect(out.stderr).not.toContain('@latest');
   });
 });
 
