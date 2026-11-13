@@ -1,7 +1,13 @@
 // Esquemas Zod das tools do ciclo de vida da memória (marco 4): a saída do `remember` (com duplicatas e
 // contradições) e as tools `handoff_save`, `ingest`, `forget`, `lint` e `consolidate`. Mesmas regras de `schemas.ts`:
 // aqui só a forma; a validação de verdade é do núcleo. A saída espelha a do núcleo e é conferida em `checks.ts`.
-import { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS, LINT_RULES, MAX_LINT_LIMIT } from '@cabecao/core';
+import {
+  FORGET_REASON_MAX_CHARS,
+  HANDOFF_ITEM_MAX_CHARS,
+  HANDOFF_MAX_ITEMS,
+  LINT_RULES,
+  MAX_LINT_LIMIT,
+} from '@cabecao/core';
 import * as z from 'zod';
 import { dataNotice, INPUT_LIMITS, issue, sessionHandle, shortText, text } from './schemas.ts';
 
@@ -147,4 +153,37 @@ export const lintOutput = z.object({
   total: z.number(),
   truncated: z.boolean(),
   next_step: z.string().exactOptional(),
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// forget
+
+export const forgetInput = z.object({
+  id: text(INPUT_LIMITS.path).min(1).describe('Note id (ULID) or path.'),
+  reason: text(FORGET_REASON_MAX_CHARS).min(1).describe('Why forget it (kept in the archived note).'),
+  confirm_token: shortText().describe('Token from the first call; omit it to get the summary.').exactOptional(),
+  session_handle: sessionHandle,
+});
+
+export const forgetOutput = z.object({
+  data_notice: dataNotice,
+  status: z.enum(['confirmation_required', 'archived', 'declined']),
+  note: z.object({
+    id: z.string(),
+    path: z.string(),
+    title: z.string().nullable(),
+    type: z.string().nullable(),
+    scope: z.string().nullable(),
+    trust: z.string().nullable(),
+    origin: z.string().nullable(),
+  }),
+  summary: z.string(),
+  confirm_token: z.string().nullable(),
+  token_expires_at: z.string().nullable(),
+  confirmed_by: z.enum(['token', 'user']).nullable(),
+  op: z.string().nullable(),
+  commit: z.string().nullable(),
+  archived_path: z.string().nullable(),
+  warnings: z.array(issue),
+  next_step: z.string(),
 });

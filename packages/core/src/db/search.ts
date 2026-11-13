@@ -17,6 +17,32 @@ export const BM25_TITLE_WEIGHT = 2.0;
  * escondido (doc 06, "Validade no tempo").
  */
 export const EXPIRED_SCORE_FACTOR = 0.5;
+/**
+ * Rebaixamento de memórias antigas nunca confirmadas (doc 07, "Esquecimento"): uma preferência, armadilha ou
+ * procedimento sem `confirmed` e sem `updated` (ou `created`) há `STALE_AFTER_DAYS` dias vale `STALE_SCORE_FACTOR` da
+ * pontuação. Nunca é escondida; o `lint` lista as mesmas notas (`unconfirmed_memory`).
+ */
+export const STALE_SCORE_FACTOR = 0.8;
+export const STALE_AFTER_DAYS = 180;
+export const STALE_TYPES: readonly string[] = ['preference', 'gotcha', 'procedure'];
+
+/** Os campos que decidem se uma memória está velha e nunca foi confirmada. */
+export interface StaleFields {
+  readonly type: string | null;
+  readonly confirmed: string | null;
+  readonly updated: string | null;
+  readonly created: string | null;
+}
+
+/** A memória é velha e nunca foi confirmada, na data `date` (`AAAA-MM-DD`). */
+export function isStaleMemory(note: StaleFields, date: string): boolean {
+  if (note.type === null || !STALE_TYPES.includes(note.type) || note.confirmed !== null) return false;
+  const last = note.updated ?? note.created;
+  if (last === null) return false;
+  const from = Date.parse(`${last.slice(0, 10)}T00:00:00Z`);
+  const to = Date.parse(`${date.slice(0, 10)}T00:00:00Z`);
+  return !Number.isNaN(from) && !Number.isNaN(to) && (to - from) / 86_400_000 >= STALE_AFTER_DAYS;
+}
 /** Termos além deste número são ignorados (uma pergunta colada de um texto longo não vira uma consulta enorme). */
 export const MAX_QUERY_TERMS = 16;
 export const DEFAULT_SEARCH_LIMIT = 10;
@@ -214,6 +240,9 @@ interface CandidateRow {
   readonly validUntil: string | null;
   readonly expiresAt: string | null;
   readonly supersededOn: string | null;
+  readonly confirmed: string | null;
+  readonly updated: string | null;
+  readonly created: string | null;
 }
 
 const text = (value: unknown): string | null => (value === null || value === undefined ? null : String(value));
@@ -264,7 +293,7 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
       snippet(chunks_fts, 0, '«', '»', '…', 24) as snippet,
       bm25(chunks_fts, ${BM25_TEXT_WEIGHT}, ${BM25_TITLE_WEIGHT}) as rank,
       n.trust, n.origin, n.valid_from as validFrom, n.valid_until as validUntil, n.expires_at as expiresAt,
-      n.superseded_on as supersededOn
+      n.superseded_on as supersededOn, n.confirmed, n.updated, n.created
     from chunks_fts
       join chunks c on c.id = chunks_fts.rowid
       join notes n on n.id = c.note_id
@@ -288,6 +317,9 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
       validUntil: text(row.validUntil),
       expiresAt: text(row.expiresAt),
       supersededOn: text(row.supersededOn),
+      confirmed: text(row.confirmed),
+      updated: text(row.updated),
+      created: text(row.created),
     }));
 
   let mode: 'and' | 'or' = 'and';
@@ -302,7 +334,8 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
   for (const row of rows) {
     if (best.has(row.noteId)) continue; // as linhas vêm do melhor para o pior trecho
     const validity = validityOf(row, today);
-    const score = -row.rank * (validity === 'current' ? 1 : EXPIRED_SCORE_FACTOR);
+    const stale = isStaleMemory(row, today) ? STALE_SCORE_FACTOR : 1;
+    const score = -row.rank * (validity === 'current' ? 1 : EXPIRED_SCORE_FACTOR) * stale;
     best.set(row.noteId, {
       noteId: row.noteId,
       path: row.path,

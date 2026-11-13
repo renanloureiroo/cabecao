@@ -17,6 +17,8 @@ export type { ContentKind, DataEnvelope, DataItem } from './envelope.ts';
 export { DATA_NOTICE } from './envelope.ts';
 export type { BrainErrorCode, BrainErrorDetails, BrainErrorJson, IssueOutput, SecretHit } from './errors.ts';
 export { BRAIN_ERROR_CODES, BrainError } from './errors.ts';
+export type { ForgetInput, ForgetOptions, ForgetOutput } from './forget.ts';
+export { CONFIRM_TOKEN_PREFIX, CONFIRM_TOKEN_TTL_MS, FORGET_REASON_MAX_CHARS } from './forget.ts';
 export type {
   FactItem,
   FactRefOutput,

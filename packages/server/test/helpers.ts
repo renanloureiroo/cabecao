@@ -174,6 +174,10 @@ export interface ClientOptions {
   readonly generation: Generation;
   /** `clientInfo.name` anunciado. */
   readonly clientName?: string;
+  /** Capacidades declaradas (`initialize` na geração 2025; envelope `_meta` na 2026). Padrão: nenhuma. */
+  readonly capabilities?: Record<string, unknown>;
+  /** Responde a uma requisição do servidor para o cliente (`elicitation/create`, na geração 2025). */
+  readonly onServerRequest?: (method: string, params: unknown) => unknown;
 }
 
 export function createClient(serverStdin: Writable, serverStdout: Readable, options: ClientOptions): TestClient {
@@ -199,13 +203,20 @@ export function createClient(serverStdin: Writable, serverStdout: Readable, opti
       if ((typeof message.id === 'number' || typeof message.id === 'string') && message.method === undefined) {
         pending.get(message.id)?.(message as JsonRpcResponse);
         pending.delete(message.id);
+      } else if (
+        (typeof message.id === 'number' || typeof message.id === 'string') &&
+        typeof message.method === 'string' &&
+        options.onServerRequest !== undefined
+      ) {
+        const result = options.onServerRequest(message.method, (message as { params?: unknown }).params);
+        serverStdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n`);
       }
     }
   });
 
   const envelope = {
     'io.modelcontextprotocol/protocolVersion': MODERN_VERSION,
-    'io.modelcontextprotocol/clientCapabilities': {},
+    'io.modelcontextprotocol/clientCapabilities': options.capabilities ?? {},
     'io.modelcontextprotocol/clientInfo': clientInfo,
   };
   const send = (message: object): void => {
@@ -232,7 +243,7 @@ export function createClient(serverStdin: Writable, serverStdout: Readable, opti
       if (generation === 'legacy') {
         const response = await request('initialize', {
           protocolVersion: LEGACY_VERSION,
-          capabilities: {},
+          capabilities: options.capabilities ?? {},
           clientInfo,
         });
         if (response.result === undefined) throw new Error(`initialize falhou: ${JSON.stringify(response.error)}`);

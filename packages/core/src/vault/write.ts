@@ -655,10 +655,15 @@ export async function addRelation(
  * hoje. A cópia arquivada é gravada antes de a original ser removida; se a original mudar no meio, nada se perde e
  * a operação falha com `FileChangedError`.
  */
+export interface ArchiveNoteOptions extends UpdateNoteOptions {
+  /** Campos a gravar na cópia arquivada (o `forget` registra o motivo); só numa nota gerenciada (com `id`). */
+  readonly frontmatter?: Readonly<Record<string, unknown>>;
+}
+
 export async function archiveNote(
   root: string,
   relPath: string,
-  options: UpdateNoteOptions = {},
+  options: ArchiveNoteOptions = {},
 ): Promise<WriteResult> {
   return serializeWrites(root, async () => {
     if (isArchivedPath(assertNotePath(relPath))) {
@@ -673,7 +678,9 @@ export async function archiveNote(
     const expire = managed && !present(before.valid_until) && !(isIsoDate(validFrom) && validFrom.slice(0, 10) > today);
     const rendered = render(
       read,
-      managed ? { frontmatter: { updated: today, ...(expire ? { valid_until: today } : {}) } } : {},
+      managed
+        ? { frontmatter: { ...options.frontmatter, updated: today, ...(expire ? { valid_until: today } : {}) } }
+        : {},
       opts,
     );
 
