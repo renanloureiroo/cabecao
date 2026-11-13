@@ -7,7 +7,7 @@
   <a href="README.en.md">English</a> · <strong>Português</strong>
 </p>
 
-> **Status: 🚧 marco 1 implementado e em revisão; nada publicado no npm ainda.** A CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), o sync por git, a busca por palavra-chave e o servidor MCP com 9 tools existem na branch `feat/m1-nucleo` e têm 1.181 testes, mais um teste de ponta a ponta com duas máquinas. **Ainda não foram validados** provedores git reais (GitHub, GitLab, Bitbucket, Gitea), SSH e gerenciadores de credencial, commits assinados nem clientes MCP reais (Claude Code, Claude Desktop, Codex, Cursor). Busca por significado, grafo e plugin são dos marcos 2 a 4. Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano; veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
+> **Status: 🚧 marco 1 implementado e em revisão; nada publicado no npm ainda.** A CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), o sync por git, a busca por palavra-chave e o servidor MCP com 9 tools existem na branch `feat/m1-nucleo` e têm 1.181 testes, mais um teste de ponta a ponta com duas máquinas. **Ainda não foram validados** provedores git reais (GitHub, GitLab, Bitbucket, Gitea), SSH e gerenciadores de credencial, commits assinados nem clientes MCP reais (Claude Code, Claude Desktop, Codex, Cursor). O marco 3 (grafo e validade no tempo: tools `graph`, `facts` e `relate`, `as_of` e notas relacionadas na busca, menções sem link, comandos `graph` e `facts`) está implementado e em revisão na branch `feat/m3-grafo`. Busca por significado e plugin são dos marcos 2 e 4. Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano; veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
 
 ---
 
@@ -21,7 +21,7 @@ Um **segundo cérebro pessoal** que vive num **repositório git seu**, em qualqu
 - 🔗 **Qualquer remoto git.** Sem depender de API de provedor, Pull Request ou CI.
 - 🔄 **Sincroniza tudo o que o git não ignora.** Hoje: notas, anexos e configuração. Planejado (marco 2): embeddings e grafo, para que uma máquina nunca recalcule o que outra já calculou.
 - 🔎 **Busca** por palavra-chave (hoje) e, no marco 2, também por significado, com um modelo local que você escolhe (nada sai da sua máquina).
-- 🕸️ **Wiki com grafo** (marco 3): wikilinks, relações tipadas e fatos com validade no tempo, que o agente navega.
+- 🕸️ **Wiki com grafo** (marco 3, em revisão na branch `feat/m3-grafo`): wikilinks, relações tipadas, menções sem link e fatos com validade no tempo, que o agente navega (`graph`, `facts`, `relate`, `as_of` na busca).
 - 🧠 **Memória de agente:** o que você ensinou numa sessão está disponível na próxima, em qualquer cliente.
 - ↩️ **Tudo reversível:** cada operação é um commit, com comando para desfazer.
 - 🪶 **Leve:** um pacote de 241 kB compactado (cerca de 840 kB instalado), sem dependências de runtime nem nativas; `cabecao --version` leva cerca de 26 ms. O modelo de embeddings (marco 2) será baixado só quando você ativar a busca semântica.
@@ -58,16 +58,17 @@ Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
              │ MCP (stdio)                                   │
              ▼                                               ▼
  ┌──────────────────────── cabecao ────────────────────────────┐
- │ no marco 1: recall · search · read · status · remember ·    │
+ │ marco 1: recall · search · read · status · remember ·       │
  │ write_page · patch_page · sync · undo                       │
- │ planejadas: graph · facts · relate · ingest · handoff_save ·│
- │ forget · lint · consolidate                                 │
+ │ marco 3: graph · facts · relate                             │
+ │ planejadas: ingest · handoff_save · forget · lint ·         │
+ │ consolidate                                                 │
  └──────────┬──────────────────────────────────┬───────────────┘
             ▼                                  ▼
   Repositório git do cérebro            Índice local (fora do git)
   ├─ branch principal: suas notas       SQLite com busca por texto
-  └─ branch cabecao/index (marco 2):    + vetores em memória (marco 2)
-     embeddings e grafo                 + grafo (marco 3)
+  └─ branch cabecao/index (marco 2):    + grafo e validade (marco 3)
+     embeddings e grafo                 + vetores em memória (marco 2)
             │
             ▼  cabecao sync
    Qualquer remoto git

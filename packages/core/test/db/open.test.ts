@@ -51,7 +51,7 @@ describe('openIndex', () => {
       .prepare(`select name from sqlite_master where type = 'table' and name not like 'chunks_fts_%' order by name`)
       .all()
       .map((row) => row.name);
-    expect(tables).toEqual(['chunks', 'chunks_fts', 'edges', 'facts', 'notes', 'state']);
+    expect(tables).toEqual(['chunks', 'chunks_fts', 'edges', 'facts', 'mention_keys', 'names', 'notes', 'state']);
     const fts = vault.index.db.prepare(`select sql from sqlite_master where name = 'chunks_fts'`).get();
     expect(String(fts?.sql)).toContain(`tokenize='unicode61 remove_diacritics 2'`);
   });

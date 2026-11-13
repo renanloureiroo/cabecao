@@ -105,6 +105,7 @@ export const CANONICAL_FIELDS = [
   'id',
   'type',
   'title',
+  'aliases',
   'subject',
   'predicate',
   'object',
@@ -145,6 +146,7 @@ const PAGE_FIELDS: NoteTypeFields = {
   required: ['id', 'type', 'title'],
   recommended: ['scope', ...COMMON_RECOMMENDED],
   optional: [
+    'aliases',
     'tags',
     'sources',
     'edited_by',
@@ -161,6 +163,7 @@ const FACT_FIELDS: NoteTypeFields = {
   recommended: ['valid_from', ...COMMON_RECOMMENDED],
   optional: [
     'title',
+    'aliases',
     'scope',
     'tags',
     'sources',
@@ -362,6 +365,14 @@ export function validateNote(note: ValidateNoteInput, config?: RelationsConfig):
       add('error', 'invalid_list', 'tags', '"tags" deveria ser uma lista de textos');
     }
   }
+  if (present(fm.aliases)) {
+    // como no Obsidian: uma lista de textos (ou um texto só); servem de nome alternativo da nota nas menções
+    const aliases = fm.aliases;
+    const ok = (item: unknown): boolean => (typeof item === 'string' && item.trim() !== '') || typeof item === 'number';
+    if (!(Array.isArray(aliases) ? aliases.every(ok) : ok(aliases))) {
+      add('warning', 'invalid_list', 'aliases', '"aliases" deveria ser uma lista de textos');
+    }
+  }
   if (present(fm.sources)) {
     const sources = fm.sources;
     if (!Array.isArray(sources) || !sources.every((item) => typeof item === 'string' && item.trim() !== '')) {
@@ -412,6 +423,16 @@ export function validateNote(note: ValidateNoteInput, config?: RelationsConfig):
 
 export function hasErrors(issues: readonly NoteIssue[]): boolean {
   return issues.some((issue) => issue.severity === 'error');
+}
+
+/** `aliases` do frontmatter como lista de textos, sem vazios: um texto só vira lista de um (como no Obsidian). */
+export function aliasesOf(frontmatter: Readonly<Record<string, unknown>>): string[] {
+  const value = frontmatter.aliases;
+  const items = Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+  return items
+    .filter((item) => typeof item === 'string' || typeof item === 'number')
+    .map((item) => String(item).trim())
+    .filter((item) => item !== '');
 }
 
 const WIKILINK_PARTS_RE = /^\[\[([^[\]\n|#]*)(?:#[^[\]\n|]*)?(?:\|([^[\]\n]*))?\]\]$/;

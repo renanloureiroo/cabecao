@@ -88,6 +88,8 @@ export interface RememberInput {
   /** `global` (padrão) ou `project:<slug>`. */
   readonly scope?: string;
   readonly tags?: readonly string[];
+  /** Outros nomes da nota (`aliases`): também servem para achar menções sem link a ela. */
+  readonly aliases?: readonly string[];
   readonly relations?: RelationsInput;
   /** Só em `type: fact`. */
   readonly subject?: string;
@@ -134,7 +136,7 @@ export interface PatchPageInput {
 // ---------------------------------------------------------------------------------------------------------------
 // Apoio
 
-function invalid(message: string, nextStep?: string): BrainError {
+export function invalid(message: string, nextStep?: string): BrainError {
   return new BrainError('invalid_argument', message, nextStep === undefined ? {} : { nextStep });
 }
 
@@ -247,7 +249,7 @@ function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'create' | '
  * isso, o texto escrito pelo agente seria servido com a autoridade do usuário. `null` quando não se aplica (nota de
  * agente sem `trust: high`).
  */
-function agentEditProvenance(
+export function agentEditProvenance(
   ctx: BrainContext,
   before: Readonly<Record<string, unknown>>,
 ): { fields: Record<string, unknown>; warning: IssueOutput } | null {
@@ -419,7 +421,7 @@ function newFrontmatterSecrets(
   return out;
 }
 
-function frontmatterTargets(
+export function frontmatterTargets(
   fields: Readonly<Record<string, unknown>>,
   config: BrainConfig,
   before: Readonly<Record<string, unknown>> = {},
@@ -453,7 +455,7 @@ const LONE_SURROGATE_RE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF
  * título, nas chaves e no caminho, nenhum. Esses caracteres
  * não têm uso numa nota e, no YAML, viram escapes que escondem o que vem colado a eles.
  */
-function assertAgentText(ctx: BrainContext, text: string, where: string, kind: 'value' | 'name' | 'path'): void {
+export function assertAgentText(ctx: BrainContext, text: string, where: string, kind: 'value' | 'name' | 'path'): void {
   if (ctx.actor === 'human') return;
   const invisible = kind === 'path' ? INVISIBLE_IN_PATH_RE.exec(text) : null;
   if (invisible !== null) {
@@ -684,7 +686,7 @@ export function catalogFromIndex(ctx: BrainContext): string {
   return renderIndexMd(entries, { groupOrder: ctx.config.noteDirs });
 }
 
-async function executeWrite(
+export async function executeWrite(
   ctx: BrainContext,
   sessionHandle: unknown,
   prepare: (config: BrainConfig) => Promise<Prepared>,
@@ -844,6 +846,7 @@ export async function remember(ctx: BrainContext, input: RememberInput): Promise
       fields.scope = input.scope;
     }
     if (input.tags !== undefined) fields.tags = stringList(input.tags, 'tags');
+    if (input.aliases !== undefined) fields.aliases = stringList(input.aliases, 'aliases');
     if (input.sources !== undefined) fields.sources = stringList(input.sources, 'sources').map(toLink);
     for (const key of ['valid_from', 'valid_until', 'expires_at'] as const) {
       const value = input[key];
@@ -911,7 +914,7 @@ function agentTrust(ctx: BrainContext, value: unknown): { trust: unknown; warnin
   return { trust: value, warning: null };
 }
 
-async function existingNote(ctx: BrainContext, path: string): Promise<NoteRead> {
+export async function existingNote(ctx: BrainContext, path: string): Promise<NoteRead> {
   // a grafia do disco (`wiki/entities/sqs.md` → `SQS.md`): é o nome que o git conhece, e é com ele que as
   // conferências abaixo (raw/, memory/rules/, arquivos de controle) não são contornadas por outra caixa
   const canonical = (await diskCasePath(ctx.root, assertNotePath(path))).path;
@@ -931,7 +934,7 @@ async function existingNote(ctx: BrainContext, path: string): Promise<NoteRead> 
 }
 
 /** Valida o resultado de uma alteração: só os erros que ela introduz contam (como no vault). */
-function checkUpdate(
+export function checkUpdate(
   read: NoteRead,
   set: Readonly<Record<string, unknown>>,
   remove: readonly string[],

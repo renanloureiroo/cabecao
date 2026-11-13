@@ -7,6 +7,28 @@ export { DATA_NOTICE } from './envelope.ts';
 export type { BrainErrorCode, BrainErrorDetails, BrainErrorJson, IssueOutput, SecretHit } from './errors.ts';
 export { BRAIN_ERROR_CODES, BrainError } from './errors.ts';
 export type {
+  FactItem,
+  FactRefOutput,
+  FactsInput,
+  FactsOutput,
+  GraphInput,
+  GraphLinkOutput,
+  GraphNeighborOutput,
+  GraphNodeOutput,
+  GraphOutput,
+  RelatedOutput,
+  RelatedReason,
+} from './graph.ts';
+export {
+  DEFAULT_FACTS_LIMIT,
+  DEFAULT_GRAPH_BUDGET_TOKENS,
+  DEFAULT_GRAPH_LIMIT,
+  graphEdgeKinds,
+  MAX_FACTS_LIMIT,
+  MAX_GRAPH_LIMIT,
+  RELATED_LIMIT,
+} from './graph.ts';
+export type {
   BacklinkOutput,
   ConflictOutput,
   LinkOutput,
@@ -21,6 +43,7 @@ export type {
   StatusOutput,
 } from './read.ts';
 export { DEFAULT_RECALL_BUDGET_TOKENS, RECALL_ITEM_MAX_CHARS, RECALL_MEMORY_LIMIT, RECALL_PRIORITY } from './read.ts';
+export type { RelateInput, RelateOutput } from './relate.ts';
 export type { SyncInput, SyncOutput } from './sync.ts';
 export { toSyncOutput } from './sync.ts';
 export type {

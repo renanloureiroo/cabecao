@@ -2,7 +2,7 @@
 
 > Nomes de pastas, tipos e campos são em **inglês**. O **conteúdo** das notas fica no seu idioma.
 
-> **Estado (marco 1):** a estrutura do cérebro, o frontmatter, o `.cabecao.json` e o banco local (`.cabecao/cabecao.db`) existem. A branch de índice (`cabecao/index`) e o campo `embedding` do `.cabecao.json` são do **marco 2**. As relações tipadas e os fatos com validade como recurso de uso (tools `relate`, `facts`, `graph`) são do **marco 3**.
+> **Estado (marco 1):** a estrutura do cérebro, o frontmatter, o `.cabecao.json` e o banco local (`.cabecao/cabecao.db`) existem. A branch de índice (`cabecao/index`) e o campo `embedding` do `.cabecao.json` são do **marco 2**. As relações tipadas e os fatos com validade como recurso de uso (tools `relate`, `facts`, `graph`) são do **marco 3** e estão na branch `feat/m3-grafo`, com o campo opcional `aliases` e as tabelas `names` e `mention_keys` no banco local.
 
 ## Estrutura do cérebro
 
@@ -90,6 +90,7 @@ valid_until:                       # vazio = ainda vale
 supersedes: ["[[usar-rabbitmq-para-filas]]"]
 superseded_by: []
 expires_at:
+aliases: [Amazon SQS]              # opcional: outros nomes da nota (acham menções sem link a ela)
 # relações tipadas: UMA PROPRIEDADE POR TIPO, cada uma com uma lista de wikilinks
 uses: ["[[SQS]]"]
 decided_by: ["[[Ana]]"]

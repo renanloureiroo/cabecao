@@ -7,12 +7,14 @@ import type { NoteRead, RelationsConfig } from '../vault/index.ts';
 import { displayTitle, isArchivedPath, linkListFields, plainLinkText, relationTypes } from '../vault/index.ts';
 
 /**
- * Como a aresta nasceu (doc 06, "De onde vêm as arestas"). `mention` é do marco 3 e ainda não é gravada.
+ * Como a aresta nasceu (doc 06, "De onde vêm as arestas").
  * - `wikilink`: `[[Nota]]` no corpo (`type` = `link` ou `embed`) ou num campo do frontmatter que não é relação
  *   (`type` = nome do campo, como `sources`).
  * - `relation`: campo de relação tipada (`type` = `uses`, `part_of`...).
  * - `supersedes`: campos `supersedes` e `superseded_by` (`type` = nome do campo).
  * - `fact`: `subject` e `object` de uma nota `type: fact` (`type` = `subject` ou `object`).
+ * - `mention`: título ou apelido de outra nota citado no texto sem link (`type` = `mention`). Não sai daqui: é
+ *   derivada do conjunto das notas no fim da varredura (`db/mentions.ts`).
  */
 export type EdgeOrigin = 'wikilink' | 'relation' | 'supersedes' | 'fact' | 'mention';
 

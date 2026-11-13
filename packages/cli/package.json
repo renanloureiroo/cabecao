@@ -1,6 +1,6 @@
 {
   "name": "cabecao",
-  "version": "0.0.1",
+  "version": "0.1.0-beta.1",
   "description": "Segundo cérebro pessoal em Markdown e git, exposto a agentes de IA por MCP. Personal second brain in Markdown and git, served to AI agents over MCP.",
   "keywords": [
     "second-brain",
