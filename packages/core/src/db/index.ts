@@ -67,11 +67,41 @@ export type {
   KeywordHit,
   KeywordSearchOptions,
   KeywordSearchResult,
+  NoteFilterOptions,
   QueryTerm,
   Validity,
   ValidityFields,
 } from './search.ts';
-export { buildFtsQuery, queryTerms, searchKeyword, VALIDITIES, validityOf } from './search.ts';
+export {
+  BM25_TEXT_WEIGHT,
+  BM25_TITLE_WEIGHT,
+  buildFtsQuery,
+  EXPIRED_SCORE_FACTOR,
+  noteFilters,
+  queryTerms,
+  searchKeyword,
+  VALIDITIES,
+  validityOf,
+} from './search.ts';
+export type {
+  ChunkDetail,
+  ChunkRef,
+  EmbeddingInput,
+  KeywordCandidates,
+  KeywordCandidatesOptions,
+  KeywordChunkCandidate,
+} from './semantic.ts';
+export {
+  allChunkKeys,
+  chunkDetails,
+  chunkKeysMatching,
+  chunksForKeys,
+  DEFAULT_CANDIDATE_DEPTH,
+  embeddingInputs,
+  keywordCandidates,
+  MIN_IDF,
+  termIdfs,
+} from './semantic.ts';
 export type { SqliteModule } from './sqlite.ts';
 export {
   filterSqliteWarning,
