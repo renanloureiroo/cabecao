@@ -36,7 +36,7 @@ jobs:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - run: node -v && npm -v && pnpm -v
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --filter '!cabecao-website' # o site tem workflow próprio (docs.yml)
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -100,7 +100,7 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --filter '!cabecao-website' # o site tem workflow próprio (docs.yml)
       - run: pnpm build
       - name: publint
         working-directory: packages/cli

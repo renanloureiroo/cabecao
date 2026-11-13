@@ -6,6 +6,7 @@
       "**",
       "!**/dist",
       "!**/node_modules",
+      "!website/.astro",
       "!**/*.md",
       "!**/CHANGELOG.md",
       "!pnpm-lock.yaml",

@@ -1,2 +1,4 @@
 packages:
   - packages/*
+  # Site de documentação (Astro Starlight). Fica fora do pacote publicado; o build é "pnpm docs:build".
+  - website
