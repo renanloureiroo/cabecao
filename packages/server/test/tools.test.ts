@@ -211,6 +211,14 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       );
       expect(forgotten.status).toBe('confirmation_required');
 
+      const started = check('consolidate', await server.client.call('consolidate', { action: 'start' }));
+      expect(String((started.restore_point as { tag: string }).tag)).toMatch(/^cabecao\/restore\//);
+      const closed = check(
+        'consolidate',
+        await server.client.call('consolidate', { action: 'finish', consolidation_id: started.consolidation_id }),
+      );
+      expect(closed.commit).toBeNull();
+
       const undone = check('undo', await server.client.call('undo', { session: session, session_handle: session }));
       expect((undone.undone as unknown[]).length).toBe(7);
 

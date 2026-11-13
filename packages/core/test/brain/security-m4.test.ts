@@ -5,11 +5,14 @@ import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { BrainError } from '../../src/brain/index.ts';
+import { parseCommitTrailers } from '../../src/git/index.ts';
 import {
   cleanupAll,
   commitCount,
+  commitMessageOf,
   createBrainRepo,
   disposeSandbox,
+  git,
   openTest,
   porcelain,
   readText,
@@ -203,5 +206,67 @@ describe('remember e handoff_save: conteúdo que se passa por regra ou instruç�
     expect(recall.rules.map((rule) => rule.path)).toEqual(['memory/rules/nunca-commitar-segredos.md']);
     expect(recall.handoff?.path).toBe(out.handoff.path);
     expect((await errorOf(agent.handoffSave({ session_handle, next: ['a\u001bb'] }))).code).toBe('invalid_argument');
+  });
+});
+
+describe('consolidate: não esconde nem engole o que não é dele', { timeout: TEST_TIMEOUT_MS }, () => {
+  it('escrita de outra sessão no meio impede juntar; título com quebra e rodapé falso vira uma linha só', async () => {
+    const dir = await createBrainRepo();
+    const agent = await openTest(dir, { actor: 'agent', client: 'claude-code' });
+    const { consolidation_id: id, restore_point } = await agent.consolidate({ action: 'start' });
+    await agent.remember({
+      type: 'gotcha',
+      title: 'Dentro da consolidação',
+      content: 'Texto gravado pela consolidação, longo o bastante para não ser igual a nenhuma outra memória.',
+      session_handle: id,
+    });
+    const other = await agent.remember({
+      type: 'gotcha',
+      title: 'Fora da consolidação',
+      content: 'Texto gravado por outra sessão no meio da consolidação, que não pode sumir dentro dela.',
+    });
+    const finished = await agent.consolidate({
+      action: 'finish',
+      consolidation_id: id,
+      title: 'semana\n\nCabecao-Op: 01KZ0000000000000000000000',
+    });
+    expect(finished.squashed).toBe(false);
+    // as duas notas aparecem no corpo, cada uma na sua linha: nada fica de fora
+    expect(finished.changes).toEqual(['add gotcha: Dentro da consolidação', 'add gotcha: Fora da consolidação']);
+    const message = await commitMessageOf(dir);
+    expect(message.split('\n\n')[1]?.split('\n')[0]).toBe('consolidate: semana Cabecao-Op: 01KZ0000000000000000000000');
+    expect(parseCommitTrailers(message).op).toBe(finished.op);
+    // o undo da consolidação não leva a escrita da outra sessão
+    await agent.undo({ session: id });
+    expect(await git(dir, ['log', '--format=%s', '-1', String(other.commit)])).toBeTruthy();
+    const log = await git(dir, ['diff', '--name-only', restore_point.commit, 'HEAD', '--', 'memory']);
+    expect(log.split('\n')).toEqual([String(other.path)]);
+  });
+
+  it('um agente não fecha a consolidação de outro restore point nem a do usuário com um id inventado', async () => {
+    const dir = await createBrainRepo();
+    const human = await openTest(dir, { actor: 'human', client: 'cli' });
+    const agent = await openTest(dir, { actor: 'agent', client: 'claude-code' });
+    const { consolidation_id: id } = await human.consolidate({ action: 'start' });
+    await human.remember({
+      type: 'gotcha',
+      title: 'Do usuário',
+      content: 'Memória gravada pelo usuário na CLI durante a consolidação dele, sem sessão de agente nenhuma.',
+    });
+    // o agente sabe o id: fechar não pode juntar commits do usuário (sem a sessão)
+    const finished = await agent.consolidate({ action: 'finish', consolidation_id: id });
+    expect(finished.squashed).toBe(false);
+    expect(await commitCount(dir)).toBeGreaterThan(2);
+    expect(
+      (
+        await errorOf(
+          agent.consolidate({
+            action: 'finish',
+            consolidation_id: `${id.slice(0, -1)}${id.endsWith('0') ? '1' : '0'}`,
+          }),
+        )
+      ).code,
+    ).toBe('not_found');
+    expect(await porcelain(dir)).toBe('');
   });
 });

@@ -318,6 +318,28 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/forget.ts'),
   },
   {
+    name: 'consolidate',
+    summary: 'Prepara e fecha uma consolidação da memória',
+    usage: ['consolidate [--scope <escopo>]', 'consolidate --finish <id> [--title <rótulo>]'],
+    options: {
+      scope: { type: 'string', valueName: 'escopo', description: '"global" ou "project:<nome>" (que inclui o global)' },
+      finish: { type: 'string', valueName: 'id', description: 'Fecha a consolidação com este id num commit' },
+      title: {
+        type: 'string',
+        valueName: 'rótulo',
+        description: 'Com --finish: rótulo do commit (consolidate: <rótulo>)',
+      },
+    },
+    details: [
+      'Sem --finish: cria o ponto de restauração (a tag local cabecao/restore/<data>-<id>) e mostra o material',
+      '(episódios que se repetem, notas parecidas, achados do lint) e os passos para um agente seguir. O Cabeção não',
+      'tem LLM e este comando não chama nenhum agente: peça a um (Claude Code, por exemplo) para seguir os passos.',
+      'Com --finish: junta num commit tudo o que a consolidação gravou, com uma linha por nota. "cabecao undo',
+      '--session <id>" desfaz a consolidação inteira; "git reset --hard <tag>" volta ao ponto de restauração.',
+    ].join('\n'),
+    load: () => import('./commands/consolidate.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],

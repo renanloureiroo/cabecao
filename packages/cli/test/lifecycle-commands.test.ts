@@ -10,6 +10,7 @@ import {
   freshDir,
   git,
   machine,
+  openAsAgent,
   parseJson,
   readNote,
   TEST_TIMEOUT_MS,
@@ -134,5 +135,32 @@ describe('forget', { timeout: TEST_TIMEOUT_MS }, () => {
     );
     expect(rule.data.status).toBe('archived');
     expect((await m.cabecao(['forget', '--brain', brain])).code).toBe(2);
+  });
+});
+
+describe('consolidate', { timeout: TEST_TIMEOUT_MS }, () => {
+  it('prepara (ponto de restauração e passos), o agente grava com o id e --finish fecha num commit', async () => {
+    const started = parseJson(await m.cabecao(['consolidate', '--brain', brain, '--json']));
+    const id = String(started.data.consolidation_id);
+    expect(await git(brain, ['tag', '--list', 'cabecao/restore/*'])).toContain(id);
+    const text = await m.cabecao(['consolidate', '--scope', 'project:atlas', '--brain', brain]);
+    expect(text.stdout).toContain('Ponto de restauração: cabecao/restore/');
+    expect(text.stdout).toContain('session_handle');
+    expect(text.stdout).toContain('cabecao consolidate --finish');
+    expect(m.calls).toEqual([]); // nenhum agente foi chamado
+
+    const agent = await openAsAgent(brain);
+    await agent.remember({
+      type: 'gotcha',
+      title: 'Aprendido na consolidação',
+      content: 'Um aprendizado gravado pelo agente durante a consolidação preparada pela CLI, com texto próprio.',
+      session_handle: id,
+    });
+    const finished = await m.cabecao(['consolidate', '--finish', id, '--title', 'teste', '--brain', brain]);
+    expect(finished.code).toBe(0);
+    expect(finished.stdout).toContain('Consolidação fechada num commit');
+    expect(finished.stdout).toContain('add gotcha: Aprendido na consolidação');
+    expect(await git(brain, ['log', '-1', '--format=%B'])).toContain('consolidate: teste');
+    expect((await m.cabecao(['consolidate', '--finish', id, '--scope', 'global', '--brain', brain])).code).toBe(2);
   });
 });
