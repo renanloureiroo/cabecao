@@ -1,4 +1,5 @@
 import type { StatusOutput } from '@cabecao/core';
+import { checkTemplate, schemaState, templateUpdatable } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
@@ -78,5 +79,29 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const root = await resolveBrain(ctx);
   const status = await withBrain(ctx, root, (brain) => brain.status());
   // Avisos (conflitos, sync com erro) não mudam o código de saída: o comando funcionou e mostrou o estado.
-  return { data: status, text: statusText(status) };
+  const lines = [statusText(status)];
+  const schema = await schemaState(root);
+  if (schema !== null && schema.pending > 0) {
+    lines.push(
+      `Atualização: ${plural(schema.pending, 'migração pendente', 'migrações pendentes')} do esquema ${schema.version} para o ${schema.supported}. Rode "cabecao upgrade".`,
+    );
+  }
+  const template = templateUpdatable(await checkTemplate(root)).map((item) => item.path);
+  if (template.length > 0) {
+    lines.push(
+      `Modelo do cérebro: atualização opcional (${template.join(', ')}). Veja com "cabecao upgrade --template --dry-run".`,
+    );
+  }
+  return {
+    data: {
+      ...status,
+      upgrade: {
+        schema_version: schema?.version ?? null,
+        supported: schema?.supported ?? null,
+        pending: schema?.pending ?? 0,
+        template,
+      },
+    },
+    text: lines.join('\n'),
+  };
 }
