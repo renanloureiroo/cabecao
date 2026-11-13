@@ -50,6 +50,7 @@ O que ele reconhece:
 | `anthropic-api-key`, `openai-api-key`, `npm-token` | Chaves da Anthropic, da OpenAI e tokens do npm |
 | `jwt` | JSON Web Tokens assinados |
 | `url-credentials` | URL com senha embutida (`esquema://usuario:senha@host`) |
+| `cabecao-confirm-token` | O `confirm_token` do `forget` (`cbc_ct_...`): vale minutos e não deve ficar numa nota |
 | `generic-assignment` | Um nome sensível (`password`, `senha`, `secret`, `token`, `api_key`...) recebendo um valor com cara de segredo |
 
 O scanner olha tudo o que vai ser commitado, não só as notas: anexos de texto, configuração, valores do frontmatter.
@@ -75,7 +76,10 @@ Pelas tools do MCP, um agente:
 - não altera fontes que já existem em `raw/`, nem cópias de conflito;
 - não escolhe a própria proveniência (`origin`, `edited_by`) nem se dá `trust: high`;
 - não grava nada com cara de segredo;
-- não desfaz operações suas.
+- não desfaz operações suas;
+- não arquiva (`forget`) regras suas, fontes de `raw/` nem cópias de conflito, e só arquiva depois de uma confirmação em duas chamadas (ou de você responder, quando o cliente pergunta);
+- não faz o `ingest` ler arquivos de fora do cérebro: um arquivo seu entra pelo `cabecao ingest`, que é você;
+- não grava regras numa consolidação: no máximo, propõe uma em `wiki/syntheses/`, e a consolidação inteira se desfaz com um `undo`.
 
 Quando altera uma nota sua, ela ganha `edited_by` e o `trust` cai. E toda gravação dele é um commit que você desfaz com `cabecao undo`.
 

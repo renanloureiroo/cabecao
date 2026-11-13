@@ -44,7 +44,7 @@ Um agente que segue as instruções faz as chamadas abaixo. Quantas e quais ele 
    }
    ```
 
-3. **No fim, o agente deixa um handoff** (`remember` com `type: handoff`): o que fez, o que falta e onde parou.
+3. **No fim, o agente deixa um handoff** (`handoff_save`): o que fez, o que falta, as decisões e as armadilhas.
 
 A nota gravada é um arquivo Markdown comum, que você abre em qualquer editor:
 
