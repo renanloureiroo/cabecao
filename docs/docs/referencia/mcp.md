@@ -461,6 +461,8 @@ A manutenção em que o agente raciocina e o Cabeção cuida da segurança, em d
 
 Nos dois casos, `undo({ session: "<consolidation_id>" })` desfaz a consolidação inteira.
 
+Quando é o `cabecao consolidate --run` que chama o agente, o servidor sobe preso à consolidação (`cabecao mcp --consolidation <id>`): o `start` já foi feito pela CLI, toda escrita vai com o id como sessão, e `sync`, `undo`, `handoff_save`, `ingest`, um segundo `start` e (sem `--allow-forget`) `forget` voltam com o erro `human_only`. Veja [Consolidar com um agente](../guias/consolidar-com-agente.md).
+
 **Entrada:** `action` (`start` ou `finish`); no `start`, `scope`; no `finish`, `consolidation_id` e `title` (o rótulo do commit).
 
 **Saída:** `action`, `consolidation_id`, `restore_point` (`tag`, `commit`), `material` (só no `start`: `repeated_episodes`, `episodes`, `duplicates`, `lint`), `instructions`, `op`, `commit`, `squashed`, `changes`, `next_step` e o `data_notice`. Um `finish` real:
