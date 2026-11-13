@@ -224,6 +224,7 @@ describe('erros', () => {
       kind: 'runtime',
       message: 'nada configurado',
       code: 'ENADA',
+      next_step: 'Rode cabecao init.',
       hint: 'Rode cabecao init.',
     });
   });
