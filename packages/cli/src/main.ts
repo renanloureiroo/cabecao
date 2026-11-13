@@ -54,6 +54,19 @@ function safeHomedir(): string | undefined {
   }
 }
 
+/** Pergunta no terminal, uma linha. O `node:readline` só é carregado quando um comando pergunta algo. */
+async function terminalPrompt(question: string): Promise<string | null> {
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: true });
+  try {
+    return (await rl.question(question)).trim();
+  } catch {
+    return null;
+  } finally {
+    rl.close();
+  }
+}
+
 /** Entrada usada pelo bin: liga a CLI ao processo de verdade. Nunca rejeita: o bin só trata falha de carga. */
 export async function main(argv: readonly string[]): Promise<void> {
   let cwd: string;
@@ -76,5 +89,6 @@ export async function main(argv: readonly string[]): Promise<void> {
     execPath: process.execPath,
     binPath: process.argv[1],
     exec: systemExec,
+    ...(process.stdin.isTTY === true && process.stderr.isTTY === true ? { prompt: terminalPrompt } : {}),
   });
 }

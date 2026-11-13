@@ -92,7 +92,9 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'search',
     summary: 'Busca no cérebro pelo terminal',
-    usage: ['search "<pergunta>" [--type <tipo>...] [--scope <escopo>] [--limit <n>] [--as-of <data>]'],
+    usage: [
+      'search "<pergunta>" [--mode auto|keyword|semantic|hybrid] [--type <tipo>...] [--scope <escopo>] [--limit <n>] [--as-of <data>]',
+    ],
     options: {
       type: {
         type: 'string',
@@ -111,9 +113,18 @@ export const COMMANDS: readonly CommandSpec[] = [
         valueName: 'data',
         description: 'Data AAAA-MM-DD em que a validade é calculada (padrão: hoje)',
       },
+      mode: {
+        type: 'string',
+        valueName: 'modo',
+        description:
+          'auto (padrão: híbrida se a busca por significado estiver ligada aqui), keyword, semantic ou hybrid',
+      },
     },
     details: [
-      'Busca por palavra-chave. Cada resultado traz título, caminho, trecho e se a nota está vigente, vencida ou',
+      'Com a busca por significado ligada ("cabecao embeddings on"), junta palavra-chave e significado; senão, só',
+      'palavra-chave. O fim da saída diz o modo usado e por quê.',
+      '',
+      'Cada resultado traz título, caminho, trecho e se a nota está vigente, vencida ou',
       'ainda não vigente na data (as que não valem aparecem mais abaixo, nunca escondidas). Para perguntas sobre o',
       'passado, use --as-of: a decisão que valia naquela data sobe. No fim, um bloco separado lista até 5 notas',
       'ligadas no grafo aos melhores resultados, com o motivo; ele não muda a ordem dos resultados.',
@@ -158,6 +169,79 @@ export const COMMANDS: readonly CommandSpec[] = [
       'e o encadeamento: que fato cada um substitui e por qual foi substituído. Os vencidos aparecem, por último.',
     ].join('\n'),
     load: () => import('./commands/facts.ts'),
+  },
+  {
+    name: 'embeddings',
+    summary: 'Busca por significado: ligar, desligar, ver o estado, trocar de modelo',
+    usage: [
+      'embeddings on [modelo] [--variant <v>] [--yes]',
+      'embeddings off',
+      'embeddings status',
+      'embeddings switch <modelo> [--variant <v>] [--yes]',
+    ],
+    options: {
+      model: { type: 'string', valueName: 'modelo', description: 'O modelo (o mesmo que o argumento)' },
+      variant: { type: 'string', valueName: 'v', description: 'Variante do modelo (padrão: a recomendada)' },
+      yes: { type: 'boolean', description: 'Aceita sem perguntar (licença que não é de código aberto, sem terminal)' },
+    },
+    details: [
+      'on: sem o nome do modelo, mostra as sugestões testadas (tamanho, qualidade, licença) e pergunta. Instala o',
+      '    runtime e baixa o modelo no diretório de dados do usuário, grava a escolha (e a revisão exata do modelo) no',
+      '    .cabecao.json num commit e calcula os embeddings que faltam. Numa segunda máquina usa o modelo já gravado,',
+      '    sem perguntar, e os vetores que vieram do repositório.',
+      'off: desliga só NESTA máquina: a busca volta a ser por palavra-chave e o sync deixa de calcular vetores, mas o',
+      '    modelo continua no .cabecao.json e os vetores na branch de índice, para as outras máquinas.',
+      'status: modelo, runtime, trechos com e sem vetor, geração e tamanho da branch de índice.',
+      'switch: calcula tudo para o modelo novo numa pasta nova da branch de índice; o antigo continua em uso até o',
+      '    cálculo terminar. Interrompido, continua de onde parou ao rodar de novo.',
+      '',
+      'Depois de on ou switch, rode "cabecao sync" para enviar a escolha e os vetores.',
+    ].join('\n'),
+    load: () => import('./commands/embeddings.ts'),
+  },
+  {
+    name: 'compact',
+    summary: 'Reduz a branch de índice e inicia uma geração nova',
+    usage: ['compact [--prune]'],
+    options: {
+      prune: { type: 'boolean', description: 'Apaga no remoto as gerações antigas que já estão inteiras na nova' },
+    },
+    details: [
+      'Sincroniza, junta os segmentos de embeddings num só, tira vetores repetidos, os de trechos que não existem',
+      'mais e as pastas de modelos fora de uso, grava tudo numa geração nova da branch de índice (sem reescrever',
+      'histórico) e sincroniza de novo para enviá-la. As outras máquinas migram sozinhas no próximo sync.',
+    ].join('\n'),
+    load: () => import('./commands/compact.ts'),
+  },
+  {
+    name: 'eval',
+    summary: 'Mede a busca com as suas perguntas',
+    usage: ['eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]'],
+    options: {
+      alpha: {
+        type: 'string',
+        multiple: true,
+        valueName: 'α',
+        description: 'Pesos do vetor na fusão (padrão: 0.3, 0.5 e 0.7)',
+      },
+      k: { type: 'string', valueName: 'n', description: 'Profundidade das métricas (padrão: 10)' },
+    },
+    details: [
+      'Uma pergunta por linha, em JSON: {"query": "...", "expected": "caminho/da/nota.md", "kind": "paraphrase"}.',
+      '"expected" aceita o id ou o caminho da nota, ou uma lista. Compara só palavra-chave, só vetor e a fusão com',
+      'cada α, e imprime MRR, nDCG, recall e acerto na 1ª posição, por tipo de pergunta, com o intervalo de',
+      'confiança da diferença contra a palavra-chave. Sem a busca por significado, mede só a palavra-chave.',
+    ].join('\n'),
+    load: () => import('./commands/eval.ts'),
+  },
+  {
+    name: 'reindex',
+    summary: 'Reconstrói o banco local',
+    usage: ['reindex [--full]'],
+    options: { full: { type: 'boolean', description: 'Apaga o banco e indexa tudo do zero' } },
+    details:
+      'Atualiza o banco local (.cabecao/cabecao.db) com o que mudou nas notas, ou, com --full, refaz do zero. O banco\né só uma visão das notas: refazer é sempre seguro.',
+    load: () => import('./commands/reindex.ts'),
   },
   {
     name: 'undo',

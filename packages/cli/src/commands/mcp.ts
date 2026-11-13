@@ -1,6 +1,7 @@
-import type { SyncOutput } from '@cabecao/core';
+import type { EmbeddingProvider, SyncOutput } from '@cabecao/core';
 import { readBrainConfig } from '@cabecao/core';
 import { readMachine, resolveBrain, toCliError } from '../brain.ts';
+import { embeddingProvider } from '../embeddings.ts';
 import { CliError, UsageError } from '../errors.ts';
 import type { CliIo, CommandContext, CommandResult } from '../types.ts';
 
@@ -17,6 +18,8 @@ export interface StdioServerOptions {
   machine?: string;
   /** Sync em processo separado; a CLI passa um que roda `cabecao sync --json`. */
   syncRunner?: SyncRunner;
+  /** Runtime de embeddings; criar não carrega nada (o modelo carrega na primeira busca que precisa dele). */
+  embeddings?: EmbeddingProvider;
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
@@ -114,6 +117,7 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     version: ctx.version,
     ...(machine === undefined ? {} : { machine }),
     syncRunner: createSyncRunner(ctx, brainRoot),
+    embeddings: embeddingProvider(ctx),
   });
   return {};
 }

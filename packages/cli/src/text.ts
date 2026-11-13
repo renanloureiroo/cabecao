@@ -21,3 +21,16 @@ export function indent(text: string, prefix = '  '): string {
     .map((line) => (line === '' ? line : `${prefix}${line}`))
     .join('\n');
 }
+
+/** Tamanho em bytes para o terminal: `812 B`, `14,2 kB`, `7,8 MB` (potências de 1000, como o `npm pack`). */
+export function formatBytes(bytes: number): string {
+  const units: readonly [number, string][] = [
+    [1e9, 'GB'],
+    [1e6, 'MB'],
+    [1e3, 'kB'],
+  ];
+  for (const [size, unit] of units) {
+    if (bytes >= size) return `${(bytes / size).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${unit}`;
+  }
+  return `${bytes} B`;
+}
