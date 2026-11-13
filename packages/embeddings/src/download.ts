@@ -114,6 +114,62 @@ export async function ensureModelFiles(spec: ModelSpec, options: DownloadOptions
   return localPaths(dir, spec);
 }
 
+export interface ResolveRevisionOptions {
+  fetch?: typeof fetch;
+  /** Servidor do Hugging Face (padrão: `HF_ENDPOINT` ou https://huggingface.co). */
+  endpoint?: string;
+  signal?: AbortSignal;
+}
+
+const COMMIT_RE = /^[0-9a-f]{40}$/;
+
+/**
+ * Commit do repositório do modelo para a revisão do `spec` (normalmente `main`). Uma revisão que já é um commit volta
+ * como está, sem rede. Usa a API pública do Hugging Face (`/api/models/<repo>/revision/<revisão>`, campo `sha`) e,
+ * se ela não responder com um commit, o cabeçalho `x-repo-commit` do `tokenizer_config.json`. Lança
+ * `EmbeddingsNetworkError` sem rede e `ModelNotFoundError` para repositório inexistente ou privado.
+ */
+export async function resolveModelRevision(
+  spec: Pick<ModelSpec, 'repo' | 'revision'>,
+  options: ResolveRevisionOptions = {},
+): Promise<string> {
+  if (COMMIT_RE.test(spec.revision)) return spec.revision;
+  const endpoint = (options.endpoint ?? (process.env.HF_ENDPOINT || DEFAULT_HF_ENDPOINT)).replace(/\/+$/, '');
+  const doFetch = options.fetch ?? fetch;
+  const init = { redirect: 'follow' as const, ...(options.signal ? { signal: options.signal } : {}) };
+  const api = `${endpoint}/api/models/${spec.repo}/revision/${encodeURIComponent(spec.revision)}`;
+  let response: Response;
+  try {
+    response = await doFetch(api, init);
+  } catch (error) {
+    throw new EmbeddingsNetworkError(api, networkReason(error), { cause: error });
+  }
+  if (response.status === 404 || response.status === 401 || response.status === 403) {
+    await response.body?.cancel().catch(() => {});
+    throw new ModelNotFoundError(api, response.status);
+  }
+  if (response.ok) {
+    const body = (await response.json().catch(() => null)) as { sha?: unknown } | null;
+    if (typeof body?.sha === 'string' && COMMIT_RE.test(body.sha)) return body.sha;
+  } else {
+    await response.body?.cancel().catch(() => {});
+  }
+  // plano B: o cabeçalho que o servidor manda junto de qualquer arquivo
+  const file = fileUrl(endpoint, spec, TOKENIZER_CONFIG_FILE);
+  let head: Response;
+  try {
+    head = await doFetch(file, { ...init, method: 'HEAD' });
+  } catch (error) {
+    throw new EmbeddingsNetworkError(file, networkReason(error), { cause: error });
+  }
+  await head.body?.cancel().catch(() => {});
+  if (head.status === 404 || head.status === 401 || head.status === 403)
+    throw new ModelNotFoundError(file, head.status);
+  const commit = head.headers.get('x-repo-commit');
+  if (commit !== null && COMMIT_RE.test(commit)) return commit;
+  throw new EmbeddingsNetworkError(api, `o Hugging Face não informou o commit de ${spec.repo}@${spec.revision}`);
+}
+
 export function fileUrl(endpoint: string, spec: Pick<ModelSpec, 'repo' | 'revision'>, file: string): string {
   const base = endpoint.replace(/\/+$/, '');
   const path = file.split('/').map(encodeURIComponent).join('/');

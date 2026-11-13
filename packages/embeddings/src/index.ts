@@ -4,9 +4,22 @@
 export type { CatalogModel, CatalogVariant, Pooling, PromptTemplates } from './catalog.ts';
 export { CATALOG_MODEL_NAMES, findCatalogModel, MODEL_CATALOG, POOLINGS } from './catalog.ts';
 export type { CatalogEmbeddingConfig, CustomEmbeddingConfig, EmbeddingConfig, ModelSpec } from './config.ts';
-export { catalogConfig, DEFAULT_REVISION, resolveEmbeddingConfig, specKey } from './config.ts';
-export type { DownloadOptions, DownloadProgress, ModelCacheStatus, ModelFiles } from './download.ts';
-export { DEFAULT_HF_ENDPOINT, ensureModelFiles, MODELS_DIR_NAME, modelCacheStatus, modelDir } from './download.ts';
+export { catalogConfig, DEFAULT_REVISION, isCommitRevision, resolveEmbeddingConfig, specKey } from './config.ts';
+export type {
+  DownloadOptions,
+  DownloadProgress,
+  ModelCacheStatus,
+  ModelFiles,
+  ResolveRevisionOptions,
+} from './download.ts';
+export {
+  DEFAULT_HF_ENDPOINT,
+  ensureModelFiles,
+  MODELS_DIR_NAME,
+  modelCacheStatus,
+  modelDir,
+  resolveModelRevision,
+} from './download.ts';
 export type { CreateOnnxEmbedderParams, Embedder, EmbedderBackend, LoadEmbedderOptions } from './embedder.ts';
 export { createOnnxEmbedder, DEFAULT_BATCH_SIZE, DEFAULT_MAX_BATCH_TOKENS, loadEmbedder } from './embedder.ts';
 export {
