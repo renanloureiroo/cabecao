@@ -50,7 +50,13 @@ export type SyncIntegration = 'none' | 'fast-forward' | 'replay' | 'merge';
  * - `git-operation`: operação do git pela metade, deixada por outro programa.
  * - `detached-head`: HEAD fora de uma branch.
  */
-export type SyncBlockReason = 'secrets' | 'unscannable' | 'local-file' | 'git-operation' | 'detached-head';
+export type SyncBlockReason =
+  | 'secrets'
+  | 'unscannable'
+  | 'local-file'
+  | 'git-operation'
+  | 'detached-head'
+  | 'schema-too-new';
 
 /**
  * Um arquivo (nota, anexo ou configuração) editado nas duas máquinas. Nada foi resolvido em silêncio: as duas

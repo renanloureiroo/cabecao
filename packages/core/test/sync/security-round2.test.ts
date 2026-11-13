@@ -59,7 +59,7 @@ describe.concurrent('R2-4: .cabecao.json inválido vindo do remoto', { timeout: 
     }
   });
 
-  it('campo inválido e arquivo apagado no remoto também não entram; mudança válida e esquema novo entram', async () => {
+  it('campo inválido e arquivo apagado no remoto também não entram; mudança válida entra; esquema novo para o sync', async () => {
     const { world, a } = await createWorld();
     try {
       const b = await world.clone('b');
@@ -97,9 +97,12 @@ describe.concurrent('R2-4: .cabecao.json inválido vindo do remoto', { timeout: 
       const newer = `${JSON.stringify({ schemaVersion: 99, noteDirs: ['wiki'], indexMd: 'index.md' })}\n`;
       await push(() => write(a.dir, '.cabecao.json', newer), 'esquema novo');
       const r4 = await b.sync({ now });
-      expect(r4.conflicts).toEqual([]);
-      // esquema mais novo não é "inválido": entra, e esta máquina precisa atualizar o Cabeção
-      expect(read(b.dir, '.cabecao.json')).toBe(newer);
+      // esquema mais novo não é "inválido", mas esta máquina não o entende: nada é aplicado nem enviado até atualizar
+      // o Cabeção (regra de compatibilidade do `cabecao upgrade`)
+      expect(r4).toMatchObject({ status: 'blocked', reason: 'schema-too-new', conflicts: [] });
+      expect(r4.message).toContain('esquema 99');
+      expect(read(b.dir, '.cabecao.json')).toBe(valid);
+      expect(await opens(b.dir)).toBe(true);
     } finally {
       world.cleanup();
     }
