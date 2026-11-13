@@ -117,3 +117,5 @@ export {
   sqliteFilePath,
   WINDOWS_LONG_PATH_THRESHOLD,
 } from './sqlite.ts';
+export type { SubgraphEdge, SubgraphNote, SubgraphOptions, SubgraphResult } from './subgraph.ts';
+export { subgraph } from './subgraph.ts';
