@@ -98,12 +98,21 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'sync',
     summary: 'Sincroniza o cérebro com o remoto',
-    usage: ['sync [--session <id>]'],
+    usage: ['sync [--session <id>] [--log]', 'sync --detach', 'sync --hook'],
     options: {
       session: {
         type: 'string',
         valueName: 'id',
         description: 'Sessão do agente que pediu o sync (vai para os commits); usado pelo servidor MCP',
+      },
+      log: { type: 'boolean', description: 'Também acrescenta o resultado a .cabecao/logs/sync.log (o agendador usa)' },
+      detach: {
+        type: 'boolean',
+        description: 'Dispara o sync num processo em segundo plano e volta na hora; o resultado vai para o log',
+      },
+      hook: {
+        type: 'boolean',
+        description: 'Fim de sessão do Claude Code: como --detach, mas nunca falha (o motivo vai para o stderr)',
       },
     },
     details: [
@@ -114,6 +123,10 @@ export const COMMANDS: readonly CommandSpec[] = [
       'Código de saída: 0 quando terminou ou quando outro sync já estava rodando; 1 quando foi bloqueado, deu erro ou',
       'o remoto não respondeu (as mudanças ficam em commits locais e vão no próximo sync). Num cérebro sem remoto,',
       'sai com 0 e um aviso. Com --json, devolve a saída completa.',
+      '',
+      '--detach volta em milissegundos e deixa o sync rodando num processo destacado, que sobrevive ao terminal (ou ao',
+      'Claude Code) fechar; o resultado fica em <cérebro>/.cabecao/logs/sync.log. Se outro sync já estiver rodando, o',
+      'novo sai como "outro sync em andamento", sem fazer nada.',
     ].join('\n'),
     load: () => import('./commands/sync.ts'),
   },
