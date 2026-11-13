@@ -42,7 +42,7 @@ describe('handoff_save', { timeout: TEST_TIMEOUT_MS }, () => {
     });
     expect(out.expires_at).toBe('2026-12-12');
     expect(out.handoff.path).toMatch(/^memory\/handoffs\/2026-11-12-passagem-de-bastao-migrar-rastreio\.md$/);
-    expect(out.episode?.path).toMatch(/^memory\/episodes\/2026\/11\/2026-11-12-sessao-de-2026-11-12-/);
+    expect(out.episode?.path).toMatch(/^memory\/episodes\/2026\/11\/2026-11-12-sessao-/);
     expect(out.supersedes?.path).toBe('memory/handoffs/2026-11-10-atlas-consumidores.md');
 
     const handoff = await readText(dir, out.handoff.path);
@@ -60,7 +60,7 @@ describe('handoff_save', { timeout: TEST_TIMEOUT_MS }, () => {
 
     const message = await commitMessageOf(dir);
     expect(message.split('\n\n')[1]?.split('\n')).toEqual([
-      expect.stringMatching(/^add episode: Sessão de 2026-11-12: /),
+      expect.stringMatching(/^add episode: Sessão: /),
       expect.stringMatching(/^add handoff: Passagem de bastão: Migrar rastreio$/),
     ]);
     expect(parseCommitTrailers(message).session).toBe(session_handle);

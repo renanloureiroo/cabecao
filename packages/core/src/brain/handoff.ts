@@ -145,7 +145,7 @@ export async function handoffSave(ctx: BrainContext, input: HandoffSaveInput): P
   ]
     .filter((part) => part !== '')
     .join('\n');
-  const episodeTitle = `Sessão de ${day}: ${shorten(titleFromContent(lists.done[0] ?? ''), 60)}`;
+  const episodeTitle = `Sessão: ${shorten(titleFromContent(lists.done[0] ?? ''), 60)}`;
   const episodeBody = [
     `# ${episodeTitle}\n`,
     section('Feito', lists.done),
