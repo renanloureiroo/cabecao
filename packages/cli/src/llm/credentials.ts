@@ -1,6 +1,7 @@
 // Onde a chave de API mora nesta máquina. Nunca no repositório, no cérebro, em arquivo que sincroniza, em log, em
 // mensagem de erro ou na saída `--json`; nunca em argumento de processo (outro usuário da máquina veria na lista de
-// processos): toda gravação passa a chave pela ENTRADA PADRÃO do programa do sistema.
+// processos): a gravação passa a chave pela ENTRADA PADRÃO do programa do sistema (no Windows, pelo ambiente só do
+// processo do PowerShell, que não lê a entrada redirecionada de forma confiável).
 //
 // Ordem de leitura: a variável de ambiente do provedor; depois o lugar gravado no `llm.json`:
 // - `keychain`: o cofre do sistema, por comando nativo, sem dependência nativa no pacote:
@@ -122,11 +123,13 @@ function powershell(env: Env): string {
   return `${root}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
 }
 
-// Uma linha da entrada padrão (com a quebra que o Cabeção manda): não depende de o PowerShell ver o fim da entrada.
-const PS_ENCRYPT =
-  '$k = [Console]::In.ReadLine().Trim(); ConvertTo-SecureString -String $k -AsPlainText -Force | ConvertFrom-SecureString';
-const PS_DECRYPT =
-  "$e = [Console]::In.ReadLine().Trim(); $s = ConvertTo-SecureString -String $e; [System.Net.NetworkCredential]::new('', $s).Password";
+// No Windows, o PowerShell chamado com a entrada redirecionada não lê o `[Console]::In` de forma confiável (no CI ficou
+// parado até o tempo limite). A chave vai então numa variável de ambiente SÓ do processo do PowerShell, nunca na linha
+// de comando: o ambiente de um processo não aparece na lista de processos e só o próprio usuário (ou um administrador)
+// o lê, como a entrada padrão.
+const DPAPI_INPUT = 'CABECAO_DPAPI_INPUT';
+const PS_ENCRYPT = `ConvertTo-SecureString -String $env:${DPAPI_INPUT} -AsPlainText -Force | ConvertFrom-SecureString`;
+const PS_DECRYPT = `$s = ConvertTo-SecureString -String $env:${DPAPI_INPUT}; [System.Net.NetworkCredential]::new('', $s).Password`;
 
 /** O cofre do sistema existe e responde nesta máquina? `reason` explica quando não. */
 export async function keychainAvailable(io: CredentialIo): Promise<{ ok: boolean; reason: string; label: string }> {
@@ -186,8 +189,8 @@ async function keychainWrite(io: CredentialIo, id: string, key: string): Promise
   }
   if (io.platform === 'win32') {
     const result = await run(powershell(io.env), ['-NoProfile', '-NonInteractive', '-Command', PS_ENCRYPT], {
-      stdin: `${key}\n`,
-      env,
+      stdin: '',
+      env: { ...env, [DPAPI_INPUT]: key },
       timeoutMs: RUN_TIMEOUT_MS * 2,
     });
     const encrypted = result.stdout.trim();
@@ -229,8 +232,8 @@ async function keychainRead(io: CredentialIo, id: string): Promise<string | null
     const encrypted = store.keys[id];
     if (encrypted === undefined) return null;
     const result = await run(powershell(io.env), ['-NoProfile', '-NonInteractive', '-Command', PS_DECRYPT], {
-      stdin: `${encrypted}\n`,
-      env,
+      stdin: '',
+      env: { ...env, [DPAPI_INPUT]: encrypted },
       timeoutMs: RUN_TIMEOUT_MS * 2,
     });
     const key = result.stdout.trim();

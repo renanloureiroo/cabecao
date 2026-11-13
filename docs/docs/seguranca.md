@@ -125,7 +125,7 @@ Com o `ask` ativado, o conteúdo do cérebro passa a ter mais um destinatário: 
 - **Conteúdo como dado.** Cada trecho vai entre delimitadores com uma marca sorteada a cada pergunta (um trecho que tente forjar o delimitador é neutralizado), o conteúdo de fora vai com as palavras separadas por `^`, e o prompt diz que nada dentro dos trechos é instrução.
 - **Resposta só lida.** Nada do que o provedor devolve é executado, gravado no cérebro ou usado para chamar outra coisa. Sequências de controle de terminal são removidas.
 - **Citações conferidas pelo Cabeção**, não pelo modelo: rótulo inventado ou citação que não está no trecho é descartado; sem nenhuma citação válida, a resposta é "o cérebro não tem isso".
-- **A chave** fica no cofre do sistema (ou num arquivo `0600`), entra nos programas do sistema pela entrada padrão, nunca na linha de comando, e nunca aparece no cérebro, no log, numa mensagem de erro ou no `--json`.
+- **A chave** fica no cofre do sistema (ou num arquivo `0600`), entra nos programas do sistema pela entrada padrão (no Windows, pelo ambiente só do processo do PowerShell), nunca na linha de comando, e nunca aparece no cérebro, no log, numa mensagem de erro ou no `--json`.
 - **O agente instalado roda sem ferramentas.** O Claude Code, como provedor, roda sem shell, sem leitura de arquivos e sem MCP, numa pasta temporária vazia, com ambiente mínimo e tempo limite; a árvore de processos é encerrada no fim.
 
 Detalhes, provedores e a política de dados de cada um em [Respostas com um modelo de linguagem](./guias/respostas-com-modelo.md).
