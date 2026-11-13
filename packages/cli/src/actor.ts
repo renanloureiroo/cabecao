@@ -138,7 +138,7 @@ export function agentSignals(env: Env): AgentSignal[] {
   return AGENT_SIGNALS.filter((signal) => present(env[signal.variable]));
 }
 
-export type ActorReason = 'terminal' | 'as' | 'env' | 'ci' | 'no-terminal';
+export type ActorReason = 'terminal' | 'as' | 'env' | 'ci' | 'no-terminal' | 'server';
 
 export interface ResolvedActor {
   readonly actor: 'human' | 'agent';

@@ -98,6 +98,9 @@ export function buildProvider(
       model: entry.model,
       env: io.env,
       platform: io.platform,
+      // o executável confirmado; e, para um agente, sem nada do ambiente dele que mude destino ou configuração
+      ...(entry.binary === undefined ? {} : { binary: entry.binary }),
+      restricted: io.actor?.actor !== 'human',
       ...(options.claudeRun === undefined ? {} : { run: options.claudeRun }),
       ...(options.claudeLocate === undefined ? {} : { locate: options.claudeLocate }),
     });
@@ -161,8 +164,9 @@ export async function detectLlm(io: LlmIo): Promise<Detected> {
   return { claude, envKeys };
 }
 
-/** Uma linha por pergunta em `<cache>/ask.log` (sem trechos do cérebro e sem chave). Rotaciona em 1 MiB. */
+/** Uma linha por pergunta em `<pasta do llm.json>/ask.log` (sem trechos do cérebro e sem chave). Rotaciona em 1 MiB. */
 export async function appendAskLog(cache: string, entry: Record<string, unknown>): Promise<void> {
+  if (cache === '') return;
   try {
     await mkdir(cache, { recursive: true });
     const path = join(cache, 'ask.log');

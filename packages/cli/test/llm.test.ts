@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ANSWER_SCHEMA, cacheDir } from '@cabecao/core';
+import { ANSWER_SCHEMA } from '@cabecao/core';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { runAgentProcess } from '../src/agents/index.ts';
 import { claudeArgs, claudeEnv, createClaudeCodeProvider, parseClaudeOutput } from '../src/llm/claude-code.ts';
@@ -288,7 +288,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     expect(() => statSync(join(m.configDir, 'credentials.json'))).toThrow();
 
     // a chave nunca apareceu em saída, log ou arquivo, fora do arquivo protegido (já apagado)
-    const cache = cacheDir({ env: m.env, platform: process.platform, homedir: m.home });
+    const cache = m.configDir;
     expect(everything(results, [m.configDir, cache])).not.toContain(KEY);
     // o log do ask não guarda trechos do cérebro
     const log = readFileSync(join(cache, 'ask.log'), 'utf8');

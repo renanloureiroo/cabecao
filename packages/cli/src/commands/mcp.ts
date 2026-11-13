@@ -89,7 +89,9 @@ export async function askRunnerFor(
 ): Promise<StdioServerOptions['ask']> {
   // a pasta padrão do usuário; desviada por variável de ambiente, nada (o servidor roda para um agente; llm/describe.ts)
   const { trustedConfigDir } = await import('../llm/describe.ts');
-  const { dir } = trustedConfigDir(io);
+  // o servidor atende um agente, sempre: nunca vale uma pasta desviada, mesmo com um terminal herdado
+  const agentIo = { ...io, actor: { actor: 'agent' as const } };
+  const { dir } = trustedConfigDir(agentIo);
   if (dir === null) return undefined;
   const exists = await stat(`${dir}/llm.json`).then(
     () => true,
@@ -98,15 +100,14 @@ export async function askRunnerFor(
   if (!exists) return undefined;
   try {
     const { askAnnounced, runAsk } = await import('../llm/run.ts');
-    if (!(await askAnnounced(io, config))) return undefined;
+    if (!(await askAnnounced(agentIo, config))) return undefined;
     // um contador por processo: o teto por sessão do servidor (um cliente de IA aberto)
     const session = { calls: 0 };
     return async (brain, input, signal) =>
-      (await runAsk(io, brain, input, { session, ...(signal === undefined ? {} : { signal }) })).output;
-  } catch (error) {
-    io.stderr.write(
-      `[cabecao] respostas (ask) indisponíveis: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
+      (await runAsk(agentIo, brain, input, { session, ...(signal === undefined ? {} : { signal }) })).output;
+  } catch {
+    // o stderr do servidor chega ao cliente de IA: nada do provedor nem do motivo (o "cabecao doctor" no terminal diz)
+    io.stderr.write('[cabecao] respostas (ask) indisponíveis nesta sessão; rode "cabecao doctor" no seu terminal\n');
     return undefined;
   }
 }

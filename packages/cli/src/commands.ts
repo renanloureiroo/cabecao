@@ -227,10 +227,10 @@ export const COMMANDS: readonly CommandSpec[] = [
     },
     details: [
       'Busca no cérebro como o "search", manda os trechos ao provedor que você ativou com "cabecao llm on" e confere',
-      'cada citação: o trecho citado tem de existir e a citação literal tem de estar nele. O que não confere é',
-      'descartado ou marcado [sem apoio]; sem nenhuma citação válida, a resposta vira "o cérebro não tem isso".',
+      'cada citação: o trecho citado tem de existir e a citação literal tem de estar nele. A afirmação sem citação',
+      'conferida é descartada; sem nenhuma válida, a resposta vira "o cérebro não tem isso".',
       'Opcional e desligado por padrão: sem provedor, mostra os trechos achados e como ativar (nada sai da máquina).',
-      'Nunca são enviados: notas com "private: true", arquivos de controle e trechos em que o scanner acusa segredo.',
+      'Nunca são enviados: notas privadas (e o nome delas), arquivos de controle e trechos em que o scanner acusa segredo.',
       '',
       'Código de saída: 0 respondeu (o status diz se com pouco apoio ou se o cérebro não tem isso); 5 nenhum provedor',
       'gerou a resposta (vêm os trechos achados); 2 erro de uso. Com --json, o mesmo objeto que a tool "ask" devolve.',
@@ -840,6 +840,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       'sem --allow-elevated, também regra, arquivo de controle, raw/ e trust: high (não há usuário para confirmar).',
     ].join('\n'),
     ownsStdout: true,
+    alwaysAgent: true,
     load: () => import('./commands/mcp.ts'),
   },
   {
