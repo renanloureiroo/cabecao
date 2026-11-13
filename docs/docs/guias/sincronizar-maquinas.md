@@ -11,7 +11,7 @@ Cada máquina tem uma cópia completa do cérebro e o próprio índice local. O 
 Instale o Cabeção e rode o `init` com a mesma URL. Dê um nome à máquina para reconhecê-la nos commits e nas cópias de conflito:
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao init git@github.com:voce/cerebro.git --machine trabalho
 ```
 
@@ -39,14 +39,18 @@ Sync: branch main ↔ origin/main (git@github.com:voce/meu-cerebro.git)
   Commits não enviados: 1 · do remoto, ainda não integrados: 0
   Mudanças feitas fora do Cabeção, esperando o sync: 0
 Conflitos pendentes: nenhum
+Busca por significado: desativada ("cabecao embeddings on" ativa)
+Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)
 Saúde: ok
-Próximo passo: Rode sync para enviar as mudanças.
+Próximo passo: Rode o sync para enviar as mudanças.
+Opcional (rode quando quiser):
+  ...
 ```
 
 Os agentes também podem sincronizar pela tool `sync`. Peça "sincronize o cérebro" no fim da sessão.
 
 :::tip[Sincronizar sem pensar nisso]
-O Cabeção ainda não sincroniza sozinho. Se quiser, agende `cabecao sync` no agendador do seu sistema (cron, launchd, Agendador de Tarefas). Ele sai com 0 quando outro sync já está rodando, então não há problema em chamá-lo com frequência.
+Ligue o [sync automático](./sync-automatico.md): `cabecao schedule on` registra o `cabecao sync` no agendador do sistema, que o roda a cada intervalo. O sync sai com 0 quando outro já está rodando, então não há problema em chamá-lo com frequência.
 :::
 
 ## Sem rede
@@ -59,10 +63,10 @@ Edições em partes diferentes da nota são juntadas pelo git. Edições no mesm
 
 ## Tirar uma máquina
 
-Na máquina que sai, tire o registro dos clientes e apague a pasta do cérebro e a configuração da máquina:
+Na máquina que sai, tire o Cabeção (os registros nos clientes, as skills, o sync agendado, a configuração da máquina e o cache) e depois apague a pasta do cérebro:
 
 ```bash
-cabecao install-client --remove --all
+cabecao uninstall
 ```
 
-Depois apague `~/cabecao` e `~/.config/cabecao` (no Windows, `%APPDATA%\cabecao`). O remoto e as outras máquinas não são afetados. Antes, rode um último `cabecao sync` se houver algo não enviado.
+Depois apague `~/cabecao`. O remoto e as outras máquinas não são afetados. Antes, rode um último `cabecao sync` se houver algo não enviado. Mais em [Atualizar e desinstalar](./atualizar.md#desinstalar).

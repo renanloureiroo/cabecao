@@ -10,13 +10,13 @@ Every note says where it came from. This lets you, and the agents, weigh what th
 
 | Field | Values | Who fills it in |
 | --- | --- | --- |
-| `origin` | `human` (you), `agent:<cliente>` (an agent, like `agent:claude-code`), `ingest:<fonte>` (outside content, like `ingest:meeting`) | Cabeção, on an agent write. You, on a note written by hand. |
+| `origin` | `human` (you), `agent:<cliente>` (an agent, like `agent:claude-code`), `ingest:<fonte>` (outside content, like `ingest:file` or `ingest:web-clipper`) | Cabeção, on an agent write. You, on a note written by hand. |
 | `trust` | `high`, `medium` or `low` | The default comes from the origin: you `high`, agent `medium`, outside content `low` |
 | `edited_by` | `agent:<cliente>` | Cabeção, when an agent changes a note that was not created by an agent |
 
 ## When an agent edits a note of yours
 
-An agent can add to a note of yours, but the note no longer looks like it is only yours. This is the real result of a `write_page` that added a line to a note with `origin: human` and `trust: high`:
+An agent can add to a note of yours, but the note no longer looks like it is only yours. This is the real result (abridged) of a `write_page` that added a line to a note with `origin: human` and `trust: high`:
 
 ```json
 {

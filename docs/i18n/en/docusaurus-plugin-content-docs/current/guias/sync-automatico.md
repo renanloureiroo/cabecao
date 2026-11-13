@@ -51,10 +51,10 @@ Running `on` again does not duplicate anything: when nothing changed, it says "j
   ```text
   $ npx cabecao schedule on
   cabecao: o agendamento precisa de uma instalação estável do cabecao: rodando por npx (ou pelo código-fonte), o caminho do programa muda e o agendador ficaria apontando para nada
-  Instale com "npm i -g cabecao@beta" e rode "cabecao schedule on" de novo depois de instalar.
+  Instale com "npm i -g cabecao@latest" e rode "cabecao schedule on" de novo depois de instalar.
   ```
 
-  Install with `npm i -g cabecao@beta` and run `cabecao schedule on`. If Node comes from a version manager (nvm, fnm, volta...) and you remove that version, run `on` again.
+  Install with `npm i -g cabecao` and run `cabecao schedule on`. If Node comes from a version manager (nvm, fnm, volta...) and you remove that version, run `on` again.
 - **This machine's default brain.** The scheduled command is short (`node cabecao.mjs sync --log`) and does not carry the brain folder: it comes from the configuration `cabecao init` saved. On Windows this is mandatory, because Task Scheduler accepts at most 261 characters in the command.
 
 ### Check and turn off

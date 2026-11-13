@@ -11,7 +11,7 @@ Each machine has a full copy of the brain and its own local index. The git remot
 Install Cabeção and run `init` with the same URL. Give the machine a name so you can recognize it in commits and conflict copies:
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao init git@github.com:voce/cerebro.git --machine trabalho
 ```
 
@@ -39,14 +39,18 @@ Sync: branch main ↔ origin/main (git@github.com:voce/meu-cerebro.git)
   Commits não enviados: 1 · do remoto, ainda não integrados: 0
   Mudanças feitas fora do Cabeção, esperando o sync: 0
 Conflitos pendentes: nenhum
+Busca por significado: desativada ("cabecao embeddings on" ativa)
+Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)
 Saúde: ok
-Próximo passo: Rode sync para enviar as mudanças.
+Próximo passo: Rode o sync para enviar as mudanças.
+Opcional (rode quando quiser):
+  ...
 ```
 
 Agents can also sync through the `sync` tool. Ask "sync the brain" at the end of the session.
 
 :::tip[Sync without thinking about it]
-Cabeção does not sync on its own yet. If you want, schedule `cabecao sync` in your system's scheduler (cron, launchd, Task Scheduler). It exits with 0 when another sync is already running, so it is fine to call it often.
+Turn on [automatic sync](./sync-automatico.md): `cabecao schedule on` registers `cabecao sync` in the system scheduler, which runs it at every interval. Sync exits with 0 when another one is already running, so it is fine to call it often.
 :::
 
 ## Offline
@@ -59,10 +63,10 @@ Edits to different parts of the note are merged by git. Edits to the same passag
 
 ## Remove a machine
 
-On the machine that is leaving, remove the client registration and delete the brain folder and the machine configuration:
+On the machine that is leaving, remove Cabeção (the client registrations, the skills, the scheduled sync, the machine configuration, and the cache) and then delete the brain folder:
 
 ```bash
-cabecao install-client --remove --all
+cabecao uninstall
 ```
 
-Then delete `~/cabecao` and `~/.config/cabecao` (on Windows, `%APPDATA%\cabecao`). The remote and the other machines are not affected. Before that, run one last `cabecao sync` if anything has not been pushed.
+Then delete `~/cabecao`. The remote and the other machines are not affected. Before that, run one last `cabecao sync` if anything has not been pushed. More in [Update and uninstall](./atualizar.md#uninstall).

@@ -9,7 +9,7 @@ description: Use o doctor e resolva os erros mais comuns, de credencial, conflit
 cabecao doctor
 ```
 
-Ele confere Node.js, git, o cérebro, a configuração da máquina, a identidade do git, o remoto e a credencial, o `.gitignore`, o banco local, travas, operações interrompidas, conflitos e o registro nos clientes de IA. Cada item sai como `ok`, `aviso` ou `falha`, com a correção ao lado. O código de saída é 1 se houver alguma falha.
+Ele confere a versão do Cabeção, Node.js, git, o cérebro, a configuração da máquina, a identidade do git, o remoto e a credencial, o `.gitignore`, o banco local, a busca por significado, travas, operações interrompidas, conflitos, o registro nos clientes de IA, as skills, o sync agendado e o provedor de respostas do `ask`. Cada item sai como `ok`, `aviso` ou `falha`, com a correção ao lado. O código de saída é 1 se houver alguma falha.
 
 Sem rede, ou para ser rápido, use `cabecao doctor --offline`: ele não consulta o remoto.
 
@@ -17,13 +17,15 @@ Sem rede, ou para ser rápido, use `cabecao doctor --offline`: ele não consulta
 $ cabecao doctor --offline --brain ~/pasta-qualquer
 Diagnóstico do Cabeção: ~/pasta-qualquer
 
+ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ok     Node.js                  v24.21.0
 ok     git                      2.54.0
 falha  Cérebro                  não achei .cabecao.json em ~/pasta-qualquer: a pasta não é um cérebro do Cabeção. Rode "cabecao init".
                                 Correção: Confira o caminho do cérebro ou rode "cabecao init".
 ok     Configuração da máquina  máquina "notebook"
+ok     Respostas (ask)          opcional e desligado: nada sai da máquina ("cabecao llm on" ativa)
 
-3 ok, 0 avisos, 1 falha.
+5 ok, 0 avisos, 1 falha.
 ```
 
 ## Credencial: "Sem permissão para acessar"
@@ -109,7 +111,7 @@ O cérebro é escolhido nesta ordem: `--brain`, `CABECAO_BRAIN`, o padrão grava
 
 ## Banco local estranho
 
-Resultados que não batem com as notas, ou o erro `index_failed`: apague a pasta `.cabecao/` do cérebro (ela não vai para o git) e rode `cabecao status`. O banco é refeito a partir das notas.
+Resultados que não batem com as notas, ou o erro `index_failed`: rode `cabecao reindex --full` (ou apague `.cabecao/cabecao.db`, que não vai para o git, e rode `cabecao status`). O banco é refeito a partir das notas.
 
 ## Relatar um problema
 

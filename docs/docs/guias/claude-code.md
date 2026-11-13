@@ -9,11 +9,11 @@ O plugin é a forma mais completa de usar o Cabeção no Claude Code. Ele traz:
 - **o servidor MCP embutido**: as tools do Cabeção sobem com `node`, a partir de uma cópia do programa que vem dentro do plugin. Não usa `npx` nem rede, e o servidor sobe em cerca de 0,05 s;
 - **o briefing no início de cada sessão**: suas regras, o último handoff, suas preferências, as armadilhas e as memórias do projeto entram no contexto do agente antes da primeira mensagem, junto com as regras de uso do cérebro;
 - **o sync no fim de cada sessão**, em segundo plano;
-- **as skills do Cabeção** (consultar, lembrar, passar o bastão, manutenção a pedido e ações com pedido explícito), as mesmas do [`cabecao install-skills`](./skills.md). O plugin corresponde à **versão publicada**: as skills chegam a ele na próxima versão publicada; até lá, ele traz a skill de referência `cabecao:memory`.
+- **as skills do Cabeção** (consultar, lembrar, passar o bastão, manutenção a pedido e ações com pedido explícito), as mesmas do [`cabecao install-skills`](./skills.md).
 
 ## Antes de instalar
 
-- Node.js 22.16 ou mais novo no `PATH` (o mesmo que o Cabeção já pede).
+- Node.js 22.16+ ou 24+ no `PATH` (o mesmo que o Cabeção já pede).
 - Um cérebro nesta máquina: rode [`npx cabecao init`](../comecar/init.md) antes, ou tenha à mão a pasta de um cérebro.
 
 ## Instalar
@@ -125,7 +125,7 @@ O plugin acompanha as versões publicadas do pacote `cabecao`: o programa e as s
 
 | Sintoma | O que fazer |
 | --- | --- |
-| `claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect` | Rode `cabecao doctor`. Confira se o `node` do `PATH` é 22.16+ e se `brain_dir` (ou o cérebro padrão) aponta para um cérebro |
+| `claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect` | Rode `cabecao doctor`. Confira se o `node` do `PATH` é 22.16+ ou 24+ e se `brain_dir` (ou o cérebro padrão) aponta para um cérebro |
 | O agente não recebe o briefing | Rode o hook à mão e leia a saída de erro: `echo '{}' \| node <pasta do plugin>/server/cabecao.mjs recall --hook` |
 | O sync do fim de sessão não aconteceu | Veja `<cérebro>/.cabecao/logs/sync.log` |
 | As tools aparecem duas vezes | Tire o registro antigo: `cabecao install-client --remove claude-code` |

@@ -10,13 +10,13 @@ Toda nota diz de onde veio. Isso permite a você, e aos agentes, pesar o que lee
 
 | Campo | Valores | Quem preenche |
 | --- | --- | --- |
-| `origin` | `human` (você), `agent:<cliente>` (um agente, como `agent:claude-code`), `ingest:<fonte>` (conteúdo de fora, como `ingest:meeting`) | O Cabeção, numa gravação de agente. Você, numa nota escrita à mão. |
+| `origin` | `human` (você), `agent:<cliente>` (um agente, como `agent:claude-code`), `ingest:<fonte>` (conteúdo de fora, como `ingest:file` ou `ingest:web-clipper`) | O Cabeção, numa gravação de agente. Você, numa nota escrita à mão. |
 | `trust` | `high`, `medium` ou `low` | O padrão vem da origem: você `high`, agente `medium`, conteúdo de fora `low` |
 | `edited_by` | `agent:<cliente>` | O Cabeção, quando um agente altera uma nota que não foi criada por agente |
 
 ## Quando um agente edita uma nota sua
 
-Um agente pode completar uma nota sua, mas a nota não continua parecendo só sua. Este é o resultado real de um `write_page` que acrescentou uma linha a uma nota com `origin: human` e `trust: high`:
+Um agente pode completar uma nota sua, mas a nota não continua parecendo só sua. Este é o resultado real (resumido) de um `write_page` que acrescentou uma linha a uma nota com `origin: human` e `trust: high`:
 
 ```json
 {

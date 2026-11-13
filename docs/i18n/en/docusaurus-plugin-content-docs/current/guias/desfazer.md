@@ -49,7 +49,7 @@ Afterward, run `cabecao sync` to carry the undo to the other machines.
 
 ## Through the agent
 
-An agent can also undo, through the `undo` tool: its own last operation, an operation by its full identifier, or a whole session. It only reaches agent operations, never yours. Ask, for example: "undo what you wrote in this session".
+An agent can also undo, through the `undo` tool: its own last operation, an operation by its full identifier, or a whole session. Without confirmation, it only undoes agent operations, by the full identifier; undoing an operation of yours (or giving only the start of the identifier) requires your explicit request, confirmed with a token (see [Who is human and who is an agent in the CLI](./humano-e-agente.md)). Ask, for example: "undo what you wrote in this session".
 
 ## Forget and bring back
 

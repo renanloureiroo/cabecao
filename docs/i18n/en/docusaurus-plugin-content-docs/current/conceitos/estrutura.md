@@ -45,9 +45,9 @@ Empty folders are kept in git with a `.gitkeep`.
 
 | Folder | What it holds | Who writes |
 | --- | --- | --- |
-| `raw/` | Sources as they arrived: meeting minutes, articles, PDFs, images. They do not follow the schema and do not change after they are created. | You. An agent can only create new files there, never change existing ones. |
+| `raw/` | Sources as they arrived: meeting minutes, articles, PDFs, images. They do not follow the schema and do not change after they are created. | You. An agent creates new files there; changing existing ones only with your explicit request. |
 | `wiki/` | What is true about the world: concepts, people, projects, decisions, source summaries, syntheses. | You and the agents. |
-| `memory/` | What an agent needs to work your way: rules, preferences, gotchas, procedures, facts, episodes, handoffs. | You and the agents; rules, only you. |
+| `memory/` | What an agent needs to work your way: rules, preferences, gotchas, procedures, facts, episodes, handoffs. | You and the agents; rules, an agent only saves with your explicit request. |
 
 These are the default note folders (`noteDirs` in [`.cabecao.json`](../referencia/configuracao.md)). An adopted vault can have others. Outside them, nothing is indexed and nothing can be written by an agent.
 
@@ -55,7 +55,7 @@ Each note type has its own folder: `decision` goes to `wiki/decisions/`, `gotcha
 
 ## Control files
 
-- **`AGENTS.md`** tells any agent how to use the brain: call `recall` at the start, search before claiming, what to remember and what not to remember, the order of authority between sources. It is yours: edit it as you like. An agent cannot change it.
+- **`AGENTS.md`** tells any agent how to use the brain: call `recall` at the start, search before claiming, what to remember and what not to remember, the order of authority between sources. It is yours: edit it as you like. An agent only changes it with your explicit request.
 - **`CLAUDE.md`** has a single line, `@AGENTS.md`, so Claude Code reads the same rules when it opens the folder.
 - **`index.md`** is the catalog of all notes, grouped by folder. Cabeção regenerates it; do not edit it by hand.
 - **`log.md`** gets one line per operation, always at the end. `.gitattributes` turns on union merge for it, so two machines that wrote at the same time never cause a conflict in this file.
@@ -67,6 +67,7 @@ A log after an agent session:
 
 - 2026-11-13 · add gotcha: Testes de pagamento precisam do fuso fixo
 - 2026-11-13 · add preference: Revisão de PR em tópicos curtos
+- 2026-11-13 · add episode: Sessão: Revisei o PR de estorno parcial
 - 2026-11-13 · add handoff: Revisão do PR de pagamentos
 ```
 
@@ -76,4 +77,4 @@ The `.cabecao/` folder belongs to this machine: the local database (`cabecao.db`
 
 ## `memory/_archive/`
 
-Notes you took out of circulation. They stay in git, but search and `recall` do not bring them up. For now, archiving means moving the file by hand (in Obsidian or in the terminal) and running `cabecao sync`.
+Notes you took out of circulation. They stay in git, but search and `recall` do not bring them up. To archive, use [`cabecao forget`](../referencia/cli.md#cabecao-forget): it moves the note here, in a commit, and `cabecao undo` brings it back.

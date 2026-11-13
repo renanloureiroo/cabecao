@@ -29,6 +29,8 @@ $ cabecao status
 ...
 Conflitos pendentes: 1
   memory/preferences/deploy-do-blog-so-as-sextas.conflict-desktop-20261112-235155.md → memory/preferences/deploy-do-blog-so-as-sextas.md
+Busca por significado: desativada ("cabecao embeddings on" ativa)
+Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)
 Problemas:
   - 1 conflito pendente
 Próximo passo: Resolva os conflitos: compare cada cópia .conflict-* com a nota original, junte e apague a cópia.

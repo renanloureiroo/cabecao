@@ -29,18 +29,18 @@ cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: v20.12.2. Atualize em h
 
 ## Instalar
 
-O Cabeção está em beta e é publicado no npm com a etiqueta `beta`. Peça essa etiqueta explicitamente.
+O Cabeção é publicado no npm com o nome `cabecao`.
 
 <Tabs groupId="instalacao">
 <TabItem value="t1" label="Global (recomendado)" default>
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao --version
 ```
 
 ```text
-0.1.0-beta.1
+1.0.0
 ```
 
 Com a instalação global, o registro nos clientes de IA aponta direto para o Node e para o arquivo do Cabeção,
@@ -50,10 +50,10 @@ sem passar pelo `npx` a cada sessão.
 <TabItem value="t2" label="Sem instalar (npx)">
 
 ```bash
-npx cabecao@beta init git@github.com:voce/cerebro.git
+npx cabecao init git@github.com:voce/cerebro.git
 ```
 
-Funciona, mas os clientes de IA ficam registrados como `npx -y cabecao mcp`: cada sessão nova passa pelo `npx`,
+Funciona, mas os clientes de IA ficam registrados como `npx -y cabecao@<versão> mcp`: cada sessão nova passa pelo `npx`,
 que leva de 0,5 a 1,4 s para começar. Para trocar depois, instale globalmente e rode
 `cabecao install-client --all`.
 

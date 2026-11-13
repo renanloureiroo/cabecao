@@ -4,7 +4,7 @@ description: Todos os campos do frontmatter de uma nota, com o formato e quem pr
 sidebar_position: 4
 ---
 
-O frontmatter é o bloco YAML entre `---` no topo da nota. O Cabeção grava os campos nesta ordem; campos que ele não conhece são preservados.
+O frontmatter é o bloco YAML entre `---` no topo da nota. O Cabeção grava os campos conhecidos numa ordem fixa; campos que ele não conhece são preservados.
 
 ## Identidade e tipo
 
@@ -38,9 +38,12 @@ Só em `type: fact`, e obrigatórios nele.
 | Campo | Formato | Notas |
 | --- | --- | --- |
 | `origin` | `human`, `agent:<cliente>` ou `ingest:<fonte>` | Numa gravação de agente, o Cabeção preenche e ignora o valor enviado |
-| `trust` | `high`, `medium` ou `low` | Padrão pela origem: `human` → `high`, agente → `medium`, `ingest` → `low`. Um agente não grava `high` |
+| `trust` | `high`, `medium` ou `low` | Padrão pela origem: `human` → `high`, agente → `medium`, `ingest` → `low`. Um agente só grava `high` com o pedido explícito do usuário |
 | `edited_by` | `agent:<cliente>` | O último agente que alterou uma nota que não foi criada por agente |
+| `approved_by`, `approved_at` | `user` e a data | Gravados pelo Cabeção quando um agente grava ou altera a nota com a confirmação do usuário; os que o agente mandar são ignorados |
 | `private` | `true` | A nota nunca é enviada a um provedor de respostas do [`ask`](../guias/respostas-com-modelo.md), nem o nome dela quando outra nota a cita. Vale em qualquer caixa (`Private`) e com qualquer valor verdadeiro (`yes`, `on`, `sim`, `1`, `[true]`); a tag `private` (ou `private/...`) em `tags` ou `tag`, e `#private` no corpo, têm o mesmo efeito ([o que conta como nota privada](../guias/respostas-com-modelo.md#o-que-conta-como-nota-privada)). Não muda a busca nem o que um agente lê pelas tools |
+
+O Cabeção também grava `forget_reason` na nota arquivada pelo `forget` e, numa fonte registrada em `raw/` pelo `ingest`, `ingested_by` (e `source` e `author`, quando vêm da fonte).
 
 Veja [Proveniência e confiança](../conceitos/proveniencia.md).
 
@@ -84,7 +87,7 @@ Uma propriedade única `relations:` com um mapa não é usada; cada relação é
 | Situação | |
 | --- | --- |
 | Frontmatter que não é YAML válido | Erro |
-| `type` desconhecido; `id` que não é ULID; data inválida ou fora de ordem; `scope`, `trust` ou `origin` fora do formato; relação que não é lista de wikilinks; `rule` com `origin` diferente de `human` | Erro |
+| `type` desconhecido; `id` que não é ULID; data inválida ou fora de ordem; `scope`, `trust` ou `origin` fora do formato; relação que não é lista de wikilinks; `rule` com `origin` diferente de `human` e sem `approved_by: user` | Erro |
 | Faltando `scope`, `trust`, `origin`, `created` ou `updated` (ou `valid_from` num fato) | Aviso |
 | Nota sem `id` nem `type` | Aviso: é uma anotação solta, fora do esquema, mas continua na busca |
 | Arquivo em `raw/` sem `id` | Aceito como está |

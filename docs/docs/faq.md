@@ -21,17 +21,13 @@ A única exceção é opcional: se você ativar as [respostas com um modelo de l
 
 Sim. O Obsidian é opcional: as notas são arquivos Markdown que qualquer editor abre, e os agentes usam o cérebro pelo MCP. O Obsidian só é um bom jeito de ler e navegar. Veja [Usar com o Obsidian](./guias/obsidian.md).
 
-## O que quer dizer "beta"?
-
-Que o Cabeção funciona e está publicado, mas ainda pode mudar antes da versão 1.0: comandos, campos e formatos podem ganhar ajustes, e pode haver bugs que os testes não pegaram. Os seus dados são sempre Markdown num repositório git seu, então nada fica preso. Instale com `cabecao@beta`, use um repositório privado e leia as [novidades](./novidades.md) ao atualizar.
-
 ## Quais clientes de IA funcionam?
 
 Qualquer cliente que fale MCP por stdio. O `install-client` registra o servidor sozinho no Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity e Gemini CLI. Para outro cliente, `cabecao install-client --print` mostra a configuração para copiar.
 
 ## O agente vai encher o cérebro de bobagem?
 
-Ele grava o que as instruções pedem (o durável e não óbvio) e o que você pedir. Tudo vira commit com a sessão marcada, então `cabecao undo --list` mostra o que entrou e `cabecao undo --session <id>` tira uma sessão inteira. Regras, só você cria. Veja [O que lembrar](./guias/o-que-lembrar.md).
+Ele grava o que as instruções pedem (o durável e não óbvio) e o que você pedir. Tudo vira commit com a sessão marcada, então `cabecao undo --list` mostra o que entrou e `cabecao undo --session <id>` tira uma sessão inteira. Regra só entra com o seu pedido explícito, confirmado. Veja [O que lembrar](./guias/o-que-lembrar.md).
 
 ## Posso usar o mesmo cérebro em vários projetos?
 
@@ -39,7 +35,7 @@ Sim. Use `scope: project:<nome>` no que só vale num projeto. Uma busca ou um `r
 
 ## E se eu parar de usar o Cabeção?
 
-Nada muda nas suas notas: elas são Markdown num repositório git. Tire o registro dos clientes com `cabecao install-client --remove --all` e apague a pasta `.cabecao/` e `~/.config/cabecao`. O resto é seu.
+Nada muda nas suas notas: elas são Markdown num repositório git. Rode `cabecao uninstall`: ele tira desta máquina os registros nos clientes, as skills, o sync agendado, a configuração e o cache, nunca o cérebro. Depois, se quiser, apague a pasta `.cabecao/` do cérebro (banco, índice e travas desta máquina, fora do git). O resto é seu.
 
 ## Por que "Cabeção"?
 

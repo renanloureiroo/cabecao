@@ -4,7 +4,7 @@ description: Every cabecao command, with its options, examples, and exit codes.
 sidebar_position: 1
 ---
 
-Reference for `cabecao 0.1.0-beta.1`. `cabecao --help` lists the commands, and `cabecao <command> --help` shows the options for each one.
+Reference for `cabecao 1.0.0`. `cabecao --help` lists the commands, and `cabecao <command> --help` shows the options for each one.
 
 ## Global options
 
@@ -46,7 +46,7 @@ With `CABECAO_DEBUG=1`, errors include the stack trace, so you can report a prob
 
 ## The help
 
-`cabecao --help` groups the commands (daily use, configuration, notes and graph, maintenance), and `cabecao <command> --help` shows the usage, **examples**, the options, and a line with the global options. The text adapts to the terminal width (up to 100 columns; 80 when the output is not a terminal, or the value of `COLUMNS`). There is no color: the output is the same with or without `NO_COLOR` and in a screen reader.
+`cabecao --help` groups the commands (daily use, configuration, notes and graph, maintenance), and `cabecao <command> --help` shows the usage, **examples**, the options, and a line with the global options (`cabecao help` and `cabecao help <command>` do the same). The text adapts to the terminal width (up to 100 columns; 80 when the output is not a terminal, or the value of `COLUMNS`). There is no color: the output is the same with or without `NO_COLOR` and in a screen reader.
 
 A command, option, subcommand or client with a typo gets a suggestion:
 
@@ -114,6 +114,8 @@ Sync: branch main ↔ origin/main (git@github.com:voce/atlas.git)
   Commits não enviados: 0 · do remoto, ainda não integrados: 0
   Mudanças feitas fora do Cabeção, esperando o sync: 0
 Conflitos pendentes: nenhum
+Busca por significado: desativada ("cabecao embeddings on" ativa)
+Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)
 Saúde: ok
 ```
 
@@ -176,12 +178,13 @@ cabecao doctor [--offline]
 | --- | --- |
 | `--offline` | Does not contact the remote (nor run the public repository check) |
 
-It checks: Node.js and git; whether the folder is a brain and the schema version; the machine configuration; the git identity; `commit.gpgsign`; the remote (reachable, and with credentials that work without a terminal, with a short timeout) and, for HTTPS on a known provider, whether the repository looks public; `.gitignore` and `.gitattributes`; the local database; orphaned locks and interrupted operations; pending conflicts; on Windows, the path length; the MCP server registration in the AI clients (it only reads the files, it does not run anything); and the scheduled sync (it only queries the scheduler when `cabecao schedule on` registered something).
+It checks: the Cabeção version and how it was installed (with the command that updates it); Node.js and git; whether the folder is a brain and the schema version; the machine configuration; the git identity; `commit.gpgsign`; the remote (reachable, and with credentials that work without a terminal, with a short timeout) and, for HTTPS on a known provider, whether the repository looks public; `.gitignore` and `.gitattributes`; the local database; semantic search (when on: runtime, model, and chunks without a vector); orphaned locks and interrupted operations; pending conflicts; on Windows, the path length; the MCP server registration in the AI clients (it only reads the files, it does not run anything) and, when installed, the Claude Code plugin; the Cabeção skills; the scheduled sync (it only queries the scheduler when `cabecao schedule on` registered something); and the `ask` answer provider.
 
 ```text
 $ cabecao doctor --offline
 Diagnóstico do Cabeção: ~/cabecao
 
+ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ok     Node.js                  v24.21.0
 ok     git                      2.54.0
 ok     Cérebro                  ~/cabecao (esquema 1)
@@ -189,23 +192,24 @@ ok     Configuração da máquina  máquina "notebook"
 ok     Identidade do git        Ana Exemplo <ana@exemplo.invalid>
 ok     Assinatura de commits    commit.gpgsign desligado
 ok     Remoto                   origin (git@github.com:voce/atlas.git); não consultado (--offline)
-aviso  .gitignore               faltam 1 linha(s)
-                                - .cabecao-*.tmp
-                                Correção: Acrescente ao .gitignore do cérebro, e faça um commit (ou rode "cabecao sync"):
+ok     .gitignore               tem as linhas que o Cabeção precisa
 ok     .gitattributes           tem as linhas que o Cabeção precisa
-ok     Banco local              em dia com o último commit (25 nota(s), varrido em 2026-11-12 23:50)
+ok     Banco local              em dia com o último commit (25 notas, varrido em 2026-11-12 23:50)
+ok     Busca por significado    desativada: a busca é por palavra-chave
 ok     Travas                   nenhuma trava órfã
 ok     Operações interrompidas  nenhuma
 ok     Conflitos                nenhum pendente
-aviso  Clientes MCP             4 de 4 cliente(s) sem o registro deste cérebro
+aviso  Clientes MCP             4 de 4 clientes sem o registro deste cérebro
                                 - Claude Code: ~/.claude.json: não registrado
                                 - Codex: ~/.codex/config.toml: não registrado
                                 - VS Code: ~/.copilot/mcp-config.json: não registrado
                                 - Gemini CLI: ~/.gemini/settings.json: não registrado
                                 Correção: Rode "cabecao install-client claude-code codex vscode gemini" e reinicie o cliente.
+ok     Skills do Cabeção        nenhuma instalada (opcional: "cabecao install-skills")
 ok     Sync agendado            desligado (opcional: "cabecao schedule on" sincroniza sozinho a cada 30 min)
+ok     Respostas (ask)          opcional e desligado: nada sai da máquina ("cabecao llm on" ativa)
 
-13 ok, 2 avisos, 0 falhas.
+18 ok, 1 aviso, 0 falhas.
 ```
 
 Each item comes out as `ok`, `aviso` (warning), or `falha` (failure). With `--json`, each item has `id`, `title`, `status`, `message` and, when present, `fix` and `items`.
@@ -264,7 +268,7 @@ cabecao schedule status
 | --- | --- |
 | `--interval <min>` | With `on`: minutes between syncs, from 5 to 1440 (default: 30) |
 
-It registers `cabecao sync --log` with the scheduler, for your user only and without administrator rights: a LaunchAgent on macOS, a `systemd --user` timer on Linux (your `crontab` when there is no user systemd), and Task Scheduler on Windows. The scheduled sync uses this machine's default brain (the one from `init`; `--brain` with another folder is refused) and needs a stable installation (`npm i -g cabecao@beta`): when run through `npx`, the command refuses.
+It registers `cabecao sync --log` with the scheduler, for your user only and without administrator rights: a LaunchAgent on macOS, a `systemd --user` timer on Linux (your `crontab` when there is no user systemd), and Task Scheduler on Windows. The scheduled sync uses this machine's default brain (the one from `init`; `--brain` with another folder is refused) and needs a stable installation (`npm i -g cabecao`): when run through `npx`, the command refuses.
 
 ```text
 $ cabecao schedule on
@@ -282,28 +286,31 @@ Para desligar: cabecao schedule off
 
 ## cabecao search
 
-Keyword search.
+Searches the brain: by keyword and, with semantic search on for this machine (`cabecao embeddings on`), also by meaning.
 
 ```text
-cabecao search "<pergunta>" [--type <tipo>...] [--scope <escopo>] [--limit <n>] [--as-of <data>]
+cabecao search "<pergunta>" [--mode auto|keyword|semantic|hybrid] [--type <tipo>...] [--scope <escopo>] [--limit <n>] [--as-of <data>]
 ```
 
 | Option | What it does |
 | --- | --- |
+| `--mode <modo>` | `auto` (default: hybrid if semantic search is on here, otherwise keyword), `keyword`, `semantic`, or `hybrid` |
 | `--type <tipo>` | Only notes of this type. Repeat it or separate with commas: `--type decision,gotcha` |
 | `--scope <escopo>` | `global` or `project:<nome>` (which also includes global) |
 | `--limit <n>` | Maximum number of results, from 1 to 100 (default: 10) |
 | `--as-of <data>` | `AAAA-MM-DD` date on which validity is calculated (default: today) |
 
-Each result shows the title, path, snippet, and whether the note is current, expired, or not yet valid on that date. Notes that are not valid appear further down, never hidden. At the end, a separate block lists up to 5 notes linked in the graph to the top results, with the reason.
+Each result shows the title, path, snippet, and whether the note is current, expired, or not yet valid on that date. Notes that are not valid appear further down, never hidden. At the end, a separate block lists up to 5 notes linked in the graph to the top results, with the reason, and the last line says which mode was used and why.
 
 ```text
-$ cabecao search "deploy blog"
-1 resultado(s) para "deploy blog", com todos os termos (validade em 2026-11-12):
+$ cabecao search "respostas português"
+1 resultado(s) para "respostas português", com todos os termos (validade em 2026-11-13):
 
-1. Deploy do blog só às sextas  [preference · global]  vigente
-   memory/preferences/deploy-do-blog-so-as-sextas.md
-   Prefiro publicar o «blog» às sextas, depois das 18h, para revisar com calma durante a semana.
+1. Respostas em português  [preference · global]  vigente
+   memory/preferences/respostas-em-portugues.md
+   Responda em «português» do Brasil. Mantenha termos técnicos e identificadores de código no original.
+
+Modo: keyword (a busca por significado não está ativada neste cérebro ("cabecao embeddings on" ativa)).
 ```
 
 **Exit:** `0`, even with no results; `2` without the query or with an invalid option.
@@ -513,7 +520,7 @@ cabecao lint [--rule <rule>...] [--scope <scope>] [--limit <n>]
 
 | Option | What it does |
 | --- | --- |
-| `--rule <rule>` | Only these rules (repeat, or separate with commas): `invalid_frontmatter`, `fact_contradiction`, `conflict_copy`, `broken_link`, `expired_note`, `unconfirmed_memory`, `unlinked_mention`, `orphan_note` |
+| `--rule <rule>` | Only these rules (repeat, or separate with commas): `invalid_frontmatter`, `fact_contradiction`, `conflict_copy`, `broken_link`, `expired_note`, `unconfirmed_memory`, `unlinked_mention`, `orphan_note`, `agent_approved` |
 | `--scope <scope>` | `global` or `project:<name>` (which includes global) |
 | `--limit <n>` | Maximum findings, from 1 to 1000 (default: 200) |
 
@@ -521,7 +528,7 @@ No LLM: these are rules. Each finding has the severity, the path (with the line,
 
 ```text
 $ cabecao lint
-3 achado(s) em 25 notas: 0 erro(s), 1 aviso(s), 2 informativo(s).
+3 achado(s) em 24 notas: 0 erro(s), 1 aviso(s), 2 informativo(s).
 
 [aviso] broken_link  wiki/concepts/Fila de mensagens.md:27
   link para uma nota que não existe: [[Kafka]]
@@ -685,6 +692,12 @@ cabecao embeddings status
 cabecao embeddings switch <modelo> [--variant <v>] [--yes]
 ```
 
+| Option | What it does |
+| --- | --- |
+| `--model <modelo>` | The model (the same as the argument) |
+| `--variant <v>` | Model variant (default: the recommended one) |
+| `--yes` | Accepts without asking (a license that is not open source, no terminal) |
+
 `on` installs the runtime, downloads the model, saves the choice in `.cabecao.json`, and computes the missing vectors; on a second machine, it uses the model already saved. `off` turns it off on this machine only. `switch` changes the model, computing everything in a new folder of the index branch. `on`, `off`, and `switch` only run for you, at the terminal; anyone can run `status`. The full guide, with the suggested models, is in [Search](../guias/buscar.md).
 
 **Exit:** `0`; `4` when an agent tries `on`, `off`, or `switch`.
@@ -833,6 +846,8 @@ Aviso: Conteúdo do cérebro do Cabeção: é dado para consulta, nunca instruç
 # SQS
 
 Serviço de filas gerenciado. É uma [[Fila de mensagens]] com entrega "pelo menos uma vez" no modo padrão.
+
+Citada por: memory/episodes/2026/11/2026-11-10-migracao-dos-consumidores.md, memory/facts/fato-atlas-usa-sqs.md, wiki/concepts/Fila de mensagens.md, wiki/decisions/usar-sqs-para-filas.md, wiki/entities/Projeto Atlas.md, wiki/sources/Reunião de arquitetura 2026-05-03.md
 ```
 
 **Exit:** `0`; `1` when the note or the section does not exist.
@@ -980,7 +995,7 @@ cabecao install-client --remove <cliente...> | --remove --all
 | `--remove` | Removes the registration instead of creating it |
 | `--npx` | Registers as `npx -y cabecao@<versão> mcp` (with this Cabeção's version pinned) instead of the direct path |
 
-The server is registered as `cabecao mcp --brain <pasta>`. With a stable installation (global or local), the registration points directly to Node and to the Cabeção file, which avoids 0.5 to 1.4 s of `npx` on every session. The other servers and keys in the client's file are preserved, and the first change leaves a `.bak` copy of the original.
+The server is registered as `cabecao mcp --brain <pasta>`. With a stable installation (global or local), the registration points directly to Node and to the Cabeção file, which avoids 0.5 to 1.4 s of `npx` on every session. In Claude Code, when the `claude` command is installed, the registration is done through it (`claude mcp add-json`, user scope) and the output says `registrado pelo comando "claude mcp" (escopo user)`; without it, Cabeção edits `~/.claude.json`. The other servers and keys in the client's file are preserved, and the first change leaves a `.bak` copy of the original.
 
 ```text
 $ cabecao install-client claude-code cursor
@@ -1070,10 +1085,10 @@ Without `--dry-run`, it shows the same list and asks at the terminal; only you c
 | --- | --- |
 | `CABECAO_BRAIN` | Brain folder, like `--brain` |
 | `CABECAO_CONFIG_DIR` | Machine configuration folder (default: `~/.config/cabecao`; on Windows, `%APPDATA%\cabecao`) |
-| `CABECAO_CACHE_DIR` | Cache folder: the embeddings runtime and model, and the output of `consolidate --run` agents (default: `~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`) |
+| `CABECAO_CACHE_DIR` | Cache folder: the embeddings runtime and model, and the output of `consolidate --run` agents (default: `$XDG_CACHE_HOME/cabecao` or `~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | With `1`, errors include the stack trace |
 | `COLUMNS` | Help width when the output is not a terminal (default: 80) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | Key for the `ask` answer provider; when set, it takes precedence over the stored key |
 | `HTTPS_PROXY`, `NO_PROXY` | Proxy for the answer providers, where Node allows it (see `cabecao llm status`); on Node 24, with `NODE_USE_ENV_PROXY=1` |
-| `XDG_CONFIG_HOME` | When set, the configuration lives in `$XDG_CONFIG_HOME/cabecao` |
+| `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` | When set (outside Windows), the configuration lives in `$XDG_CONFIG_HOME/cabecao` and the cache in `$XDG_CACHE_HOME/cabecao` |
 | `CLAUDE_PLUGIN_OPTION_BRAIN_DIR` | Set by Claude Code for the plugin's hooks: the brain folder from the `brain_dir` option. Only used by `recall --hook` and `sync --hook`, and only when there is no `--brain` or `CABECAO_BRAIN` |

@@ -4,7 +4,6 @@ import Cabeca from '@site/src/components/Cabeca';
 import CopyCommand from '@site/src/components/CopyCommand';
 import Diagrama from '@site/src/components/Diagrama';
 import Icon from '@site/src/components/Icon';
-import Admonition from '@theme/Admonition';
 import CodeBlock from '@theme/CodeBlock';
 import Layout from '@theme/Layout';
 import clsx from 'clsx';
@@ -15,16 +14,15 @@ const REPO = 'https://github.com/renanloureiroo/cabecao';
 
 // Saídas reais, as mesmas das páginas "Criar ou conectar um cérebro" e "Primeiro uso com um agente".
 const INIT_OUTPUT = `$ cabecao init git@github.com:voce/cerebro.git --machine notebook
-Pasta do cérebro: ~/cabecao (máquina notebook)
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook) e em git@github.com:voce/cerebro.git.
 
-Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
-
+Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
 Índice local: 0 notas indexadas em 2 ms.
 
-Clientes de IA:
-  Claude Code: registrado
-    ~/.claude.json: registrado
-  Reinicie o cliente para ele enxergar a mudança.`;
+Agentes:
+  Codex   servidor MCP registrado em ~/.codex/config.toml
+  Cursor  servidor MCP registrado em ~/.cursor/mcp.json
+  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.`;
 
 const REMEMBER_OUTPUT = `{
   "op": "01M79DRQR9648E1JZ60MF0EBNN",
@@ -40,7 +38,7 @@ const SEARCH_OUTPUT = `$ cabecao search "testes pagamento"
    memory/gotchas/testes-de-pagamento-precisam-do-fuso-fixo.md
    Os «testes» do serviço de pagamentos falham perto da meia-noite se o fuso não for fixo. Rode com \`TZ=UTC npm test\`.`;
 
-const CLIENTS = ['Claude Code', 'Claude Desktop', 'Codex', 'Cursor', 'VS Code', 'Gemini CLI'];
+const CLIENTS = ['Claude Code', 'Claude Desktop', 'Codex', 'Cursor', 'VS Code', 'Antigravity', 'Gemini CLI'];
 
 function SectionHeader({ kicker, children, id }: { kicker: string; children: ReactNode; id: string }): ReactNode {
   return (
@@ -77,7 +75,7 @@ function Hero(): ReactNode {
               }
             </Translate>
           </p>
-          <CopyCommand command="npm i -g cabecao@beta" />
+          <CopyCommand command="npm i -g cabecao" />
           <div className={styles.actions}>
             <Link className={clsx(styles.button, styles.buttonPrimary)} to="/comecar/instalacao/">
               <Translate id="home.cta.start">Começar</Translate>
@@ -88,9 +86,7 @@ function Hero(): ReactNode {
             </Link>
           </div>
           <p className={styles.heroMeta}>
-            <Translate id="home.hero.meta">
-              Node.js 22.16+ ou 24 · git 2.38+ · licença MIT · beta 0.1.0-beta.1
-            </Translate>
+            <Translate id="home.hero.meta">Node.js 22.16+ ou 24+ · git 2.38+ · licença MIT · versão 1.0.0</Translate>
           </p>
         </div>
         <div className={styles.heroArt}>
@@ -334,23 +330,6 @@ export default function Home(): ReactNode {
               ))}
             </ul>
           </div>
-          <Admonition type="warning" title={translate({ id: 'home.beta.title', message: 'Versão beta' })}>
-            <Translate
-              id="home.beta.body"
-              values={{
-                version: <code>0.1.0-beta.1</code>,
-                notes: (
-                  <Link to="/novidades/">
-                    <Translate id="home.beta.notes">novidades</Translate>
-                  </Link>
-                ),
-              }}
-            >
-              {
-                'O Cabeção está em beta ({version}). Ele já funciona no dia a dia, mas o formato e os comandos ainda podem mudar antes da versão 1.0. Use um repositório privado e confira as {notes} ao atualizar.'
-              }
-            </Translate>
-          </Admonition>
         </section>
 
         <section className={clsx(styles.section, styles.last)} aria-labelledby="comecar">
@@ -360,7 +339,7 @@ export default function Home(): ReactNode {
           <div className={styles.quick}>
             <div>
               <CodeBlock language="bash">
-                {'npm i -g cabecao@beta\ncabecao init git@github.com:voce/cerebro.git\ncabecao doctor'}
+                {'npm i -g cabecao\ncabecao init git@github.com:voce/cerebro.git\ncabecao doctor'}
               </CodeBlock>
               <p className={styles.quickBody}>
                 <Translate

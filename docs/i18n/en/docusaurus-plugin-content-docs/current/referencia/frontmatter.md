@@ -4,7 +4,7 @@ description: Every field in a note's frontmatter, with its format and who fills 
 sidebar_position: 4
 ---
 
-The frontmatter is the YAML block between `---` at the top of the note. Cabeção writes the fields in this order; fields it does not know are preserved.
+The frontmatter is the YAML block between `---` at the top of the note. Cabeção writes the known fields in a fixed order; fields it does not know are preserved.
 
 ## Identity and type
 
@@ -38,9 +38,12 @@ Only in `type: fact`, and required there.
 | Field | Format | Notes |
 | --- | --- | --- |
 | `origin` | `human`, `agent:<cliente>`, or `ingest:<fonte>` | On an agent write, Cabeção fills it in and ignores the value sent |
-| `trust` | `high`, `medium`, or `low` | Default by origin: `human` → `high`, agent → `medium`, `ingest` → `low`. An agent cannot write `high` |
+| `trust` | `high`, `medium`, or `low` | Default by origin: `human` → `high`, agent → `medium`, `ingest` → `low`. An agent only writes `high` with the user's explicit request |
 | `edited_by` | `agent:<cliente>` | The last agent that changed a note that was not created by an agent |
+| `approved_by`, `approved_at` | `user` and the date | Written by Cabeção when an agent writes or changes the note with the user's confirmation; the ones the agent sends are ignored |
 | `private` | `true` | The note is never sent to an [`ask`](../guias/respostas-com-modelo.md) answer provider, nor is its name when another note cites it. It works in any case (`Private`) and with any true value (`yes`, `on`, `sim`, `1`, `[true]`); the `private` tag (or `private/...`) in `tags` or `tag`, and `#private` in the body, have the same effect ([what counts as a private note](../guias/respostas-com-modelo.md#what-counts-as-a-private-note)). It does not change search or what an agent reads through the tools |
+
+Cabeção also writes `forget_reason` in the note archived by `forget` and, in a source registered in `raw/` by `ingest`, `ingested_by` (and `source` and `author`, when they come from the source).
 
 See [Provenance and trust](../conceitos/proveniencia.md).
 
@@ -84,7 +87,7 @@ A single `relations:` property with a map is not used; each relation is its own 
 | Situation | |
 | --- | --- |
 | Frontmatter that is not valid YAML | Error |
-| Unknown `type`; `id` that is not a ULID; invalid or out-of-order date; `scope`, `trust`, or `origin` in the wrong format; relation that is not a list of wikilinks; `rule` with an `origin` other than `human` | Error |
+| Unknown `type`; `id` that is not a ULID; invalid or out-of-order date; `scope`, `trust`, or `origin` in the wrong format; relation that is not a list of wikilinks; `rule` with an `origin` other than `human` and without `approved_by: user` | Error |
 | Missing `scope`, `trust`, `origin`, `created`, or `updated` (or `valid_from` in a fact) | Warning |
 | Note with neither `id` nor `type` | Warning: it is a loose note, outside the schema, but it stays in search |
 | File in `raw/` without `id` | Accepted as is |

@@ -29,7 +29,7 @@ sidebar_position: 3
 | `indexMd` | `.md` path | `"index.md"` | Where the catalog is generated |
 | `relations` | list of names | `[]` | Your own typed relations, in addition to the six built-in ones |
 | `commit` | object | absent | The template for commit subjects |
-| `embedding` | object | absent | Reserved for semantic search, [coming soon](../em-breve.md). It has no effect today |
+| `embedding` | object | absent | The semantic search model (`model`, `variant`, `dims`, `recipe`, and the exact `revision`), written by `cabecao embeddings on` and `switch`. Do not edit it by hand; an agent does not change this section, not even with confirmation |
 | `llm_policy` | object | absent (no restriction) | What an `ask` answer provider may receive from this brain. See [Per-brain policy](../guias/respostas-com-modelo.md#per-brain-policy) |
 
 Keys that Cabeção does not know are kept when it rewrites the file.

@@ -94,6 +94,8 @@ $ cabecao search rúcula
 
 Relacionadas (vizinhas dos melhores resultados no grafo; fora da ordem acima):
 - Horta comunitária  (Projetos/Horta comunitária.md)  ← link para Projetos/Lista de sementes.md
+
+Modo: keyword (a busca por significado não está ativada neste cérebro ("cabecao embeddings on" ativa)).
 ```
 
 Não precisa converter nada. Se quiser que uma nota antiga conte como decisão, preferência ou fato, acrescente o `type` (e o que mais fizer sentido) no frontmatter dela.

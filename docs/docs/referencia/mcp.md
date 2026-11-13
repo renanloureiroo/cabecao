@@ -4,7 +4,7 @@ description: As 17 tools, os prompts, os resources e as instruções do servidor
 sidebar_position: 2
 ---
 
-O servidor é o comando `cabecao mcp`, que o cliente de IA inicia e com quem conversa por stdio. Ele roda na sua máquina e só lê e grava a pasta do cérebro. Registre-o com [`cabecao install-client`](../comecar/conectar-clientes.md).
+O servidor é o comando `cabecao mcp`, que o cliente de IA inicia e com quem conversa por stdio. Ele roda na sua máquina e só lê e grava a pasta do cérebro (com a tool `ask`, também chama o provedor de respostas que você ativou). Registre-o com [`cabecao install-client`](../comecar/conectar-clientes.md).
 
 ## Instruções do servidor
 
@@ -25,7 +25,7 @@ Para uma pergunta que pede síntese de várias notas, `ask` devolve uma resposta
 | Tool | Faz | Grava? |
 | --- | --- | --- |
 | [`recall`](#recall) | Briefing do começo da tarefa | Não |
-| [`search`](#search) | Busca por palavra-chave, com validade na data | Não |
+| [`search`](#search) | Busca por palavra-chave (e por significado, quando ligada), com validade na data | Não |
 | [`ask`](#ask) | Resposta com citações conferidas, pelo provedor que você ativou. **Só aparece com `cabecao llm on`** | Não |
 | [`read`](#read) | Lê uma nota, ou uma seção dela, com links e backlinks | Não |
 | [`graph`](#graph) | Vizinhos de uma nota no grafo | Não |
@@ -49,13 +49,13 @@ Toda resposta de leitura começa com `data_notice`, o aviso de que o conteúdo �
 
 ## O que pede o pedido explícito do usuário
 
-Desde a decisão 37, o que antes era recusado a um agente por **autoridade** passou a ser permitido **com o pedido explícito do usuário, confirmado**. Vale para `remember`, `write_page`, `patch_page`, `relate`, `undo` e `forget`:
+Estas ações um agente só faz **com o pedido explícito do usuário, confirmado**. Vale para `remember`, `write_page`, `patch_page`, `relate`, `undo` e `forget`:
 
 | Ação | Sem confirmação |
 | --- | --- |
 | Criar ou alterar uma regra (`type: rule`, qualquer coisa em `memory/rules/`), inclusive por `remember` com `resolution` | `confirmation_required` |
 | Escrever em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `log.md`, `README.md` (texto puro, sem `frontmatter`) ou num arquivo com nome de instrução de cliente em qualquer pasta | `confirmation_required` |
-| Alterar `.cabecao.json`, `.gitignore` ou `.gitattributes` (só se o resultado for válido; a seção `embedding` nunca) | `confirmation_required` |
+| Alterar `.cabecao.json`, `.gitignore` ou `.gitattributes` (só se o resultado for válido; as seções `embedding` e `llm_policy` do `.cabecao.json` nunca, nem com confirmação) | `confirmation_required` |
 | Alterar um arquivo que já existe em `raw/` | `confirmation_required` |
 | Gravar `trust: high` | `confirmation_required` |
 | Desfazer uma operação do usuário, ou dar só o começo do id | `confirmation_required` |
@@ -125,7 +125,7 @@ Briefing do começo da tarefa: regras, o último handoff, preferências, armadil
 
 **Saída:** `session_handle`, `task`, `scope`, `rules`, `handoff` (ou `null`), `handoff_seen` (quando o mesmo handoff já foi entregue a outra sessão nesta máquina e ninguém gravou um novo: a data e a sessão; senão `null`), `preferences`, `gotchas`, `memories`, `priority` (a ordem de corte: regras, handoff, preferências, armadilhas, memórias), `budget_tokens`, `used_tokens`, `truncated`, `omitted` e `next_step`.
 
-Só entram como regra as notas `type: rule` em `memory/rules/` com `origin: human`. Itens vencidos ficam de fora. O handoff é o último vigente; com `scope: project:<nome>`, o do próprio projeto vem antes do global. Quando o orçamento acaba, o que sobra é cortado na ordem de `priority`, e `omitted` diz quantos. Trecho de uma resposta real, com os itens encurtados:
+Só entram como regra as notas `type: rule` em `memory/rules/` com `origin: human`, ou gravadas por um agente com a confirmação do usuário (`approved_by: user`). Itens vencidos ficam de fora. O handoff é o último vigente; com `scope: project:<nome>`, o do próprio projeto vem antes do global. Quando o orçamento acaba, o que sobra é cortado na ordem de `priority`, e `omitted` diz quantos. Trecho de uma resposta real, com os itens encurtados:
 
 ```json
 {
@@ -143,7 +143,7 @@ Só entram como regra as notas `type: rule` em `memory/rules/` com `origin: huma
 
 ## search
 
-Busca por palavra-chave. Cada resultado tem a validade na data e a proveniência; um bloco `related` lista vizinhos no grafo dos melhores resultados.
+Busca no cérebro: híbrida (palavra-chave e significado) quando a busca por significado está ligada nesta máquina, senão por palavra-chave. Cada resultado tem a validade na data e a proveniência; um bloco `related` lista vizinhos no grafo dos melhores resultados.
 
 **Entrada**
 
@@ -155,25 +155,30 @@ Busca por palavra-chave. Cada resultado tem a validade na data e a proveniência
 | `limit` | inteiro, 1 a 100 | Padrão: 10 |
 | `budget_tokens` | inteiro | Orçamento aproximado da resposta |
 | `as_of` | `AAAA-MM-DD` | Data da validade (padrão: hoje) |
+| `mode` | `auto`, `keyword`, `semantic` ou `hybrid` | Padrão: `auto` (híbrida quando a busca por significado está ligada nesta máquina, senão palavra-chave). Sem a busca por significado, `semantic` e `hybrid` voltam por palavra-chave, com um aviso em `warnings` |
 
-**Saída:** `query`, `mode` (`and`, `or` ou `none`), `terms`, `as_of`, `hits` (cada um com `score` e `heading_path`), `related` (cada um com `score` e `reasons`) e `truncated`. Exemplo real, sem alguns campos de cada resultado:
+**Saída:** `query`, `mode` (`and`, `or` ou `none`), `mode_requested`, `mode_used` (`keyword`, `semantic` ou `hybrid`), `mode_reason`, `warnings`, `terms`, `as_of`, `hits` (cada um com `score` e `heading_path`), `related` (cada um com `score` e `reasons`), `truncated` e, às vezes, `next_step`. Exemplo real, sem o `data_notice` e alguns campos do resultado:
 
 ```json
 {
-  "query": "deploy blog",
+  "query": "respostas português",
   "mode": "and",
-  "terms": ["deploy", "blog"],
-  "as_of": "2026-11-12",
+  "mode_requested": "auto",
+  "mode_used": "keyword",
+  "mode_reason": "a busca por significado não está ativada neste cérebro (\"cabecao embeddings on\" ativa)",
+  "warnings": [],
+  "terms": ["respostas", "português"],
+  "as_of": "2026-11-13",
   "hits": [
     {
-      "path": "memory/preferences/deploy-do-blog-so-as-sextas.md",
+      "path": "memory/preferences/respostas-em-portugues.md",
       "type": "preference",
-      "title": "Deploy do blog só às sextas",
+      "title": "Respostas em português",
       "validity": "current",
-      "trust": "medium",
+      "trust": "high",
       "origin": "agent:claude-code",
       "content_kind": "snippet",
-      "content": "Prefiro publicar o «blog» às sextas, depois das 18h, para revisar com calma durante a semana."
+      "content": "Responda em «português» do Brasil. Mantenha termos técnicos e identificadores de código no original."
     }
   ],
   "related": [],
@@ -183,7 +188,7 @@ Busca por palavra-chave. Cada resultado tem a validade na data e a proveniência
 
 ## ask
 
-Só existe quando há um provedor de respostas ativado nesta máquina (`cabecao llm on`) e o cérebro permite (`llm_policy`); sem isso, nem aparece em `tools/list`. Busca os trechos (como `search`), manda ao provedor que o usuário escolheu e confere cada citação. O agente não escolhe nem vê o provedor ou o modelo: a resposta é sempre no mesmo formato. Guia em [Respostas com um modelo de linguagem](../guias/respostas-com-modelo.md).
+Só existe quando há um provedor de respostas ativado nesta máquina (`cabecao llm on`) e o cérebro permite (`llm_policy`); sem isso, nem aparece em `tools/list`. Também não existe no servidor de uma consolidação sem ninguém olhando (`cabecao mcp --consolidation`). Busca os trechos (como `search`), manda ao provedor que o usuário escolheu e confere cada citação. O agente não escolhe nem vê o provedor ou o modelo: a resposta é sempre no mesmo formato. Guia em [Respostas com um modelo de linguagem](../guias/respostas-com-modelo.md).
 
 **Entrada**
 
@@ -263,7 +268,7 @@ Vizinhos de uma nota, a 1 ou 2 saltos: relações tipadas, wikilinks, fatos, enc
 | `depth` | `1` ou `2` | Padrão: 1 |
 | `relation_types` | lista | Só estas ligações: relações tipadas, `supersedes`, `superseded_by`, `wikilink`, `fact`, `mention` |
 | `as_of` | `AAAA-MM-DD` | Data da validade |
-| `limit` | inteiro | Máximo de vizinhos (padrão: 50) |
+| `limit` | inteiro, 1 a 200 | Máximo de vizinhos (padrão: 50) |
 | `budget_tokens` | inteiro | Padrão: 3000 |
 
 **Saída:** `node`, `resolved_by` (`id`, `path`, `link`, `title` ou `alias`), `as_of`, `depth`, `relation_types`, `neighbors` (cada um com `distance` e `links`: `from`, `to`, `type`, `origin`, `direction`, `validity`), `total`, `truncated`, `omitted` e `next_step`.
@@ -311,7 +316,7 @@ Fatos (sujeito, predicado, objeto) e se valem numa data, com o encadeamento `sup
 
 Saúde do cérebro. Sem entrada.
 
-**Saída:** `healthy`, `problems`, `root`, `client`, `machine`, `brain_schema_version`, `note_dirs`, `notes` (`total`, `by_type`, `untyped`, `archived`, `unmanaged`), `index` (versão do esquema, trechos, arestas, fatos, última varredura), `broken_links`, `sync` (branch, remoto, último sync, `unpushed`, `unpulled`, `pending_changes`, `running`), `conflicts` e `next_step`.
+**Saída:** `healthy`, `problems`, `root`, `client`, `machine`, `brain_schema_version`, `note_dirs`, `notes` (`total`, `by_type`, `untyped`, `archived`, `unmanaged`), `index` (versão do esquema, trechos, arestas, fatos, última varredura), `broken_links`, `sync` (branch, `remote_configured`, remoto, último sync, `unpushed`, `unpulled`, `pending_changes`, `running`), `conflicts`, `embeddings` (a busca por significado: modelo, se está ligada nesta máquina, runtime, trechos com e sem vetor, geração da branch de índice; `null` quando não dá para saber) e `next_step`.
 
 ## lint
 
@@ -327,6 +332,7 @@ Relatório de saúde por regras, sem LLM e só de leitura. Cada achado tem `rule
 | `unconfirmed_memory` | info | Preferências, armadilhas e procedimentos sem `confirmed` e sem atualização há 180 dias ou mais |
 | `unlinked_mention` | info | O nome de outra nota citado sem `[[link]]` (fora de `raw/`) |
 | `orphan_note` | info | Notas sem nenhum link de entrada nem de saída |
+| `agent_approved` | info | O que um agente gravou ou alterou com a confirmação do usuário (`approved_by: user` na nota ou o rodapé `Cabecao-Approved` no commit), para você revisar |
 
 **Entrada:** `rules` (só estas), `scope`, `limit` (padrão: 200, máximo: 1000).
 
@@ -338,13 +344,14 @@ Grava uma memória durável e não óbvia. Antes, procura memórias parecidas no
 
 | Situação | O que acontece | `decision` |
 | --- | --- | --- |
-| Igual a uma que existe (mesmo texto, ou quase, sem número nem negação diferente) | Nada é gravado; `path` aponta a existente | `skipped` |
+| Igual a uma que existe (mesmo texto, ou quase, sem número nem negação diferente), ou já contida nela | Nada é gravado; `path` aponta a existente | `skipped` |
 | A nova tem tudo o que a antiga tem e mais | A antiga é atualizada com o texto novo | `updated` |
 | Fato com o mesmo `subject` e `predicate` e outro `object` | A nova é criada e a antiga ganha `valid_until` e `superseded_by`; nada é apagado | `superseded` |
 | Nada parecido | Cria | `created` |
 | Parecida, mas a regra não decide | Nada é gravado; volta com `candidates` e `next_step` | `needs_resolution` |
+| Uma regra (`type: rule`) vinda de agente, sem `confirm_token` | Nada é gravado; volta com o resumo e o `confirm_token` | `needs_confirmation` |
 
-No caso ambíguo, o agente lê as candidatas e chama de novo com o mesmo conteúdo e `resolution`: `create` (é outra memória), `update:<id>` (o corpo da nota passa a ser o novo), `supersede:<id>` (a antiga deixa de valer hoje) ou `skip`. Substituir ou atualizar uma nota sua registra `edited_by` e rebaixa `trust`, como em qualquer edição de agente; uma regra não é substituída nem atualizada por agente.
+No caso ambíguo, o agente lê as candidatas e chama de novo com o mesmo conteúdo e `resolution`: `create` (é outra memória), `update:<id>` (o corpo da nota passa a ser o novo), `supersede:<id>` (a antiga deixa de valer hoje) ou `skip`. Substituir ou atualizar uma nota sua registra `edited_by` e rebaixa `trust`, como em qualquer edição de agente; uma regra só é criada, substituída ou atualizada por agente com o pedido explícito do usuário.
 
 Os limiares ficam em `DEDUP_THRESHOLDS`: texto com menos de 4 termos só conta como igual se for idêntico; Jaccard de 0,9 é "igual"; a nova precisa ter todos os termos da antiga e 1,25 vez o número deles para "complementar"; com 4 ou mais termos em comum, Jaccard de 0,5 (ou 80% da menor dentro da maior) é ambíguo; cosseno de 0,9 na busca por significado também. Um número ou uma negação ("não", "nunca", "sem"...) que aparece de um lado só nunca é "igual" nem "complementa". No cérebro de exemplo, nenhum dos pares de notas distintas do mesmo tipo e escopo vira "igual" ou "complementa", e toda nota gravada de novo é reconhecida como igual.
 
@@ -353,7 +360,7 @@ Os limiares ficam em `DEDUP_THRESHOLDS`: texto com menos de 4 termos só conta c
 | Campo | Tipo | |
 | --- | --- | --- |
 | `content` | texto (até 1.000.000) | Obrigatório. Corpo em Markdown |
-| `type` | tipo de nota | Obrigatório. `preference`, `gotcha`, `decision`, `fact`, `procedure`, `episode`... Nunca `rule` |
+| `type` | tipo de nota | Obrigatório. `preference`, `gotcha`, `decision`, `fact`, `procedure`, `episode`... `rule` só com o pedido explícito do usuário |
 | `title` | texto | Padrão: a primeira linha do conteúdo |
 | `scope` | texto | `global` (padrão) ou `project:<nome>` |
 | `tags` | lista | |
@@ -364,8 +371,9 @@ Os limiares ficam em `DEDUP_THRESHOLDS`: texto com menos de 4 termos só conta c
 | `sources` | lista | Notas de origem; viram wikilinks |
 | `session_handle` | texto | O do `recall` |
 | `resolution` | texto | Resposta a `needs_resolution`: `create`, `skip`, `update:<id>` ou `supersede:<id>` |
+| `confirm_token` | texto | O token da primeira chamada de uma regra, depois de o usuário dizer sim |
 
-**Saída:** `decision`, `op` (o identificador da operação, para o `undo`; sem commit quando nada foi gravado), `path`, `id`, `action` (`add`, `update` ou `null`), `changed`, `commit`, `warnings`, `superseded` (a nota substituída), `candidates` (cada uma com `id`, `path`, `title`, `verdict`, `similarity`, `cosine`, `reason` e o começo do conteúdo), `reason`, `next_step` e o `data_notice`. Exemplo real de um caso ambíguo (uma correção de número), sem o `data_notice`:
+**Saída:** `decision`, `op` (o identificador da operação, para o `undo`; sem commit quando nada foi gravado), `path`, `id`, `action` (`add`, `update` ou `null`), `changed`, `commit`, `warnings`, `superseded` (a nota substituída), `candidates` (cada uma com `id`, `path`, `title`, `verdict`, `similarity`, `cosine`, `reason` e o começo do conteúdo), `reason`, `next_step`, o `data_notice` e, quando a ação pede confirmação, os campos de [confirmação](#o-que-pede-o-pedido-explícito-do-usuário). Exemplo real de um caso ambíguo (uma correção de número), sem o `data_notice`:
 
 ```json
 {
@@ -465,7 +473,7 @@ Erros próprios: `patch_not_found` (o trecho não aparece) e `ambiguous_patch` (
 
 Acrescenta uma relação tipada de uma nota existente para outra, como wikilink no frontmatter, num commit. Rodar de novo com os mesmos valores não muda nada.
 
-**Entrada:** `from` e `to` (título, caminho, wikilink ou id; as duas notas precisam existir), `type` (`uses`, `part_of`, `depends_on`, `decided_by`, `works_on`, `related_to`, `supersedes`, `superseded_by` ou uma do `.cabecao.json`) e `session_handle`.
+**Entrada:** `from` e `to` (título, caminho, wikilink ou id; as duas notas precisam existir), `type` (`uses`, `part_of`, `depends_on`, `decided_by`, `works_on`, `related_to`, `supersedes`, `superseded_by` ou uma do `.cabecao.json`), `session_handle` e `confirm_token` (a partir de uma regra ou de uma fonte de `raw/`, que pedem o pedido explícito do usuário).
 
 **Saída:** a das gravações, mais `relation` (`from`, `type`, `to`, `link`).
 
@@ -548,7 +556,7 @@ Sincroniza com o remoto: commita edições de fora, recebe, envia e atualiza o �
 
 **Entrada:** `session_handle` (opcional).
 
-**Saída:** `status` (`ok`, `busy`, `blocked`, `offline` ou `error`), `message`, `pulled`, `pushed`, `committed`, `conflicts`, `changed_paths`, `secrets` (arquivo, linha, coluna e regra, nunca o valor), `attempts`, `ms`, `branch`, `remote`, `integration`, `reason`, `remote_error`, `recovered`, `config_problem` e `next_step`.
+**Saída:** `status` (`ok`, `busy`, `blocked`, `offline` ou `error`), `message`, `pulled`, `pushed`, `committed`, `conflicts`, `changed_paths`, `secrets` (arquivo, linha, coluna e regra, nunca o valor), `attempts`, `ms`, `branch`, `remote`, `integration`, `reason`, `remote_error`, `recovered`, `config_problem`, `index` (os vetores da busca por significado na branch de índice: recebidos, calculados, enviados, pendentes; `null` quando ela não participa) e `next_step`.
 
 ## consolidate
 
@@ -588,7 +596,7 @@ Quando é o `cabecao consolidate --run` que chama o agente, o servidor sobe pres
 
 Desfaz com `git revert`: a última operação do agente, uma operação ou uma sessão inteira.
 
-**Entrada:** `op` (o identificador completo devolvido por uma gravação), **ou** `session` (o `session_handle` completo), ou nenhum dos dois para a última operação de agente; e `session_handle`.
+**Entrada:** `op` (o identificador devolvido por uma gravação; só o começo dele pede confirmação), **ou** `session` (o `session_handle` completo), ou nenhum dos dois para a última operação de agente; `session_handle`; e `confirm_token` (para desfazer uma operação do usuário, ou pelo começo do id).
 
 **Saída:** `op` (a do próprio undo, que também pode ser desfeita), `commit`, `undone` (cada operação desfeita, com `commit` e `changes`), `changed_paths`, `warnings` e `next_step`.
 
@@ -629,7 +637,7 @@ Somente leitura:
 | --- | --- |
 | `cabecao://schema` | O `AGENTS.md` do cérebro: como ele é organizado |
 | `cabecao://index` | O `index.md`: o catálogo de todas as notas |
-| `cabecao://page/{path}` | Uma nota em JSON, igual à saída de `read` |
+| `cabecao://page/{+path}` | Uma nota em JSON, igual à saída de `read` (o caminho pode ter `/`) |
 
 ## Códigos de erro
 
@@ -650,4 +658,6 @@ Somente leitura:
 | `conflict` | A nota mudou durante a operação, ou o undo não aplica sem conflito. Nada foi alterado |
 | `locked` | Outro processo segurou a trava por tempo demais. Nada foi alterado |
 | `nothing_to_undo` / `already_undone` | Nada para desfazer, ou a operação já foi desfeita |
+| `human_only` | Só o usuário, pela CLI no terminal: mudar o modelo de embeddings, compactar a branch de índice; no servidor de uma consolidação sem ninguém olhando, também `sync`, `undo`, `handoff_save`, `ingest`, um segundo `start` e, sem `--allow-forget`, `forget` |
 | `git_failed` / `index_failed` | Falha inesperada do git, ou o banco local não abriu |
+| `internal_error` | Erro inesperado no servidor; confira com `status` ou `read` se a operação aconteceu antes de repetir |

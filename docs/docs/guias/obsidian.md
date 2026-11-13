@@ -31,14 +31,22 @@ O que o comando faz:
 | `dashboards/*.base` | Cinco painéis (veja abaixo) |
 | `dashboards/cabecao-web-clipper.json` | O modelo do Web Clipper, para você importar na extensão |
 
-Num cérebro sem `.obsidian/`, a saída é esta:
+Num cérebro sem `.obsidian/`, a saída é esta (a diferença de cada arquivo de configuração foi encurtada):
 
 ```text
 $ cabecao obsidian setup
 Obsidian: ~/cabecao
 + .obsidian/app.json (criado)
+    --- a/.obsidian/app.json
+    +++ b/.obsidian/app.json
+    @@
+    +{
+    +  "newLinkFormat": "shortest",
+    ...
 + .obsidian/graph.json (criado)
+    ...
 + .obsidian/types.json (criado)
+    ...
 + dashboards/decisoes.base (criado)
 + dashboards/fatos.base (criado)
 + dashboards/memorias.base (criado)
@@ -73,7 +81,7 @@ O comando foi feito para um vault que já tem a sua configuração. Ele **só ac
 - não toca num JSON que não consegue ler: ele fica como está, e o comando sai com código 1;
 - não substitui um painel que você editou.
 
-Antes da primeira alteração de cada arquivo, o original vai para `.cabecao/backups/obsidian/<arquivo>.bak` (local, fora do git). Com `--dry-run`, o comando mostra a diferença de cada arquivo e não grava nada:
+Antes da primeira alteração de cada arquivo, o original vai para `.cabecao/backups/obsidian/<arquivo>.bak` (local, fora do git). Com `--dry-run`, o comando mostra a mesma diferença de cada arquivo e não grava nada:
 
 ```text
 $ cabecao obsidian setup --dry-run

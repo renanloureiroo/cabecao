@@ -83,9 +83,9 @@ Não pode:
 - escrever no `index.md` ou fora do cérebro;
 - enviar ao remoto (`sync`), desfazer (`undo`), deixar recado para a próxima sessão (`handoff_save`) ou trazer conteúdo de fora (`ingest`);
 - arquivar notas (`forget`), a não ser que você passe `--allow-forget`;
-
-`--allow-forget` e `--allow-elevated` só você passa, no seu terminal: um processo sem terminal controlador (um agendamento, outro agente) que as tente sai com o código 4. Sem elas, o `--run` roda também sem terminal (agendado), e conta como agente;
 - gravar fora da sessão da consolidação: toda escrita vai com o id dela, e por isso `undo --session` alcança tudo.
+
+`--allow-forget` e `--allow-elevated` só você passa, no seu terminal: um processo sem terminal controlador (um agendamento, outro agente) que as tente sai com o código 4. Sem elas, o `--run` roda também sem terminal (agendado), e conta como agente.
 
 As restrições de agente de sempre continuam valendo; estas são a mais. Como cada agente é contido:
 

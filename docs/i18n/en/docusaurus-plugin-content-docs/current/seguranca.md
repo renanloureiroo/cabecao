@@ -8,6 +8,7 @@ description: Where your data goes, how the secret scanner works, what an agent i
 - Notes live in a folder on your machine and in a git repository that is **yours**.
 - Cabeção has no server, account, telemetry, or usage collection. Everything that leaves the machine goes through git, to the remote **you** configured (`fetch`, `push` and, in `init` and `doctor`, a query to check whether the remote responds).
 - **The only exception is optional and off by default:** if you turn on [answers with a language model](./guias/respostas-com-modelo.md) (`cabecao llm on`), each `ask` question sends passages from your notes to the provider **you** chose. Nothing goes until you turn it on, in a terminal, seeing what leaves and where to. See [below](#answers-from-a-provider-optional).
+- Semantic search, if you turn it on (`cabecao embeddings on`), downloads a runtime (through npm) and a model (from Hugging Face) to this machine; the vectors are computed here and go, through sync, to your remote, in an index branch.
 - The MCP server runs on your machine, over stdio. It does not open a network port.
 - What an agent reads from the brain goes to the AI model you use, like any other text in the conversation. That is up to the AI client, not Cabeção: choose what you store with that in mind.
 
@@ -50,7 +51,7 @@ What it recognizes:
 | `slack-token`, `stripe-key`, `google-api-key` | Slack tokens, Stripe and Google keys |
 | `anthropic-api-key`, `openai-api-key`, `npm-token` | Anthropic and OpenAI keys, and npm tokens |
 | `jwt` | Signed JSON Web Tokens |
-| `cabecao-confirm-token` | The `forget` `confirm_token` (`cbc_ct_...`): valid for minutes and must not stay in a note |
+| `cabecao-confirm-token` | The confirmations' `confirm_token` (`cbc_ct_...`): valid for minutes and must not stay in a note |
 | `url-credentials` | URL with an embedded password (`esquema://usuario:senha@host`) |
 | `generic-assignment` | A sensitive name (`password`, `senha`, `secret`, `token`, `api_key`...) being assigned a value that looks like a secret |
 
@@ -72,7 +73,7 @@ The marker only works in text that is **yours** (edited in Obsidian or an editor
 Through the MCP tools and through the CLI (which follows the same rules when the one running it is an agent), these actions need your **explicit request, confirmed**: the first call does nothing and returns the exact summary and a short-lived confirmation token; the agent only repeats with the token if you say yes. In a client that can ask (elicitation), the server asks you directly.
 
 - create or change rules (`type: rule`, `memory/rules/`);
-- write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and other files AI clients load as instructions, in any folder, and to the control files (`log.md`, `README.md`, `.cabecao.json`, `.gitignore`, `.gitattributes`), these last three only if the result is valid and never touching the `embedding` section;
+- write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and other files AI clients load as instructions, in any folder, and to the control files (`log.md`, `README.md`, `.cabecao.json`, `.gitignore`, `.gitattributes`), these last three only if the result is valid and never touching the `embedding` and `llm_policy` sections of `.cabecao.json`;
 - change sources that already exist in `raw/`;
 - save `trust: high`;
 - undo one of your operations;

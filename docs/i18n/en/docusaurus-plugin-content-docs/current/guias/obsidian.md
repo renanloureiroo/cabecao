@@ -31,14 +31,22 @@ What the command does:
 | `dashboards/*.base` | Five dashboards (see below) |
 | `dashboards/cabecao-web-clipper.json` | The Web Clipper template, for you to import into the extension |
 
-On a brain without `.obsidian/`, the output is this (the CLI speaks Portuguese):
+On a brain without `.obsidian/`, the output is this (the CLI speaks Portuguese; the diff of each configuration file was shortened):
 
 ```text
 $ cabecao obsidian setup
 Obsidian: ~/cabecao
 + .obsidian/app.json (criado)
+    --- a/.obsidian/app.json
+    +++ b/.obsidian/app.json
+    @@
+    +{
+    +  "newLinkFormat": "shortest",
+    ...
 + .obsidian/graph.json (criado)
+    ...
 + .obsidian/types.json (criado)
+    ...
 + dashboards/decisoes.base (criado)
 + dashboards/fatos.base (criado)
 + dashboards/memorias.base (criado)
@@ -73,7 +81,7 @@ The command was made for a vault that already has your configuration. It **only 
 - it does not touch a JSON file it cannot read: it stays as is, and the command exits with code 1;
 - it does not replace a dashboard you edited.
 
-Before the first change to each file, the original goes to `.cabecao/backups/obsidian/<file>.bak` (local, outside git). With `--dry-run`, the command shows the diff of each file and writes nothing:
+Before the first change to each file, the original goes to `.cabecao/backups/obsidian/<file>.bak` (local, outside git). With `--dry-run`, the command shows the same diff of each file and writes nothing:
 
 ```text
 $ cabecao obsidian setup --dry-run

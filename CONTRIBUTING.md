@@ -1,6 +1,6 @@
 # Contribuindo com o Cabeção
 
-O Cabeção está em beta e publicado no npm (`cabecao@beta`). O que ele faz hoje, e o que vem em breve, está no [site de documentação](https://renanloureiroo.github.io/cabecao/). A melhor contribuição agora é usar e relatar o que encontrar, principalmente com provedores git reais e clientes MCP reais.
+O Cabeção está publicado no npm (`cabecao`). O que ele faz hoje, e o que vem em breve, está no [site de documentação](https://renanloureiroo.github.io/cabecao/). A melhor contribuição agora é usar e relatar o que encontrar, principalmente com provedores git reais e clientes MCP reais.
 
 ## Como ajudar hoje
 - Leia a [documentação](https://renanloureiroo.github.io/cabecao/) e abra uma *issue* com dúvidas, bugs ou sugestões. Inclua a saída de `cabecao doctor --offline`.

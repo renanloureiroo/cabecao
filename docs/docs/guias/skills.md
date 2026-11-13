@@ -101,7 +101,7 @@ cabecao install-skills --instructions
 | | Skills (`install-skills`) | Servidor MCP (`install-client`) | Plugin do Claude Code |
 | --- | --- | --- | --- |
 | Como o agente usa o cérebro | Roda `cabecao` no shell | Chama as tools do servidor | Tools do servidor embutido, mais as skills |
-| Precisa do Cabeção instalado na máquina | Sim (`npm i -g cabecao@beta`) | Sim, ou `npx` | Não para o servidor (vem dentro do plugin) |
+| Precisa do Cabeção instalado na máquina | Sim (`npm i -g cabecao`) | Sim, ou `npx` | Não para o servidor (vem dentro do plugin) |
 | Briefing automático no início da sessão | Não: a skill manda chamar `recall` | Não: as instruções do servidor pedem `recall` | Sim (hook) |
 | Sync no fim da sessão | A skill manda rodar `cabecao sync` | Não (use `cabecao schedule on`) | Sim (hook) |
 | Onde funciona | Agentes com shell que leem skills | Qualquer cliente MCP, inclusive os sem shell (Claude Desktop) | Só o Claude Code |
@@ -115,7 +115,7 @@ Quando usar cada um:
 
 ## No plugin do Claude Code
 
-O plugin traz as skills do Cabeção junto com o servidor e os hooks. Ele corresponde à **versão publicada** do Cabeção: as skills novas chegam ao plugin na próxima versão publicada (até lá, o plugin traz a skill de referência `memory`). Se você usa o plugin, não precisa do `install-skills` no Claude Code.
+O plugin traz as skills do Cabeção junto com o servidor e os hooks. Se você usa o plugin, não precisa do `install-skills` no Claude Code.
 
 ## O que não foi testado
 

@@ -11,7 +11,7 @@ Claude Desktop installs local MCP servers through an **`.mcpb` package** (MCP Bu
 The package does not create the brain: it only connects Claude Desktop to a brain that already exists. Create it (or connect this machine) first:
 
 ```bash
-npx cabecao@beta init git@github.com:you/my-brain.git
+npx cabecao init git@github.com:you/my-brain.git
 ```
 
 ## Install
@@ -23,12 +23,12 @@ npx cabecao@beta init git@github.com:you/my-brain.git
 Claude Desktop now has Cabeção's 17 tools (`recall`, `search`, `remember`, `sync`...). The usage rules come through the server instructions; there are no hooks as in the [Claude Code plugin](./claude-code.md), so sync happens when the agent calls the `sync` tool, when you run `cabecao sync`, or through [automatic sync](./sync-automatico.md).
 
 :::warning[Not tested in the app]
-The package is built and validated for every version (manifest checked by the official `mcpb validate` tool, contents checked, and the server starts from the extracted package the way the app would start it). **Installing it in the real Claude Desktop has not been tested yet.** If something goes wrong, use the path below and tell us in an [issue](https://github.com/renanloureiroo/cabecao/issues).
+The package is built for every version and checked by the project's tests (manifest conforming to the MCPB 0.3 specification, contents checked, and the server starts from the extracted package the way the app would start it); the manifest has also passed the official `mcpb validate` tool. **Installing it in the real Claude Desktop has not been tested yet.** If something goes wrong, use the path below and tell us in an [issue](https://github.com/renanloureiroo/cabecao/issues).
 :::
 
 ## What is in the package
 
-Only three things, about 380 kB:
+Only three things, about 490 kB:
 
 | File | What it is |
 | --- | --- |
@@ -36,7 +36,7 @@ Only three things, about 380 kB:
 | `icon.png` | The icon |
 | `server/*.mjs` | The same program published on npm, with no dependencies |
 
-The server runs on the Node.js that Claude Desktop ships. Cabeção needs Node.js 22.16 or newer (or 24+): on an older Node, the server does not start and the message says so. The system git is still needed for sync.
+The server runs on the Node.js that Claude Desktop ships. Cabeção needs Node.js 22.16+ or 24+: on an older Node, the server does not start and the message says so. The system git is still needed for sync.
 
 ## Updating
 

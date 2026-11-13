@@ -28,6 +28,7 @@ Cabecao-Client: claude-code
 | `Cabecao-Machine` | O nome da máquina, definido no `init`. |
 | `Cabecao-Client` | Quem gravou: `claude-code`, `codex`, `cursor`... para agentes; `cli` para você pela CLI; `manual` para edições feitas fora do Cabeção e postas num commit pelo sync. |
 | `Cabecao-Reverts` | Só em commits de undo: a operação desfeita. |
+| `Cabecao-Approved` | Só em operações de agente feitas com o seu pedido explícito, confirmado. |
 
 As linhas do corpo dizem o que mudou: `add gotcha: título`, `update entity: título`, `revert concept: título`, `edit: 1 nota alterada fora do Cabeção`, `conflict: 1 nota com conflito preservado`.
 
@@ -64,7 +65,7 @@ Cabecao-Reverts: 01M79D4QHMNXGRV0AW6FZG6V50
 ## O que o undo alcança
 
 - **Você, pela CLI**, desfaz qualquer operação do Cabeção: as dos agentes e os próprios undos.
-- **Um agente, pelo MCP**, só desfaz operações de agentes, nunca as suas, e precisa do identificador completo.
+- **Um agente** (pelo MCP ou pela CLI) desfaz sozinho só operações de agentes, pelo identificador completo. Uma operação sua, ou só o começo do identificador, ele só desfaz com o seu pedido explícito, confirmado.
 - **Nenhum dos dois** desfaz o que não é operação do Cabeção: edições que você fez no Obsidian, commits do sync, cópias de conflito e o commit do `init`. Para esses, use o git direto (`git log` e `git revert` na pasta do cérebro).
 
 Se o arquivo mudou depois da operação de um jeito que impede o revert limpo, o undo para com o erro `conflict` e não altera nada.

@@ -101,7 +101,7 @@ cabecao install-skills --instructions
 | | Skills (`install-skills`) | MCP server (`install-client`) | Claude Code plugin |
 | --- | --- | --- | --- |
 | How the agent uses the brain | Runs `cabecao` in the shell | Calls the server's tools | Tools of the bundled server, plus the skills |
-| Needs Cabeção installed on the machine | Yes (`npm i -g cabecao@beta`) | Yes, or `npx` | Not for the server (it ships inside the plugin) |
+| Needs Cabeção installed on the machine | Yes (`npm i -g cabecao`) | Yes, or `npx` | Not for the server (it ships inside the plugin) |
 | Automatic briefing at session start | No: the skill says to call `recall` | No: the server's instructions ask for `recall` | Yes (hook) |
 | Sync at session end | The skill says to run `cabecao sync` | No (use `cabecao schedule on`) | Yes (hook) |
 | Where it works | Agents with a shell that read skills | Any MCP client, including the ones without a shell (Claude Desktop) | Claude Code only |
@@ -115,7 +115,7 @@ When to use each one:
 
 ## In the Claude Code plugin
 
-The plugin brings the Cabeção skills together with the server and the hooks. It matches the **published version** of Cabeção: new skills reach the plugin in the next published version (until then, the plugin brings the `memory` reference skill). If you use the plugin, you don't need `install-skills` in Claude Code.
+The plugin brings the Cabeção skills together with the server and the hooks. If you use the plugin, you don't need `install-skills` in Claude Code.
 
 ## What has not been tested
 
