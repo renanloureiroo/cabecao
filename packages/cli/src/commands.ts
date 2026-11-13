@@ -376,8 +376,21 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'eval',
     summary: 'Mede a busca com as suas perguntas',
-    usage: ['eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]'],
+    usage: [
+      'eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]',
+      'eval --answers <perguntas.jsonl> [--provider <id>...]',
+    ],
     options: {
+      answers: {
+        type: 'boolean',
+        description: 'Mede as respostas do "ask" (citações conferidas e recusas) com o provedor ativado',
+      },
+      provider: {
+        type: 'string',
+        multiple: true,
+        valueName: 'id',
+        description: 'Com --answers: um relatório por provedor (repita, ou separe por vírgula)',
+      },
       alpha: {
         type: 'string',
         multiple: true,
@@ -391,6 +404,10 @@ export const COMMANDS: readonly CommandSpec[] = [
       '"expected" aceita o id ou o caminho da nota, ou uma lista. Compara só palavra-chave, só vetor e a fusão com',
       'cada α, e imprime MRR, nDCG, recall e acerto na 1ª posição, por tipo de pergunta, com o intervalo de',
       'confiança da diferença contra a palavra-chave. Sem a busca por significado, mede só a palavra-chave.',
+      '',
+      'Com --answers, mede as respostas do "ask" (precisa de "cabecao llm on"): citações válidas, afirmações sem apoio,',
+      'fonte certa citada e recusas. Para perguntas sem resposta no cérebro, use {"query": "...", "answerable": false}.',
+      'Cada pergunta é uma chamada ao provedor (custa). Exemplo: cabecao eval --answers fixtures/eval/respostas.jsonl',
     ].join('\n'),
     load: () => import('./commands/eval.ts'),
   },

@@ -217,6 +217,14 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     results.push(verbose);
     expect(parseJson(verbose).data.diagnostics).toMatchObject({ provider: 'compatible', model: 'modelo-local' });
 
+    // no terminal: progresso no stderr e cada afirmação conferida sai uma vez só, pelo streaming
+    const tty = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir], { prompt: async () => '' });
+    results.push(tty);
+    expect(tty.stderr).toContain('gerando a resposta');
+    const claimLine = ask.stdout.split('\n')[0] as string;
+    expect(tty.stdout.split('\n').filter((line) => line === claimLine)).toHaveLength(1);
+    expect(tty.stdout).toContain('Fontes:');
+
     const status = await m.cabecao(['llm', 'status'], { prompt: async () => '' });
     results.push(status);
     expect(status.stdout).toContain('ligadas');
@@ -239,7 +247,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const after = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir, '--json']);
     results.push(after);
     expect(parseJson(after).data.status).toBe('unavailable');
-    expect(api.bodies.length).toBe(4); // teste + 3 perguntas; nada depois do off
+    expect(api.bodies.length).toBe(5); // teste + 4 perguntas; nada depois do off
     // a chave continua guardada depois do off
     expect(await readFile(join(m.configDir, 'credentials.json'), 'utf8')).toContain(KEY);
 
@@ -268,6 +276,30 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const test = await m.cabecao(['llm', 'test', '--json']);
     expect(test.code).toBe(1);
     expect(test.stdout).not.toContain(KEY);
+  });
+
+  it('eval --answers mede as respostas com o provedor ativado (e pede "llm on" sem ele)', async () => {
+    const m = machine();
+    const dir = await brainRepo();
+    const questions = fileURLToPath(new URL('../../../fixtures/eval/respostas.jsonl', import.meta.url));
+    const without = await m.cabecao(['eval', '--answers', questions, '--brain', dir]);
+    expect(without.code).toBe(1);
+    expect(without.stderr).toContain('cabecao llm on');
+    const api = await compatibleServer();
+    await m.cabecao(
+      ['llm', 'on', '--provider', 'compatible', '--base-url', api.base, '--model', 'm', '--store', 'file'],
+      { prompt: async () => 's', promptSecret: async () => KEY },
+    );
+    const result = await m.cabecao(['eval', '--answers', questions, '--brain', dir, '--json']);
+    expect(result.code).toBe(0);
+    const report = parseJson(result).data;
+    expect(report.questions).toBe(8);
+    expect(report.unanswerable).toBe(2);
+    expect(report.citation_validity.value).toBe(1);
+    expect(report.results).toHaveLength(8);
+    const text = await m.cabecao(['eval', '--answers', questions, '--brain', dir, '--provider', 'compatible']);
+    expect(text.stdout).toContain('citações válidas');
+    expect(text.stdout).toContain('recusa correta');
   });
 
   it('base-url de fora sem https é recusada', async () => {
