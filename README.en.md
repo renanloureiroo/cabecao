@@ -1,53 +1,119 @@
 <p align="center">
-  <strong>🧠 Cabeção</strong><br/>
-  <em>Your personal second brain, in Markdown and git, for you and your AI agents.</em>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.png">
+    <img src="assets/banner.png" alt="Cabeção" width="640">
+  </picture>
 </p>
 
 <p align="center">
-  <strong>English</strong> · <a href="README.md">Português</a>
+  Your second brain in Markdown and git, for you and your AI agents, served over MCP.
 </p>
 
-> **Status: 🚧 beta.** Published on npm as [`cabecao@beta`](https://www.npmjs.com/package/cabecao). Commands and file formats may still change before 1.0.
+<p align="center">
+  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao/beta?label=npm%40beta&color=1C3D8F" alt="npm version (beta)"></a>
+  <a href="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml"><img src="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/renanloureiroo/cabecao?color=1C3D8F" alt="MIT license"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao/beta?color=1C3D8F" alt="Node.js"></a>
+</p>
 
----
+<!-- README-I18N:START -->
 
-*Cabeção* ("big head") is a nod to a character from the Brazilian TV show *Malhação* who knows and remembers everything.
+[Português](./README.md) | **English**
 
-## What it is
+<!-- README-I18N:END -->
 
-A **personal second brain** that lives in **a git repository you own**, on any host (GitHub, GitLab, Bitbucket, Gitea, your own server), exposed to any AI agent over **MCP**. Use it on as many machines as you like: everything syncs, embeddings and graph included.
+Your notes are Markdown files in a git repository you own, on any host. AI agents (Claude Code, Codex, Cursor and others) read and write them over MCP, and every write becomes a commit you can undo with one command. The name is a nod to Cabeção ("big head") from the Brazilian TV show *Malhação*, the character who remembered everything.
 
-- 📝 **Markdown is the source of truth.** Read and edit in Obsidian or any editor.
-- 🔗 **Any git remote.** No provider API, pull requests or CI required.
-- 🔄 **Syncs everything git does not ignore.** Today: notes, attachments and configuration. Planned (milestone 2): embeddings and graph, so a machine never recomputes what another already computed.
-- 🔎 **Search** by keyword (today) and, in milestone 2, also by meaning, with a local model (nothing leaves your machine).
-- 🕸️ **A wiki with a graph** (milestone 3, under review on `feat/m3-grafo`): wikilinks, typed relations, unlinked mentions and time-bounded facts the agent can navigate.
-- 🧠 **Agent memory:** what you taught in one session is there in the next, in any client.
-- ↩️ **Reversible:** every operation is a commit, with an undo command.
-- 🪶 **Light:** a 241 kB packed package (about 840 kB installed) with no runtime or native dependencies; `cabecao --version` takes about 26 ms. The embedding model (milestone 2) will be downloaded only when you turn on semantic search.
+> **Beta.** The current version is `0.1.0-beta.1`. It works day to day, but commands and formats may still change before 1.0. The CLI prints its messages in Portuguese for now; the MCP tools that agents use are described in English.
+
+## What it looks like
+
+```text
+$ cabecao init git@github.com:voce/cerebro.git
+Pasta do cérebro: ~/cabecao (máquina notebook)
+
+Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
+
+Índice local: 0 notas indexadas em 2 ms.
+
+Clientes de IA:
+  Claude Code: registrado
+    ~/.claude.json: registrado
+  Reinicie o cliente para ele enxergar a mudança.
+...
+  14 ok, 0 avisos, 0 falhas.
+```
+
+In a Claude Code session you say "remember that the payment tests only pass with `TZ=UTC`", and the agent calls the `remember` tool:
+
+```json
+{
+  "op": "01M79DRQR9648E1JZ60MF0EBNN",
+  "path": "memory/gotchas/testes-de-pagamento-precisam-do-fuso-fixo.md",
+  "action": "add",
+  "commit": "1af64e1dc48f5627dd086474c571b22326eaa3c0"
+}
+```
+
+The note is a plain `.md` file. In the next session, on any machine, it comes back in the agent's `recall`. And from the terminal:
+
+```text
+$ cabecao search "testes pagamento"
+1 resultado(s) para "testes pagamento", com todos os termos (validade em 2026-11-13):
+
+1. Testes de pagamento precisam do fuso fixo  [gotcha · project:pagamentos]  vigente
+   memory/gotchas/testes-de-pagamento-precisam-do-fuso-fixo.md
+   Os «testes» do serviço de pagamentos falham perto da meia-noite se o fuso não for fixo. Rode com `TZ=UTC npm test`.
+```
+
+## Why
+
+- **Your data, in your format.** Markdown in a git repository you control. It opens in Obsidian or any editor, and stays yours if you stop using Cabeção.
+- **Any host.** GitHub, GitLab, Bitbucket, Gitea, your own server, or just your machine. Only git, no provider API.
+- **Memory across sessions and machines.** What you teach in one conversation comes back in the next, in any MCP client.
+- **Everything is reversible.** Every write is an identified commit; `cabecao undo` reverts one operation or a whole agent session.
+- **Agents with limits.** They cannot create rules, edit instruction files or store secrets, and they leave a trace when they change one of your notes.
 
 ## Install
 
-> **You cannot install from npm yet.** The `cabecao` package has not been published, so `npx cabecao` will only work after publication. Until then, run it from the repository: `pnpm install && pnpm build`, then `node packages/cli/dist/cabecao.mjs init <url>`.
-
-Once published, you only provide the repository URL:
+Requires Node.js 22.16+ (24 recommended) and git 2.38+. Create an **empty, private** repository first.
 
 ```bash
-npx cabecao init git@gitlab.com:you/my-brain.git
+npm i -g cabecao@beta
+cabecao init git@github.com:voce/cerebro.git
+cabecao doctor
 ```
 
-| The repository... | What happens |
-|---|---|
-| is empty | scaffolds the brain, makes the first commit and pushes |
-| already holds a Cabeção brain | downloads it and builds the local index (from milestone 2, without recomputing embeddings) |
-| holds an Obsidian vault or plain Markdown | adopts it without moving any file |
-| holds something else (code, for example) | refuses and explains |
+`init` also adopts an existing Obsidian vault without moving files, and without a URL it creates a local-only brain.
 
-With no URL it creates a local-only brain. It then registers the MCP server in the clients it finds (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI).
+## Connect to Claude Code
 
-Requirements: Node.js 22.16+ (24 recommended) and git 2.38+.
+`init` already registers the MCP server in the clients it finds. To register later:
 
-> ⚠️ **Cabeção's code is public; your brain should not be.** Use a **private** repository.
+```bash
+cabecao install-client claude-code
+```
+
+Restart Claude Code. It also works with Claude Desktop, Codex, Cursor, VS Code and Gemini CLI (`cabecao install-client --all`).
+
+## Features
+
+| Today (`0.1.0-beta.1`) | Coming soon |
+| --- | --- |
+| `init` on any git remote, adopting Obsidian vaults | Search by meaning, with a local model |
+| `sync` that never loses data: a conflict copy instead of an overwrite | Claude Code plugin with hooks |
+| Keyword search with validity over time (`--as-of`) | Review, consolidation and "forget" for memories |
+| Graph: wikilinks, typed relations, facts and unlinked mentions | Obsidian integration |
+| MCP server with 12 tools and agent restrictions | Claude Desktop package |
+| `undo` per operation or session; secret scanner | |
+
+## Documentation
+
+Everything is on the site: **[renanloureiroo.github.io/cabecao/en](https://renanloureiroo.github.io/cabecao/en/)**, in English and Portuguese. Quick start, concepts, guides (Obsidian, conflicts, undo, rules), CLI and MCP tool reference, security and troubleshooting.
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) (in Portuguese) for how to run the project and the conventions. To report a vulnerability, use GitHub's private vulnerability reporting.
 
 ## License
 
