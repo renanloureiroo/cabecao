@@ -43,6 +43,8 @@ export type { HandoffSaveInput, HandoffSaveOutput, NoteRefOutput } from './hando
 export { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS, HANDOFF_TTL_DAYS } from './handoff.ts';
 export type { IngestInput, IngestOptions, IngestOutput, IngestPlanNote } from './ingest.ts';
 export { INGEST_DIR, INGEST_MAX_BYTES, INGEST_MAX_CHARS } from './ingest.ts';
+export type { LintFinding, LintInput, LintOutput, LintRule, LintSeverity } from './lint.ts';
+export { CONFIRMABLE_TYPES, DEFAULT_LINT_LIMIT, LINT_RULES, MAX_LINT_LIMIT, UNCONFIRMED_AFTER_DAYS } from './lint.ts';
 export type {
   BacklinkOutput,
   ConflictOutput,

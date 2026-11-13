@@ -38,6 +38,8 @@ import type { HandoffSaveInput, HandoffSaveOutput } from './handoff.ts';
 import { handoffSave } from './handoff.ts';
 import type { IngestInput, IngestOptions, IngestOutput } from './ingest.ts';
 import { ingest } from './ingest.ts';
+import type { LintInput, LintOutput } from './lint.ts';
+import { lint } from './lint.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -117,6 +119,8 @@ export interface Brain {
   graph(input: GraphInput): Promise<GraphOutput>;
   /** Fatos por sujeito, predicado e objeto, e se valem numa data, com a cadeia de versões. */
   facts(input?: FactsInput): Promise<FactsOutput>;
+  /** Relatório de saúde por regras (sem LLM, só leitura): cada achado com severidade, caminho e correção. */
+  lint(input?: LintInput): Promise<LintOutput>;
 
   /**
    * Grava uma memória, tratando duplicatas e contradições no mesmo escopo e tipo: igual → ignora; complementa →
@@ -274,6 +278,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     read: (input) => read(ctx, input),
     graph: (input) => graph(ctx, input),
     facts: (input) => facts(ctx, input),
+    lint: (input) => lint(ctx, input),
     status: async () => {
       assertOpen(ctx);
       return status(ctx, await machineName(ctx));

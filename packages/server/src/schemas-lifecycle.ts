@@ -1,7 +1,7 @@
 // Esquemas Zod das tools do ciclo de vida da memória (marco 4): a saída do `remember` (com duplicatas e
 // contradições) e as tools `handoff_save`, `ingest`, `forget`, `lint` e `consolidate`. Mesmas regras de `schemas.ts`:
 // aqui só a forma; a validação de verdade é do núcleo. A saída espelha a do núcleo e é conferida em `checks.ts`.
-import { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS } from '@cabecao/core';
+import { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS, LINT_RULES, MAX_LINT_LIMIT } from '@cabecao/core';
 import * as z from 'zod';
 import { dataNotice, INPUT_LIMITS, issue, sessionHandle, shortText, text } from './schemas.ts';
 
@@ -117,4 +117,34 @@ export const ingestOutput = z.object({
   }),
   warnings: z.array(issue),
   next_step: z.string(),
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// lint
+
+export const lintInput = z.object({
+  rules: z.array(z.enum(LINT_RULES)).describe('Only these rules (default: all).').exactOptional(),
+  scope: shortText().describe('"project:<slug>" (plus global) or "global".').exactOptional(),
+  limit: z.number().int().min(1).max(MAX_LINT_LIMIT).describe('Max findings (default 200).').exactOptional(),
+});
+
+export const lintFinding = z.object({
+  rule: z.enum(LINT_RULES),
+  severity: z.enum(['error', 'warning', 'info']),
+  path: z.string(),
+  line: z.number().nullable(),
+  message: z.string(),
+  fix: z.string(),
+  related: z.array(z.string()),
+});
+
+export const lintOutput = z.object({
+  data_notice: dataNotice,
+  findings: z.array(lintFinding),
+  counts: z.object({ error: z.number(), warning: z.number(), info: z.number() }),
+  by_rule: z.record(z.string(), z.number()),
+  checked_notes: z.number(),
+  total: z.number(),
+  truncated: z.boolean(),
+  next_step: z.string().exactOptional(),
 });

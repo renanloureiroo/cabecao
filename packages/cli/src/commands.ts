@@ -260,6 +260,29 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/undo.ts'),
   },
   {
+    name: 'lint',
+    summary: 'Relatório de saúde do cérebro, por regras',
+    usage: ['lint [--rule <regra>...] [--scope <escopo>] [--limit <n>]'],
+    options: {
+      rule: {
+        type: 'string',
+        multiple: true,
+        valueName: 'regra',
+        description:
+          'Só estas regras (repita, ou separe por vírgula): invalid_frontmatter, fact_contradiction, conflict_copy, broken_link, expired_note, unconfirmed_memory, unlinked_mention, orphan_note',
+      },
+      scope: { type: 'string', valueName: 'escopo', description: '"global" ou "project:<nome>" (que inclui o global)' },
+      limit: { type: 'string', valueName: 'n', description: 'Máximo de achados, de 1 a 1000 (padrão: 200)' },
+    },
+    details: [
+      'Só lê: nada é alterado. Aponta fatos vigentes que se contradizem, links quebrados, notas órfãs, memórias sem',
+      'confirmação há mais de 180 dias, notas vencidas, menções sem link, cópias de conflito pendentes e notas com',
+      'frontmatter inválido, cada achado com a severidade, o caminho e a correção sugerida. Sem LLM: são regras.',
+      'Código de saída 1 quando há algum erro (frontmatter ilegível ou inválido); avisos e informativos saem com 0.',
+    ].join('\n'),
+    load: () => import('./commands/lint.ts'),
+  },
+  {
     name: 'ingest',
     summary: 'Registra uma fonte (artigo, ata, documento) em raw/',
     usage: ['ingest <arquivo> [--title <título>] [--scope <escopo>]'],

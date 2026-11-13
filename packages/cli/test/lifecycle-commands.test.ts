@@ -76,3 +76,26 @@ describe('ingest', { timeout: TEST_TIMEOUT_MS }, () => {
     expect((await m.cabecao(['ingest', '--brain', brain])).code).toBe(2);
   });
 });
+
+describe('lint', { timeout: TEST_TIMEOUT_MS }, () => {
+  it('relatório em texto e em JSON; código 1 só com erro; regra desconhecida é erro de uso', async () => {
+    const result = await m.cabecao(['lint', '--brain', brain]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/achado\(s\) em \d+ notas/);
+    expect(result.stdout).toContain('unlinked_mention');
+    expect(result.stdout).toContain('correção:');
+    const json = parseJson(
+      await m.cabecao(['lint', '--rule', 'unlinked_mention', '--limit', '1', '--brain', brain, '--json']),
+    );
+    expect(json.data.findings).toHaveLength(1);
+    expect(json.data.findings[0].rule).toBe('unlinked_mention');
+
+    writeFileSync(join(brain, 'wiki', 'concepts', 'Quebrada.md'), '---\ntitle: [aberto\n---\ntexto\n');
+    const broken = await m.cabecao(['lint', '--rule', 'invalid_frontmatter', '--brain', brain]);
+    expect(broken.code).toBe(1);
+    expect(broken.stdout).toContain('[ERRO] invalid_frontmatter  wiki/concepts/Quebrada.md');
+
+    expect((await m.cabecao(['lint', '--rule', 'apagar', '--brain', brain])).code).toBe(2);
+    expect((await m.cabecao(['lint', '--limit', '0', '--brain', brain])).code).toBe(2);
+  });
+});
