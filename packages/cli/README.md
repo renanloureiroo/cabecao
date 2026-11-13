@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/renanloureiroo/cabecao/main/assets/banner.png" alt="Cabeção" width="640">
+  <img src="https://raw.githubusercontent.com/renanloureiroo/cabecao/main/assets/marca/banner.png" alt="Cabeção: segundo cérebro em Markdown e git, servido por MCP">
 </p>
 
 # cabecao
