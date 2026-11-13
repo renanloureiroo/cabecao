@@ -24,6 +24,7 @@ import {
   writeOutput,
   writePageInput,
 } from './schemas.ts';
+import { rememberOutput } from './schemas-lifecycle.ts';
 import { registerGraphReadTools, registerRelateTool } from './tools-graph.ts';
 
 /** Roda o sync em outro processo (a CLI faz isso); recebe o `session_handle` do agente, se houver. */
@@ -143,9 +144,9 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Remember',
       description:
-        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact, handoff...) as a new note, committed to git. Never store passwords, tokens or keys.',
+        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact...), committed to git. Checks the same scope and type first: identical is skipped, a superset updates, a fact with a new object supersedes the old one; ambiguous cases return candidates and need a second call with resolution. Never store passwords, tokens or keys.',
       inputSchema: rememberInput,
-      outputSchema: writeOutput,
+      outputSchema: rememberOutput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     (args, ctx) => run(ctx, async (brain) => (await brain()).remember(args)),

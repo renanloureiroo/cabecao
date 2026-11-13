@@ -47,12 +47,14 @@ import type {
 import { read, recall, search, status } from './read.ts';
 import type { RelateInput, RelateOutput } from './relate.ts';
 import { relate } from './relate.ts';
+import type { RememberOutput } from './remember.ts';
+import { rememberWithDedup } from './remember.ts';
 import type { SyncInput, SyncOutput } from './sync.ts';
 import { sync } from './sync.ts';
 import type { ListOperationsInput, ListOperationsOutput, UndoInput, UndoOutput } from './undo.ts';
 import { listOperations, undo } from './undo.ts';
 import type { PatchPageInput, RememberInput, WriteOutput, WritePageInput } from './write.ts';
-import { patchPage, remember, writePage } from './write.ts';
+import { patchPage, writePage } from './write.ts';
 
 /** Nome de cliente aceito: vai para `origin: agent:<cliente>` e para o rodapé `Cabecao-Client`. */
 const CLIENT_RE = /^[A-Za-z0-9][\w.-]{0,63}$/;
@@ -112,8 +114,12 @@ export interface Brain {
   /** Fatos por sujeito, predicado e objeto, e se valem numa data, com a cadeia de versões. */
   facts(input?: FactsInput): Promise<FactsOutput>;
 
-  /** Cria uma memória. Regras só com `actor: 'human'`. */
-  remember(input: RememberInput): Promise<WriteOutput>;
+  /**
+   * Grava uma memória, tratando duplicatas e contradições no mesmo escopo e tipo: igual → ignora; complementa →
+   * atualiza; contradiz → substitui; nova → cria; ambíguo → devolve as candidatas (`resolution` na segunda chamada).
+   * Regras só com `actor: 'human'`.
+   */
+  remember(input: RememberInput): Promise<RememberOutput>;
   /** Cria, sobrescreve ou acrescenta a uma página por caminho. */
   writePage(input: WritePageInput): Promise<WriteOutput>;
   /** Substituição exata e única no corpo de uma nota. */
@@ -261,7 +267,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
       assertOpen(ctx);
       return status(ctx, await machineName(ctx));
     },
-    remember: (input) => remember(ctx, input),
+    remember: (input) => rememberWithDedup(ctx, input),
     writePage: (input) => writePage(ctx, input),
     patchPage: (input) => patchPage(ctx, input),
     relate: (input) => relate(ctx, input),

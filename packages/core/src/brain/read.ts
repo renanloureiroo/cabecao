@@ -321,7 +321,7 @@ interface ModeDecision {
 }
 
 /** Decide o modo sem carregar nada: configuração do cérebro, estado desta máquina e o runtime injetado. */
-async function decideMode(ctx: BrainContext, requested: SearchMode): Promise<ModeDecision> {
+export async function decideMode(ctx: BrainContext, requested: SearchMode): Promise<ModeDecision> {
   if (requested === 'keyword') return { used: 'keyword', reason: 'busca por palavra-chave, como pedido', warnings: [] };
   const fallback = (reason: string): ModeDecision => ({
     used: 'keyword',

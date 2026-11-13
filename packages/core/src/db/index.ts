@@ -77,6 +77,7 @@ export {
   BM25_TITLE_WEIGHT,
   buildFtsQuery,
   EXPIRED_SCORE_FACTOR,
+  isStopword,
   noteFilters,
   queryTerms,
   searchKeyword,
