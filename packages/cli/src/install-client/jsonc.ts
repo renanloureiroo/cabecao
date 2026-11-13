@@ -202,13 +202,13 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   return keys.length === Object.keys(b).length && keys.every((key) => key in b && deepEqual(a[key], b[key]));
 }
 
-interface TextEdit {
+export interface TextEdit {
   start: number;
   end: number;
   text: string;
 }
 
-function applyEdits(text: string, edits: readonly TextEdit[]): string {
+export function applyEdits(text: string, edits: readonly TextEdit[]): string {
   let result = text;
   for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
     result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
@@ -250,7 +250,7 @@ function trailingLineComment(text: string, from: number, to: number): number {
   return /^[ \t]*\/\/[^\r\n]*/.exec(text.slice(from, to))?.[0].length ?? 0;
 }
 
-function insertProp(text: string, object: JsonObjectNode, key: string, value: JsonValue): TextEdit[] {
+export function insertProp(text: string, object: JsonObjectNode, key: string, value: JsonValue): TextEdit[] {
   const eol = detectEol(text);
   const unit = detectIndentUnit(text);
   const last = object.props.at(-1);
@@ -292,7 +292,7 @@ function insertProp(text: string, object: JsonObjectNode, key: string, value: Js
   ];
 }
 
-function removeProp(text: string, object: JsonObjectNode, prop: JsonProp): TextEdit[] {
+export function removeProp(text: string, object: JsonObjectNode, prop: JsonProp): TextEdit[] {
   const previous = object.props[object.props.indexOf(prop) - 1];
   if (!startsItsLine(text, prop.keyStart)) {
     // Propriedade que divide a linha com outras: tira também o espaço que a separava da vizinha.
