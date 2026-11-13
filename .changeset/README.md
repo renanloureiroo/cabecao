@@ -8,4 +8,4 @@ Cada mudança que deve sair numa versão nova do pacote `cabecao` entra aqui com
 - O projeto está em **modo de pré-lançamento** (`pre.json`, etiqueta `beta`): as versões saem como `0.1.0-beta.N`. Enquanto isso, os changesets já usados vão para `pre/` e voltam no changelog da versão final. Para sair do beta: `pnpm changeset pre exit`.
 - O Biome não formata os arquivos `.md` desta pasta: a formatação quebra o cabeçalho do changeset.
 
-O passo a passo completo está em [docs/13-publicacao.md](../docs/13-publicacao.md).
+O fluxo completo: PR com changeset, merge na `main`, o workflow `release` abre o PR "Version Packages", e juntar esse PR publica no npm e cria a tag e a release.

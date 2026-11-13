@@ -8,3 +8,6 @@ coverage/
 *.log
 .cabecao/cache/
 *.tgz
+
+# Provas de conceito: material interno, fica só na máquina.
+/spikes/
