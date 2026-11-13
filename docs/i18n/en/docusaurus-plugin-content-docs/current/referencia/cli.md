@@ -469,11 +469,12 @@ Mudou de ideia? "cabecao undo --op 01M7AF1JCN7HC1B8HT0A2RZ0FQ" traz de volta.
 
 ## cabecao consolidate
 
-Prepares and closes a memory consolidation.
+Prepares and closes a memory consolidation, or calls an agent to do all of it.
 
 ```text
 cabecao consolidate [--scope <scope>]
 cabecao consolidate --finish <id> [--title <label>]
+cabecao consolidate --run [--agent <name>] [--scope <scope>] [--timeout <min>] [--model <m>] [--allow-forget] [--dry-run]
 ```
 
 | Option | What it does |
@@ -481,8 +482,14 @@ cabecao consolidate --finish <id> [--title <label>]
 | `--scope <scope>` | When preparing: `global` or `project:<name>` |
 | `--finish <id>` | Closes the consolidation with this id in one commit |
 | `--title <label>` | With `--finish`: the commit label (`consolidate: <label>`) |
+| `--run` | Calls a non-interactive agent to do the whole consolidation |
+| `--agent <name>` | With `--run`: `claude-code`, `codex` or `antigravity`. Without it, the `"agent"` in the machine's `config.json`; without that, the first one installed in that order |
+| `--timeout <min>` | With `--run`: time limit in minutes, up to 240 (default: 20; fractions such as `0.5` are accepted) |
+| `--model <m>` | With `--run`: the agent's model (default: the cheapest one it lets you pick) |
+| `--allow-forget` | With `--run`: lets the agent archive notes with `forget` (blocked by default) |
+| `--dry-run` | With `--run`: shows the command, the temporary configuration and the script; runs nothing |
 
-Without `--finish`, it creates the restore point (the local tag `cabecao/restore/<date>-<id>`) and shows the material and the steps for an agent to follow. This command does not call any agent: ask one, in a session of yours, to follow the steps (or use the MCP server's `consolidate` prompt). With `--finish`, it puts everything the consolidation wrote in one commit, with one line per note. `cabecao undo --session <id>` undoes the whole consolidation.
+Without `--finish` or `--run`, it creates the restore point (the local tag `cabecao/restore/<date>-<id>`) and shows the material and the steps for an agent to follow, in a session of yours (or use the MCP server's `consolidate` prompt). With `--finish`, it puts everything the consolidation wrote in one commit, with one line per note. `cabecao undo --session <id>` undoes the whole consolidation.
 
 ```text
 $ cabecao consolidate --scope project:atlas
@@ -491,18 +498,37 @@ Ponto de restauração: cabecao/restore/2026-11-13-094512-669-01M7AF1JJ6VKSJXDM0
 
 Material: 0 grupo(s) de episódios parecidos, 0 par(es) de notas parecidas, 2 achado(s) do lint.
 
-Peça a um agente com o Cabeção (no Claude Code, por exemplo) para seguir estes passos:
+Peça a um agente com o Cabeção (no Claude Code, por exemplo) para seguir estes passos, ou rode "cabecao consolidate --run" para o Cabeção chamar um sozinho:
   1. Passe session_handle: "01M7AF1JJ6VKSJXDM09CZ3ZP28" em TODAS as escritas desta consolidação (remember, write_page, patch_page, relate, forget).
-  2. Episódios em repeated_episodes que contam a mesma coisa: grave o que se aprendeu como fato, procedimento ou armadilha (remember).
-  3. Pares em duplicates: junte numa nota só (remember com resolution "update:<id>" ou "supersede:<id>") e arquive a sobra com forget.
-  4. Achados do lint: corrija o que for seguro (link quebrado, fato substituído); o resto, conte ao usuário.
-  5. Algo que deveria virar regra: proponha numa nota type: synthesis em wiki/syntheses/. Regras em memory/rules/ só o usuário grava.
+  ...
   6. No fim, chame consolidate com action: "finish" e consolidation_id: "01M7AF1JJ6VKSJXDM09CZ3ZP28".
 
 Depois, feche com "cabecao consolidate --finish 01M7AF1JJ6VKSJXDM09CZ3ZP28" (ou o agente fecha com a tool).
 ```
 
-**Exit:** `0`; `1` when the id is not a consolidation on this machine.
+### `--run`: Cabeção calls the agent
+
+With `--run`, Cabeção does the `start`, calls the agent with nobody watching, and checks the result in git. The agent runs in an empty temporary folder, with a minimal environment and a temporary MCP configuration (yours is not touched), and sees only Cabeção's tools: shell, file editing, and network are denied. The server refuses `sync`, `undo`, `handoff_save`, `ingest`, a second `start` and, without `--allow-forget`, `forget`. What each agent allows and denies is in [Consolidate with an agent](../guias/consolidar-com-agente.md).
+
+A real run, with Claude Code, on the sample brain:
+
+```text
+$ cabecao consolidate --run --agent claude-code --timeout 5
+cabecao: Claude Code (escolhido com --agent) vai consolidar o cérebro sem ninguém olhando; tempo limite 5 min 0 s. Ponto de restauração: cabecao/restore/2026-11-13-104416-388-01M7AJDQ796TP2A9ZCSAV7R9VT.
+Agente: Claude Code (escolhido com --agent), 13 s, 9 turno(s), US$ 0.0069.
+Consolidação 01M7AJDQ796TP2A9ZCSAV7R9VT fechada no commit ce3fb9fee3:
+  - update fact: Projeto Atlas uses_queue SQS
+  - update concept: Fila de mensagens
+
+Para desfazer: cabecao undo --session 01M7AJDQ796TP2A9ZCSAV7R9VT
+Ponto de restauração: cabecao/restore/2026-11-13-104416-388-01M7AJDQ796TP2A9ZCSAV7R9VT (git reset --hard cabecao/restore/2026-11-13-104416-388-01M7AJDQ796TP2A9ZCSAV7R9VT volta a ele, descartando o que veio depois).
+```
+
+The agent's full output is kept in `~/.cache/cabecao/consolidate-runs/<id>.log` (on Windows, `%LOCALAPPDATA%\cabecao\consolidate-runs`), for your user only, and the last line of the output gives the path.
+
+If the agent does not close the consolidation (error, time limit, Ctrl+C, or it left without calling `finish`), Cabeção undoes what it wrote with `undo --session` (a revert commit, which `cabecao undo --op <id>` redoes), says why, and exits with `1`. If the agent finished cleanly without writing anything, nothing changes and the exit code is `0`.
+
+**Exit:** `0` when it prepared, closed, or the agent finished (with or without changes); `1` when the id is not a consolidation on this machine, the agent is not installed or has no `--run`, or the agent did not close the consolidation; `2` with a `--run` option without `--run` or an invalid `--timeout`.
 
 ## cabecao mcp
 
@@ -510,9 +536,12 @@ The MCP server over stdio.
 
 ```text
 cabecao mcp [--brain <pasta>]
+cabecao mcp --consolidation <id> [--allow-forget]
 ```
 
 You do not run this by hand: the AI client starts this command and talks to it over standard input and output. Standard output carries only JSON-RPC messages; diagnostics go to standard error. Register it with `cabecao install-client`.
+
+`--consolidation <id>` is what `consolidate --run` passes to the agent: the server is tied to that consolidation, every write goes with its session (whatever `session_handle` the agent sends), and `sync`, `undo`, `handoff_save`, `ingest`, `consolidate` with `action: "start"` and, without `--allow-forget`, `forget` are refused with the `human_only` error.
 
 The server speaks the two current generations of the MCP protocol (`2025-11-25` and `2026-07-28`). The tools, resources, and instructions are in the [MCP reference](./mcp.md).
 
@@ -531,7 +560,7 @@ cabecao install-client --remove <cliente...> | --remove --all
 
 | Option | What it does |
 | --- | --- |
-| `<cliente...>` | One or more of: `claude-code`, `claude-desktop`, `codex`, `cursor`, `vscode`, `gemini` |
+| `<cliente...>` | One or more of: `claude-code`, `claude-desktop`, `codex`, `cursor`, `vscode`, `antigravity`, `gemini` |
 | `--all` | All clients detected on this machine |
 | `--print` | Only shows the configuration; does not write anything |
 | `--remove` | Removes the registration instead of creating it |
@@ -548,6 +577,8 @@ Cursor: registrado
 Reinicie o cliente para ele enxergar a mudança.
 ```
 
+`gemini` stays for those who still use Gemini CLI (Enterprise license or paid API key); people who used it with a personal account moved to Antigravity, and registering `gemini` says so.
+
 **Exit:** `0`; `2` with an unknown client, or with no client and no `--all`.
 
 More in [Connect to AI clients](../comecar/conectar-clientes.md).
@@ -558,6 +589,7 @@ More in [Connect to AI clients](../comecar/conectar-clientes.md).
 | --- | --- |
 | `CABECAO_BRAIN` | Brain folder, like `--brain` |
 | `CABECAO_CONFIG_DIR` | Machine configuration folder (default: `~/.config/cabecao`; on Windows, `%APPDATA%\cabecao`) |
+| `CABECAO_CACHE_DIR` | Cache folder: the embeddings runtime and model, and the output of `consolidate --run` agents (default: `~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | With `1`, errors include the stack trace |
 | `XDG_CONFIG_HOME` | When set, the configuration lives in `$XDG_CONFIG_HOME/cabecao` |
 | `CLAUDE_PLUGIN_OPTION_BRAIN_DIR` | Set by Claude Code for the plugin's hooks: the brain folder from the `brain_dir` option. Only used by `recall --hook` and `sync --hook`, and only when there is no `--brain` or `CABECAO_BRAIN` |

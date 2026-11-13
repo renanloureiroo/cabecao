@@ -24,6 +24,8 @@ npm i -g cabecao@beta
 - **Automatic sync.** `cabecao schedule on|off|status` registers a periodic sync with the system scheduler (LaunchAgent, user systemd timer or crontab, Task Scheduler), without administrator rights. See [Automatic sync](./guias/sync-automatico.md).
 - **New commands:** `cabecao recall` shows a task's briefing in the terminal; `cabecao sync` gains `--detach` (background), `--hook`, and `--log`. `doctor` now checks the schedule.
 - **More precise mentions.** A name attached to `_`, `/`, `\`, or `@` (such as `sqs_fila`, `filas/SQS`, or `ana@sqs`) no longer counts as an unlinked mention of another note.
+- **Consolidate with an agent.** `cabecao consolidate --run` calls Claude Code, Codex, or Antigravity with nobody watching, with only Cabeção's tools (shell, file editing, and network denied), in a temporary folder, with a time limit; if the agent does not close the consolidation, what it wrote is undone. `--dry-run` shows everything first. See [Consolidate with an agent](./guias/consolidar-com-agente.md).
+- **Antigravity.** `cabecao install-client antigravity` registers the server in Antigravity (the `agy` CLI, IDE, and App), the successor of Gemini CLI for personal accounts. `gemini` stays, with a notice, and is no longer detected just by the `~/.gemini` folder, which the two share.
 
 ## 0.1.0-beta.1
 

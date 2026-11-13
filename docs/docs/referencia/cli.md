@@ -469,11 +469,12 @@ Mudou de ideia? "cabecao undo --op 01M7AF1JCN7HC1B8HT0A2RZ0FQ" traz de volta.
 
 ## cabecao consolidate
 
-Prepara e fecha uma consolidação da memória.
+Prepara e fecha uma consolidação da memória, ou chama um agente para fazê-la inteira.
 
 ```text
 cabecao consolidate [--scope <escopo>]
 cabecao consolidate --finish <id> [--title <rótulo>]
+cabecao consolidate --run [--agent <nome>] [--scope <escopo>] [--timeout <min>] [--model <m>] [--allow-forget] [--dry-run]
 ```
 
 | Opção | O que faz |
@@ -481,8 +482,14 @@ cabecao consolidate --finish <id> [--title <rótulo>]
 | `--scope <escopo>` | Ao preparar: `global` ou `project:<nome>` |
 | `--finish <id>` | Fecha a consolidação com este id num commit |
 | `--title <rótulo>` | Com `--finish`: o rótulo do commit (`consolidate: <rótulo>`) |
+| `--run` | Chama um agente não interativo para fazer a consolidação inteira |
+| `--agent <nome>` | Com `--run`: `claude-code`, `codex` ou `antigravity`. Sem ele, o `"agent"` do `config.json` da máquina; sem esse, o primeiro instalado nessa ordem |
+| `--timeout <min>` | Com `--run`: tempo limite em minutos, até 240 (padrão: 20; aceita fração, como `0.5`) |
+| `--model <m>` | Com `--run`: o modelo do agente (padrão: o mais barato que ele deixa escolher) |
+| `--allow-forget` | Com `--run`: deixa o agente arquivar notas com `forget` (bloqueado por padrão) |
+| `--dry-run` | Com `--run`: mostra o comando, a configuração temporária e o roteiro; não executa nada |
 
-Sem `--finish`, cria o ponto de restauração (a tag local `cabecao/restore/<data>-<id>`) e mostra o material e os passos para um agente seguir. Este comando não chama nenhum agente: peça a um, numa sessão sua, para seguir os passos (ou use o prompt `consolidate` do servidor MCP). Com `--finish`, junta num commit tudo o que a consolidação gravou, com uma linha por nota. `cabecao undo --session <id>` desfaz a consolidação inteira.
+Sem `--finish` nem `--run`, cria o ponto de restauração (a tag local `cabecao/restore/<data>-<id>`) e mostra o material e os passos para um agente seguir, numa sessão sua (ou use o prompt `consolidate` do servidor MCP). Com `--finish`, junta num commit tudo o que a consolidação gravou, com uma linha por nota. `cabecao undo --session <id>` desfaz a consolidação inteira.
 
 ```text
 $ cabecao consolidate --scope project:atlas
@@ -491,18 +498,37 @@ Ponto de restauração: cabecao/restore/2026-11-13-094512-669-01M7AF1JJ6VKSJXDM0
 
 Material: 0 grupo(s) de episódios parecidos, 0 par(es) de notas parecidas, 2 achado(s) do lint.
 
-Peça a um agente com o Cabeção (no Claude Code, por exemplo) para seguir estes passos:
+Peça a um agente com o Cabeção (no Claude Code, por exemplo) para seguir estes passos, ou rode "cabecao consolidate --run" para o Cabeção chamar um sozinho:
   1. Passe session_handle: "01M7AF1JJ6VKSJXDM09CZ3ZP28" em TODAS as escritas desta consolidação (remember, write_page, patch_page, relate, forget).
-  2. Episódios em repeated_episodes que contam a mesma coisa: grave o que se aprendeu como fato, procedimento ou armadilha (remember).
-  3. Pares em duplicates: junte numa nota só (remember com resolution "update:<id>" ou "supersede:<id>") e arquive a sobra com forget.
-  4. Achados do lint: corrija o que for seguro (link quebrado, fato substituído); o resto, conte ao usuário.
-  5. Algo que deveria virar regra: proponha numa nota type: synthesis em wiki/syntheses/. Regras em memory/rules/ só o usuário grava.
+  ...
   6. No fim, chame consolidate com action: "finish" e consolidation_id: "01M7AF1JJ6VKSJXDM09CZ3ZP28".
 
 Depois, feche com "cabecao consolidate --finish 01M7AF1JJ6VKSJXDM09CZ3ZP28" (ou o agente fecha com a tool).
 ```
 
-**Saída:** `0`; `1` quando o id não é de uma consolidação desta máquina.
+### `--run`: o Cabeção chama o agente
+
+Com `--run`, o Cabeção faz o `start`, chama o agente sem ninguém olhando e confere o resultado no git. O agente roda numa pasta temporária vazia, com ambiente mínimo e uma configuração de MCP temporária (a sua não é tocada), e só enxerga as tools do Cabeção: shell, edição de arquivos e rede ficam negados. O servidor recusa `sync`, `undo`, `handoff_save`, `ingest`, um segundo `start` e, sem `--allow-forget`, `forget`. O que cada agente libera e nega está em [Consolidar com um agente](../guias/consolidar-com-agente.md).
+
+Uma execução real, com o Claude Code, no cérebro de exemplo:
+
+```text
+$ cabecao consolidate --run --agent claude-code --timeout 5
+cabecao: Claude Code (escolhido com --agent) vai consolidar o cérebro sem ninguém olhando; tempo limite 5 min 0 s. Ponto de restauração: cabecao/restore/2026-11-13-104416-388-01M7AJDQ796TP2A9ZCSAV7R9VT.
+Agente: Claude Code (escolhido com --agent), 13 s, 9 turno(s), US$ 0.0069.
+Consolidação 01M7AJDQ796TP2A9ZCSAV7R9VT fechada no commit ce3fb9fee3:
+  - update fact: Projeto Atlas uses_queue SQS
+  - update concept: Fila de mensagens
+
+Para desfazer: cabecao undo --session 01M7AJDQ796TP2A9ZCSAV7R9VT
+Ponto de restauração: cabecao/restore/2026-11-13-104416-388-01M7AJDQ796TP2A9ZCSAV7R9VT (git reset --hard cabecao/restore/2026-11-13-104416-388-01M7AJDQ796TP2A9ZCSAV7R9VT volta a ele, descartando o que veio depois).
+```
+
+A saída completa do agente fica em `~/.cache/cabecao/consolidate-runs/<id>.log` (no Windows, `%LOCALAPPDATA%\cabecao\consolidate-runs`), só para o seu usuário, e a última linha da saída diz o caminho.
+
+Se o agente não fechar a consolidação (erro, tempo limite, Ctrl+C, ou saiu sem chamar `finish`), o Cabeção desfaz o que ele gravou com `undo --session` (um commit de revert, que `cabecao undo --op <id>` refaz), diz o motivo e sai com `1`. Se o agente terminou bem sem gravar nada, nada muda e a saída é `0`.
+
+**Saída:** `0` quando preparou, fechou, ou o agente terminou (com ou sem mudanças); `1` quando o id não é de uma consolidação desta máquina, o agente não está instalado ou não tem `--run`, ou o agente não fechou a consolidação; `2` com uma opção de `--run` sem `--run` ou um `--timeout` inválido.
 
 ## cabecao mcp
 
@@ -510,9 +536,12 @@ O servidor MCP por stdio.
 
 ```text
 cabecao mcp [--brain <pasta>]
+cabecao mcp --consolidation <id> [--allow-forget]
 ```
 
 Não é para rodar à mão: o cliente de IA inicia este comando e conversa com ele pela entrada e pela saída padrão. A saída padrão leva só mensagens JSON-RPC; o diagnóstico vai para a saída de erro. Registre-o com `cabecao install-client`.
+
+`--consolidation <id>` é o que o `consolidate --run` passa ao agente: o servidor fica preso a essa consolidação, toda escrita vai com a sessão dela (qualquer que seja o `session_handle` que o agente mandar) e `sync`, `undo`, `handoff_save`, `ingest`, `consolidate` com `action: "start"` e, sem `--allow-forget`, `forget` são recusados com o erro `human_only`.
 
 O servidor fala as duas gerações atuais do protocolo MCP (`2025-11-25` e `2026-07-28`). As tools, os resources e as instruções estão na [referência MCP](./mcp.md).
 
@@ -531,7 +560,7 @@ cabecao install-client --remove <cliente...> | --remove --all
 
 | Opção | O que faz |
 | --- | --- |
-| `<cliente...>` | Um ou mais de: `claude-code`, `claude-desktop`, `codex`, `cursor`, `vscode`, `gemini` |
+| `<cliente...>` | Um ou mais de: `claude-code`, `claude-desktop`, `codex`, `cursor`, `vscode`, `antigravity`, `gemini` |
 | `--all` | Todos os clientes detectados nesta máquina |
 | `--print` | Só mostra a configuração; não grava nada |
 | `--remove` | Tira o registro em vez de criar |
@@ -548,6 +577,8 @@ Cursor: registrado
 Reinicie o cliente para ele enxergar a mudança.
 ```
 
+O `gemini` continua para quem ainda usa o Gemini CLI (licença Enterprise ou chave paga de API); quem o usava com conta pessoal passou para o Antigravity, e o registro do `gemini` avisa isso.
+
 **Saída:** `0`; `2` com um cliente desconhecido ou sem cliente nem `--all`.
 
 Mais em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
@@ -558,6 +589,7 @@ Mais em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
 | --- | --- |
 | `CABECAO_BRAIN` | Pasta do cérebro, como `--brain` |
 | `CABECAO_CONFIG_DIR` | Pasta da configuração da máquina (padrão: `~/.config/cabecao`; no Windows, `%APPDATA%\cabecao`) |
+| `CABECAO_CACHE_DIR` | Pasta do cache: runtime e modelo de embeddings e a saída dos agentes do `consolidate --run` (padrão: `~/.cache/cabecao`; no Windows, `%LOCALAPPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | Com `1`, os erros saem com o stack |
 | `XDG_CONFIG_HOME` | Quando definida, a configuração fica em `$XDG_CONFIG_HOME/cabecao` |
 | `CLAUDE_PLUGIN_OPTION_BRAIN_DIR` | Passada pelo Claude Code aos hooks do plugin: a pasta do cérebro da opção `brain_dir`. Só vale em `recall --hook` e `sync --hook`, e só quando não há `--brain` nem `CABECAO_BRAIN` |
