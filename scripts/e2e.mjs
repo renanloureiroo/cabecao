@@ -4,6 +4,11 @@
 // e um remoto bare local vazio. Nada é lido nem escrito em `~/cabecao`, `~/.config/cabecao`, no `~/.gitconfig` ou nos
 // arquivos dos clientes de IA desta máquina; nenhum cliente é registrado (`--no-clients`) e nada vai para a rede.
 //
+// A última parte liga a busca por significado com o embedder FALSO de teste (`CABECAO_TEST_FAKE_EMBEDDER=1`: sem rede,
+// sem runtime, sem download; os vetores vão para uma pasta própria da branch de índice) e confere o caminho inteiro:
+// escolha do modelo, vetores enviados junto com o conteúdo, a segunda máquina sem calcular nada, a busca híbrida igual
+// nas duas, o servidor MCP carregando o modelo só na primeira busca, a compactação e o grafo exportado.
+//
 // Uso: node scripts/e2e.mjs
 //   E2E_SKIP_MCP=1   pula a parte do servidor MCP (o undo passa a conferir só o "nada para desfazer")
 //   E2E_KEEP=1       não apaga a pasta temporária no fim (para investigar)
@@ -404,6 +409,119 @@ async function main() {
     'B: doctor aponta o conflito como aviso',
     json(doctorB)?.data?.checks?.find((item) => item.id === 'conflicts')?.status === 'warn',
     doctorB,
+  );
+
+  await embeddingsPart(A, B, dirA, dirB, remote);
+}
+
+/** A mesma máquina com o embedder falso de teste ligado. */
+function withFakeEmbedder(machine) {
+  return { ...machine, env: { ...machine.env, CABECAO_TEST_FAKE_EMBEDDER: '1' } };
+}
+
+/** 8. Busca por significado, com o embedder falso de teste. */
+async function embeddingsPart(plainA, plainB, dirA, dirB, remote) {
+  const A = withFakeEmbedder(plainA);
+  const B = withFakeEmbedder(plainB);
+  write(
+    dirA,
+    'wiki/decisions/trocar-broker.md',
+    '---\ntype: decision\ntitle: Trocar o broker de mensagens\n---\nO time trocou o broker de mensagens para reduzir o custo de operação.\n',
+  );
+  const on = cabecao(A, ['embeddings', 'on', 'multilingual-e5-small', '--json']);
+  check(
+    'A: embeddings on (embedder falso) grava o modelo e calcula os vetores',
+    on.code === 0 &&
+      json(on)?.data?.chosen_now === true &&
+      json(on)?.data?.computed > 0 &&
+      json(on)?.data?.pending === 0,
+    on,
+  );
+  const syncA = cabecao(A, ['sync', '--json']);
+  check(
+    'A: sync envia o conteúdo e os vetores no mesmo envio',
+    syncA.code === 0 && json(syncA)?.data?.index?.pushed > 0 && json(syncA)?.data?.pushed >= 1,
+    syncA,
+  );
+  check(
+    'o remoto tem a branch de índice',
+    git(['for-each-ref', '--format=%(refname)', 'refs/heads/cabecao/'], remote) === 'refs/heads/cabecao/index',
+    git(['for-each-ref'], remote),
+  );
+  const syncB = cabecao(B, ['sync', '--json']);
+  const indexB = json(syncB)?.data?.index;
+  check(
+    'B: sync recebe os vetores e não calcula nenhum',
+    syncB.code === 0 && indexB?.received > 0 && indexB?.computed === 0 && indexB?.pending === 0,
+    syncB,
+  );
+  const question = 'por que trocamos o broker de mensagens?';
+  const searchA = json(cabecao(A, ['search', question, '--json']));
+  const searchB = json(cabecao(B, ['search', question, '--json']));
+  const paths = (out) => (out?.data?.hits ?? []).map((hit) => hit.path).join(',');
+  check(
+    'A e B: busca híbrida com o mesmo resultado',
+    searchA?.data?.mode_used === 'hybrid' &&
+      searchB?.data?.mode_used === 'hybrid' &&
+      paths(searchA) === paths(searchB) &&
+      paths(searchA) !== '',
+    { searchA: searchA?.data, searchB: searchB?.data },
+  );
+  const keywordB = json(cabecao(B, ['search', question, '--mode', 'keyword', '--json']));
+  check('B: --mode keyword usa só a palavra-chave', keywordB?.data?.mode_used === 'keyword', keywordB);
+  const offB = json(cabecao(plainB, ['search', question, '--json']));
+  check(
+    'B sem o embedder de teste: a busca cai para palavra-chave e diz por quê (o runtime não está instalado)',
+    offB?.data?.mode_used === 'keyword' && /runtime/.test(offB?.data?.mode_reason ?? ''),
+    offB,
+  );
+
+  if (!skipMcp) {
+    const session = await mcpSession(B, [
+      ['status', {}],
+      ['search', { query: question }],
+      ['status', {}],
+    ]);
+    const [before, searched, after] = session.results;
+    check(
+      'B: o servidor MCP sobe sem carregar o modelo e carrega na primeira busca',
+      before?.structuredContent?.embeddings?.loaded === false &&
+        searched?.structuredContent?.mode_used === 'hybrid' &&
+        after?.structuredContent?.embeddings?.loaded === true,
+      session,
+    );
+    check('B: o stdout do mcp continua só JSON-RPC', session.notJson.length === 0, session.notJson);
+  }
+
+  const doctorA = cabecao(A, ['doctor', '--offline', '--json']);
+  check(
+    'A: doctor mostra os embeddings (aviso do embedder falso) e nenhum trecho sem vetor',
+    doctorA.code === 0 &&
+      json(doctorA)?.data?.checks?.find((item) => item.id === 'embeddings')?.status === 'warn' &&
+      json(doctorA)?.data?.checks?.find((item) => item.id === 'embeddings-pending')?.status === 'ok',
+    doctorA,
+  );
+  const compact = cabecao(A, ['compact', '--json']);
+  check(
+    'A: compact abre a geração 1 e a envia',
+    compact.code === 0 &&
+      json(compact)?.data?.compact?.generation?.to === 1 &&
+      json(compact)?.data?.after_sync === 'ok',
+    compact,
+  );
+  const syncB2 = cabecao(B, ['sync', '--json']);
+  check(
+    'B: sync migra para a geração 1 sem calcular nada',
+    syncB2.code === 0 && json(syncB2)?.data?.index?.generation === 1 && json(syncB2)?.data?.index?.computed === 0,
+    syncB2,
+  );
+  const graphOf = (dir) =>
+    git(['show', 'refs/heads/cabecao/index-1:graph/nodes.jsonl'], dir) +
+    git(['show', 'refs/heads/cabecao/index-1:graph/edges.jsonl'], dir);
+  check(
+    'A e B: o grafo exportado é idêntico byte a byte',
+    graphOf(dirA) === graphOf(dirB) && graphOf(dirA).length > 0,
+    {},
   );
 }
 
