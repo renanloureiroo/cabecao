@@ -7,7 +7,7 @@
   <strong>English</strong> · <a href="README.md">Português</a>
 </p>
 
-> **Status: 🚧 milestone 1 implemented and under review; nothing published to npm yet.** The CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), git sync, keyword search and an MCP server with 9 tools exist on the `feat/m1-nucleo` branch, with 1,181 tests plus an end-to-end test with two machines. **Not yet validated:** real git hosts (GitHub, GitLab, Bitbucket, Gitea), SSH and credential managers, signed commits, and real MCP clients (Claude Code, Claude Desktop, Codex, Cursor). Milestone 3 (graph and time validity: the `graph`, `facts` and `relate` tools, `as_of` and related notes in search, unlinked mentions, the `graph` and `facts` commands) is implemented and under review on the `feat/m3-grafo` branch. Semantic search and the plugin belong to milestones 2 and 4. Every architecture decision was tested in a proof of concept before entering the plan. See the [evidence](docs/11-evidencias.md) and [roadmap](docs/10-roadmap.md) (Portuguese for now).
+> **Status: 🚧 beta.** Published on npm as [`cabecao@beta`](https://www.npmjs.com/package/cabecao). Commands and file formats may still change before 1.0.
 
 ---
 

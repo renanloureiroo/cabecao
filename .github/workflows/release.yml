@@ -1,4 +1,4 @@
-# Versiona e publica o pacote `cabecao` no npm com Changesets. O passo a passo está em docs/13-publicacao.md.
+# Versiona e publica o pacote `cabecao` no npm com Changesets.
 #
 # A cada push na `main`:
 #   - há changesets pendentes  → abre ou atualiza o PR "Version Packages" (sobe a versão e escreve o CHANGELOG.md);
