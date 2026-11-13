@@ -438,6 +438,52 @@ async function finish(ctx: BrainContext, input: ConsolidateInput): Promise<Conso
   });
 }
 
+/** Onde está uma consolidação: se foi fechada e o que mudou desde o ponto de restauração. Só lê. */
+export interface ConsolidationState {
+  readonly consolidation_id: string;
+  readonly restore_point: { readonly tag: string; readonly commit: string };
+  /** O commit `consolidate` que fechou a consolidação, ou `null` se ela não foi fechada. */
+  readonly finish_commit: string | null;
+  /** Commits desde o ponto de restauração gravados com esta consolidação como sessão (o fechamento incluído). */
+  readonly session_commits: number;
+  /** Uma linha por nota alterada entre o ponto de restauração e o fechamento (ou o HEAD, se não foi fechada). */
+  readonly changes: readonly string[];
+}
+
+/**
+ * O estado de uma consolidação, para quem a iniciou de fora (o `consolidate --run` da CLI confere, depois que o agente
+ * sai, se ele chamou `finish`). O fechamento é o commit da sessão cuja mensagem tem a linha `consolidate: <rótulo>`.
+ */
+export async function consolidationState(ctx: BrainContext, rawId: string): Promise<ConsolidationState> {
+  const id = rawId.trim().toUpperCase();
+  if (!isUlid(id)) throw invalid('"consolidation_id" deveria ser o id devolvido por consolidate({ action: "start" })');
+  return withWriteLock(ctx, async () => {
+    const restore = await restorePointOf(ctx, id);
+    const head = (await git(ctx, ['rev-parse', '--verify', 'HEAD'])).stdout.trim();
+    const logged = await git(ctx, ['log', '-z', '--format=%H%n%B', `${restore.sha}..${head}`]);
+    let finish: string | null = null;
+    let sessionCommits = 0;
+    for (const record of logged.stdout.split('\0')) {
+      const [sha, ...lines] = record.replace(/^\n+/, '').split('\n');
+      if (!sha) continue;
+      const trailers = parseCommitTrailers(lines.join('\n'));
+      if (trailers.session !== id) continue;
+      sessionCommits++;
+      // `git log` vem do mais novo para o mais antigo: o primeiro fechamento achado é o último
+      if (finish === null && trailers.reverts.length === 0 && lines.some((line) => line.startsWith('consolidate: '))) {
+        finish = sha;
+      }
+    }
+    return {
+      consolidation_id: id,
+      restore_point: { tag: restore.tag, commit: restore.sha },
+      finish_commit: finish,
+      session_commits: sessionCommits,
+      changes: await changeLines(ctx, restore.sha, finish ?? head),
+    };
+  });
+}
+
 export async function consolidate(ctx: BrainContext, input: ConsolidateInput): Promise<ConsolidateOutput> {
   if (!isRecord(input)) throw invalid('consolidate precisa de um objeto com action');
   if (input.action === 'start') return start(ctx, input);

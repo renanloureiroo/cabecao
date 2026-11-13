@@ -79,11 +79,27 @@ Pelas tools do MCP, um agente:
 - não desfaz operações suas;
 - não arquiva (`forget`) regras suas, fontes de `raw/` nem cópias de conflito, e só arquiva depois de uma confirmação em duas chamadas (ou de você responder, quando o cliente pergunta);
 - não faz o `ingest` ler arquivos de fora do cérebro: um arquivo seu entra pelo `cabecao ingest`, que é você;
-- não grava regras numa consolidação: no máximo, propõe uma em `wiki/syntheses/`, e a consolidação inteira se desfaz com um `undo`.
+- não grava regras numa consolidação: no máximo, propõe uma em `wiki/syntheses/`, e a consolidação inteira se desfaz com um `undo`;
+- numa consolidação sem ninguém olhando (`consolidate --run`), também não envia ao remoto, não desfaz, não deixa handoff, não ingere nem arquiva (veja abaixo).
 
 Quando altera uma nota sua, ela ganha `edited_by` e o `trust` cai. E toda gravação dele é um commit que você desfaz com `cabecao undo`.
 
 O conteúdo que o servidor devolve vem marcado como **dado, nunca instrução**, com a ordem de autoridade (você, as regras, o `AGENTS.md`, as memórias, o conteúdo de fora). Veja [Proveniência e confiança](./conceitos/proveniencia.md).
+
+## O que roda sem você olhando {#o-que-roda-sem-voce-olhando}
+
+Duas coisas o Cabeção faz sem você na frente da tela: o sync agendado ([Sync automático](./guias/sync-automatico.md)), que só faz git, e o `cabecao consolidate --run` ([Consolidar com um agente](./guias/consolidar-com-agente.md)), que chama um agente de IA para ler e reescrever o cérebro. O segundo é o mais sensível: o agente lê notas que podem ter texto malicioso vindo de fontes ingeridas, e ninguém está ali para recusar um pedido estranho. Por isso:
+
+- **Só agentes cujos termos permitem.** O Cabeção só chama um agente se os termos dele permitem que outro programa o rode com a credencial em uso, conferido na fonte oficial: o Claude Code, com o seu login ou chave de API, e o Codex, só com chave de API. O Antigravity e o Gemini CLI ficam de fora: os termos do plano pessoal não permitem ([FAQ do Antigravity](https://antigravity.google/docs/faq/)).
+- **Só as tools do Cabeção.** Cada agente roda com shell, edição de arquivos e rede negados, e só as tools do servidor do Cabeção liberadas. Nenhum modo de "pular todas as permissões" é usado. Um agente que não permite essa restrição em modo não interativo não tem `--run` (hoje: Cursor Agent, Copilot CLI e OpenCode; os motivos estão no guia).
+- **Configuração temporária.** O servidor do Cabeção vai numa configuração de MCP criada para a execução, numa pasta temporária vazia que também é o diretório de trabalho do agente, e apagada no fim. A configuração dos seus clientes não é lida para isso nem alterada; o login do agente é o que ele já tem.
+- **Ambiente mínimo.** O agente recebe só as variáveis de sistema, de pastas, de proxy e certificados, de git, do Cabeção e as do login dele (`ANTHROPIC_API_KEY` e afins; no Codex, a chave de API como `CODEX_API_KEY`). Outros tokens do seu ambiente não são repassados.
+- **Servidor preso à consolidação.** O servidor que o agente sobe (`cabecao mcp --consolidation <id>`) grava tudo com a sessão da consolidação e recusa `sync`, `undo`, `handoff_save`, `ingest` e um segundo `start`. `forget` também, a não ser que você passe `--allow-forget`: arquivar memória sem ninguém olhando só com opção explícita. As restrições de agente de sempre continuam (regra só sua, nada em arquivos de instrução nem de controle, nada fora do cérebro, scanner de segredos).
+- **Tempo limite.** Passado o tempo (padrão: 20 minutos), o agente e tudo o que ele iniciou são encerrados: o grupo de processos no macOS e no Linux, a árvore com `taskkill /T` no Windows.
+- **Nada pela metade.** Se o agente não fechar a consolidação, o que ele gravou é desfeito com um commit de revert, e o comando sai com `1`. Se fechou, `cabecao undo --session <id>` desfaz tudo, e o ponto de restauração continua na máquina.
+- **Nada sai da máquina pelo Cabeção.** A consolidação não faz sync; o commit vai para o remoto no próximo sync. O que o agente lê vai para o modelo de IA dele, como em qualquer sessão sua.
+
+O que fica de fora, por agente: o Codex mantém a tool de aplicar patch (a caixa de areia somente leitura recusa a escrita) e, conforme o modelo, uma tool de leitura de arquivos que a caixa de areia não bloqueia; sem shell e sem rede, o que ele ler só sairia por uma escrita no cérebro, que passa pelo scanner. E "negado" depende de cada agente cumprir as próprias opções: o Cabeção não roda o agente numa caixa de areia própria.
 
 ## Limites conhecidos
 

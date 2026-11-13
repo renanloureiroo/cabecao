@@ -78,6 +78,14 @@ export async function editFile(
   return { status: current === undefined ? 'created' : 'updated', ...(backup === undefined ? {} : { backup }) };
 }
 
+export async function isFile(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export async function isDirectory(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory();
