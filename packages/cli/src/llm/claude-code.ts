@@ -198,7 +198,16 @@ export function parseClaudeOutput(
   }
   const usage = data.usage as Record<string, unknown> | undefined;
   const base = {
-    usage: { inputTokens: num(usage?.input_tokens), outputTokens: num(usage?.output_tokens) },
+    // o Claude Code separa a entrada lida do cache e a gravada nele; o total é a soma
+    usage: {
+      inputTokens:
+        num(usage?.input_tokens) === null
+          ? null
+          : (num(usage?.input_tokens) ?? 0) +
+            (num(usage?.cache_creation_input_tokens) ?? 0) +
+            (num(usage?.cache_read_input_tokens) ?? 0),
+      outputTokens: num(usage?.output_tokens),
+    },
     costUsd: num(data.total_cost_usd),
   };
   if (data.structured_output !== undefined && data.structured_output !== null) {
