@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
-const COMMANDS = ['init', 'status', 'doctor', 'sync', 'search', 'undo', 'mcp', 'install-client'];
+const COMMANDS = ['init', 'status', 'doctor', 'sync', 'search', 'graph', 'facts', 'undo', 'mcp', 'install-client'];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];
 /** Tools e comandos que NÃO existem no marco 1 e já apareceram em mensagens. */

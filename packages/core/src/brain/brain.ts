@@ -8,6 +8,8 @@ import { readBrainConfig } from '../vault/index.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
 import { assertOpen, machineName } from './context.ts';
 import { BrainError, toBrainError } from './errors.ts';
+import type { FactsInput, FactsOutput, GraphInput, GraphOutput } from './graph.ts';
+import { facts, graph } from './graph.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -19,6 +21,8 @@ import type {
   StatusOutput,
 } from './read.ts';
 import { read, recall, search, status } from './read.ts';
+import type { RelateInput, RelateOutput } from './relate.ts';
+import { relate } from './relate.ts';
 import type { SyncInput, SyncOutput } from './sync.ts';
 import { sync } from './sync.ts';
 import type { ListOperationsInput, ListOperationsOutput, UndoInput, UndoOutput } from './undo.ts';
@@ -63,6 +67,10 @@ export interface Brain {
   read(input: ReadInput): Promise<ReadOutput>;
   /** Saúde, contagens, sync, conflitos, links quebrados e versões do esquema. */
   status(): Promise<StatusOutput>;
+  /** Vizinhos de uma nota no grafo (1 ou 2 saltos), com tipo, direção e validade de cada relação numa data. */
+  graph(input: GraphInput): Promise<GraphOutput>;
+  /** Fatos por sujeito, predicado e objeto, e se valem numa data, com a cadeia de versões. */
+  facts(input?: FactsInput): Promise<FactsOutput>;
 
   /** Cria uma memória. Regras só com `actor: 'human'`. */
   remember(input: RememberInput): Promise<WriteOutput>;
@@ -70,6 +78,8 @@ export interface Brain {
   writePage(input: WritePageInput): Promise<WriteOutput>;
   /** Substituição exata e única no corpo de uma nota. */
   patchPage(input: PatchPageInput): Promise<WriteOutput>;
+  /** Acrescenta uma relação tipada no frontmatter de uma nota (idempotente). */
+  relate(input: RelateInput): Promise<RelateOutput>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -181,6 +191,8 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     recall: (input) => recall(ctx, input),
     search: (input) => search(ctx, input),
     read: (input) => read(ctx, input),
+    graph: (input) => graph(ctx, input),
+    facts: (input) => facts(ctx, input),
     status: async () => {
       assertOpen(ctx);
       return status(ctx, await machineName(ctx));
@@ -188,6 +200,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     remember: (input) => remember(ctx, input),
     writePage: (input) => writePage(ctx, input),
     patchPage: (input) => patchPage(ctx, input),
+    relate: (input) => relate(ctx, input),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {
