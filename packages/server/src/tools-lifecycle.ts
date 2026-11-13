@@ -73,7 +73,7 @@ export function registerLintTool(server: McpServer, run: ToolRunner, readOnly: T
     {
       title: 'Lint',
       description:
-        'Read-only health report by rules: contradicting current facts, broken links, orphan notes, unconfirmed old memories, expired notes, unlinked mentions, conflict copies, invalid frontmatter. Each finding has severity, path and a suggested fix.',
+        'Read-only health report by rules (contradicting facts, broken links, orphans, stale or expired notes, unlinked mentions, conflict copies, invalid frontmatter), each finding with severity, path and fix.',
       inputSchema: lintInput,
       outputSchema: lintOutput,
       annotations: readOnly,
@@ -115,7 +115,7 @@ export function registerForgetTool(server: McpServer, brainOf: BrainOf, log: (me
     {
       title: 'Forget',
       description:
-        'Archive a note in memory/_archive/ (never deletes; undo brings it back). Two calls: the first returns a summary and a short-lived confirm_token, the second (same id, reason and token) archives. May ask the user directly. Agents cannot forget user rules.',
+        'Archive a note in memory/_archive/ (never deletes; undo restores). First call returns a summary and a short-lived confirm_token; call again with it to archive. May ask the user. User rules are off limits.',
       inputSchema: forgetInput,
       outputSchema: forgetOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
@@ -180,7 +180,7 @@ export function registerConsolidateTool(server: McpServer, run: ToolRunner): voi
     {
       title: 'Consolidate',
       description:
-        'Maintenance you do with the normal tools: start creates a restore point and returns material (repeated episodes, likely duplicates, lint findings) and a consolidation_id to use as session_handle; finish closes everything in one commit, one line per note. undo({ session: id }) reverts it all. Rules can only be proposed in wiki/syntheses/.',
+        'start: restore point, material (repeated episodes, duplicates, lint) and a consolidation_id to pass as session_handle in your writes; finish: one commit, one line per note. undo({ session: id }) reverts it all.',
       inputSchema: consolidateInput,
       outputSchema: consolidateOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
