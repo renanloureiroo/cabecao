@@ -9,6 +9,7 @@ import { createBrainProvider } from './brains.ts';
 import { LineLimiter, MAX_MESSAGE_BYTES } from './line-limit.ts';
 import { buildServer } from './server.ts';
 import type { ServerRuntime, SyncRunner } from './tools.ts';
+import type { AskRunner } from './tools-ask.ts';
 
 export interface StdioServerOptions {
   /** Pasta do cérebro. */
@@ -19,6 +20,8 @@ export interface StdioServerOptions {
   machine?: string;
   /** Quando presente, a tool `sync` usa isto (a CLI roda o sync em processo separado); senão, roda no próprio processo. */
   syncRunner?: SyncRunner;
+  /** Respostas geradas: só com provedor ativo nesta máquina (a CLI decide); sem isto, a tool `ask` não aparece. */
+  ask?: AskRunner;
   /** Runtime de embeddings (a CLI injeta). O modelo carrega na primeira busca que precisa dele, nunca na subida. */
   embeddings?: EmbeddingProvider;
   /** Limite de uma mensagem JSON-RPC, em bytes. Padrão: `MAX_MESSAGE_BYTES` (10 MiB). Para testes. */
@@ -85,6 +88,7 @@ export function runStdioServer(options: StdioServerOptions): Promise<void> {
       ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
     }),
     ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
+    ...(options.ask === undefined ? {} : { ask: options.ask }),
     log: stderrLog,
   };
   // Mensagem grande demais: o transporte do SDK fecharia a conexão em silêncio (e o processo sairia com 0). O

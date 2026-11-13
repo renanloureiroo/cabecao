@@ -25,6 +25,8 @@ import {
   writePageInput,
 } from './schemas.ts';
 import { rememberOutput } from './schemas-lifecycle.ts';
+import type { AskRunner } from './tools-ask.ts';
+import { registerAskTool } from './tools-ask.ts';
 import { registerGraphReadTools, registerRelateTool } from './tools-graph.ts';
 import {
   registerConsolidateTool,
@@ -44,11 +46,19 @@ export interface ServerRuntime {
   readonly brains: BrainProvider;
   /** Quando presente, a tool `sync` usa isto; senão, roda o sync no próprio processo. */
   readonly syncRunner?: SyncRunner;
+  /**
+   * Respostas geradas (`ask`), quando há provedor ativo nesta máquina e o cérebro permite. Sem isto, a tool `ask` não é
+   * registrada nem aparece em `tools/list`.
+   */
+  readonly ask?: AskRunner;
   /** Diagnóstico; vai para o stderr, nunca para o stdout. */
   readonly log: (message: string) => void;
 }
 
-/** Nomes das tools, na ordem em que são registradas. */
+/** A tool que só existe com um provedor de respostas ativo (registrada logo depois de `search`). */
+export const ASK_TOOL_NAME = 'ask';
+
+/** Nomes das tools, na ordem em que são registradas (sem `ask`, que é condicional). */
 export const TOOL_NAMES = [
   'recall',
   'search',
@@ -122,6 +132,8 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     },
     (args, ctx) => run(ctx, async (brain) => (await brain()).search(args)),
   );
+
+  if (runtime.ask !== undefined) registerAskTool(server, run, runtime.ask);
 
   server.registerTool(
     'read',

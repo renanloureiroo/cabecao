@@ -332,6 +332,7 @@ export function startInMemory(
     ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
     ...(options.maxMessageBytes === undefined ? {} : { maxMessageBytes: options.maxMessageBytes }),
     ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
+    ...(options.ask === undefined ? {} : { ask: options.ask }),
     stdin,
     stdout,
   });
