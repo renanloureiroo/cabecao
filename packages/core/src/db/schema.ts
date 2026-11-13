@@ -6,7 +6,7 @@ import type { DatabaseSync } from './sqlite.ts';
  * Versão do esquema DESTE banco (não confundir com o `schemaVersion` do `.cabecao.json`). Qualquer mudança nas
  * tabelas abaixo, ou no que a varredura grava nelas, sobe este número; o banco é refeito na próxima abertura.
  */
-export const INDEX_SCHEMA_VERSION = 2;
+export const INDEX_SCHEMA_VERSION = 3;
 
 /** Chaves conhecidas da tabela `state`. */
 export const STATE_KEYS = {
@@ -47,6 +47,7 @@ create table notes(
   title_derived integer not null default 0,
   archived integer not null default 0,
   conflict_of text,
+  superseded_on text,
   indexed_at text not null
 );
 create index notes_type on notes(type, scope);
@@ -113,6 +114,21 @@ create table facts(
 create index facts_subject on facts(subject_note);
 create index facts_object on facts(object_note);
 create index facts_predicate on facts(predicate);
+
+-- Nomes de cada nota (título e \`aliases\`), com a chave normalizada de \`nameKey\` (minúsculas, sem acento, palavras
+-- separadas por um espaço): a resolução de uma nota pelo título e o dicionário das menções (marco 3) leem daqui.
+create table names(
+  note_id text not null references notes(id) on delete cascade on update cascade,
+  name text not null,
+  key text not null,
+  kind text not null
+);
+create index names_key on names(key);
+create index names_note on names(note_id);
+
+-- Dicionário das menções em uso (chave → nota), gravado no fim de cada varredura: a próxima compara o dicionário
+-- novo com este e só reprocessa as notas que podem ter mudado.
+create table mention_keys(key text primary key, note_id text not null, name text not null);
 
 create table state(key text primary key, value text);
 `;

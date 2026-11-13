@@ -7,7 +7,7 @@
 //
 // A saída é publicada com `additionalProperties: false`: todo campo que o núcleo devolve tem de estar declarado aqui.
 // `checks.ts` confere isso em tempo de compilação, contra os tipos do núcleo.
-import { NOTE_TYPES, RECALL_PRIORITY, WRITE_MODES } from '@cabecao/core';
+import { NOTE_TYPES, RECALL_PRIORITY, VALIDITIES, WRITE_MODES } from '@cabecao/core';
 import * as z from 'zod';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -61,7 +61,7 @@ const dataItemShape = {
   type: z.string().nullable(),
   title: z.string().nullable(),
   scope: z.string().nullable(),
-  validity: z.enum(['current', 'expired']),
+  validity: z.enum(VALIDITIES),
   trust: z.string().nullable(),
   origin: z.string().nullable(),
   edited_by: z.string().nullable(),
