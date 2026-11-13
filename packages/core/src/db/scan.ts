@@ -4,6 +4,7 @@ import { parseConflictCopyPath } from '../sync/conflict-name.ts';
 import { withLock } from '../util/index.ts';
 import type { BrainConfig, LinkIndex, NoteFile, NoteRead, RelationsConfig } from '../vault/index.ts';
 import { buildLinkIndex, displayTitle, listNoteFiles, readNote, resolveWikiLink, VaultError } from '../vault/index.ts';
+import { refreshDerived } from './derived.ts';
 import type { NoteRecord, ScanIssue } from './extract.ts';
 import { extractNote, PATH_ID_PREFIX, pathNameKey, pathNoteId } from './extract.ts';
 import type { IndexHandle, LocalIndex } from './open.ts';
@@ -224,21 +225,24 @@ function inSavepoint(db: DatabaseSync, fn: () => void): unknown {
 
 /**
  * Resolve o destino das arestas novas e das que podem ter mudado de destino: as de notas gravadas nesta varredura
- * e as que apontam para um nome que apareceu ou sumiu. Usa o mesmo resolvedor do vault (`resolveWikiLink`).
+ * e as que apontam para um nome que apareceu ou sumiu. Usa o mesmo resolvedor do vault (`resolveWikiLink`). As
+ * menções (`origin: mention`) já nascem com o destino e são refeitas à parte (`db/derived.ts`). Devolve as notas
+ * de origem das arestas que mudaram de destino.
  */
 function resolveEdges(
   db: DatabaseSync,
   linkIndex: LinkIndex,
   touchedNotes: ReadonlySet<string>,
   affectedKeys: ReadonlySet<string>,
-): void {
-  if (touchedNotes.size === 0 && affectedKeys.size === 0) return;
+): Set<string> {
+  const relinked = new Set<string>();
+  if (touchedNotes.size === 0 && affectedKeys.size === 0) return relinked;
   const pathToId = new Map<string, string>();
   for (const row of db.prepare('select id, path from notes').all()) pathToId.set(String(row.path), String(row.id));
 
-  const select = `select e.id, e.target, e.dst_note, n.path from edges e join notes n on n.id = e.src_note`;
-  const bySource = db.prepare(`${select} where e.src_note = ?`);
-  const byKey = db.prepare(`${select} where e.target_key = ?`);
+  const select = `select e.id, e.src_note, e.target, e.dst_note, n.path from edges e join notes n on n.id = e.src_note`;
+  const bySource = db.prepare(`${select} where e.src_note = ? and e.origin <> 'mention'`);
+  const byKey = db.prepare(`${select} where e.target_key = ? and e.origin <> 'mention'`);
   const update = db.prepare('update edges set dst_note = ? where id = ?');
   const seen = new Set<number>();
   const visit = (statement: StatementSync, key: string): void => {
@@ -249,7 +253,10 @@ function resolveEdges(
       const resolution = resolveWikiLink(linkIndex, String(row.target), String(row.path));
       const dst = resolution.path === null ? null : (pathToId.get(resolution.path) ?? null);
       const current = row.dst_note === null ? null : String(row.dst_note);
-      if (dst !== current) update.run(dst, edgeId);
+      if (dst !== current) {
+        update.run(dst, edgeId);
+        relinked.add(String(row.src_note));
+      }
     }
   };
   for (const id of touchedNotes) visit(bySource, id);
@@ -261,6 +268,7 @@ function resolveEdges(
       where e.src_note = facts.note_id and e.origin = 'fact' and e.type = 'subject' order by e.id limit 1),
     object_note = (select e.dst_note from edges e
       where e.src_note = facts.note_id and e.origin = 'fact' and e.type = 'object' order by e.id limit 1)`);
+  return relinked;
 }
 
 async function runScan(handle: IndexHandle, root: string, config: ScanConfig, started: number): Promise<ScanSummary> {
@@ -471,7 +479,11 @@ async function runScan(handle: IndexHandle, root: string, config: ScanConfig, st
       });
     }
     for (const path of missing.keys()) if (!consumed.has(path)) removeRow(path);
-    resolveEdges(db, linkIndex, touchedNotes, affectedKeys);
+    const relinked = resolveEdges(db, linkIndex, touchedNotes, affectedKeys);
+    // validade derivada do encadeamento, nomes e menções sem link: só quando algo mudou
+    if (touchedNotes.size > 0 || affectedKeys.size > 0 || removed > 0) {
+      refreshDerived(db, { touched: touchedNotes, relinked });
+    }
     const ms = Math.round(performance.now() - started);
     st.setState.run(STATE_KEYS.lastScanAt, new Date().toISOString());
     st.setState.run(STATE_KEYS.lastScanMs, String(ms));

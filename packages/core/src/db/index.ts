@@ -1,6 +1,43 @@
 // API pública do banco local: abertura, varredura incremental, busca por palavra-chave e consultas de apoio.
+
+export { refreshSupersededOn } from './derived.ts';
+export type { GraphExport } from './export.ts';
+export { exportGraph } from './export.ts';
 export type { EdgeOrigin, ScanIssue, ScanIssueCode } from './extract.ts';
 export { linkTargetKey, PATH_ID_PREFIX, pathNoteId } from './extract.ts';
+export type { FactQuery, FactRow, NoteRefRow } from './facts.ts';
+export { indexedBodies, queryFacts, supersedeChains } from './facts.ts';
+export type {
+  EdgeFilter,
+  GraphEdgeRow,
+  GraphNoteRow,
+  Neighborhood,
+  NeighborhoodOptions,
+  RelatedCandidate,
+  RelatedOptions,
+} from './graph.ts';
+export {
+  graphNotes,
+  MAX_GRAPH_EDGE_ROWS,
+  MAX_WALK_ROWS,
+  neighborhood,
+  originWeight,
+  relatedCandidates,
+} from './graph.ts';
+export type { MentionDictionary, MentionEntry, MentionHit, MentionRefreshSummary, NameCandidate } from './mentions.ts';
+export {
+  blankNonProse,
+  buildMentionDictionary,
+  findMentions,
+  loadMentionDictionary,
+  MAX_MENTIONS_PER_NOTE,
+  MENTION_MAX_WORDS,
+  MENTION_MIN_CHARS,
+  nameKey,
+  nameProblem,
+} from './mentions.ts';
+export type { NodeMatch, NodeResolution } from './nodes.ts';
+export { MAX_NODE_REF_LENGTH, resolveNodeRef, stripWikilink } from './nodes.ts';
 export type { LocalIndex, OpenIndexOptions, RebuildReason } from './open.ts';
 export {
   DEFAULT_BUSY_TIMEOUT_MS,
@@ -26,8 +63,15 @@ export { backlinks, brokenLinks, getNote, indexStatus, latestHandoff, listNotes,
 export type { ScanConfig, ScanOptions, ScanSummary } from './scan.ts';
 export { DEFAULT_SCAN_LOCK_TIMEOUT_MS, reindexFull, scan } from './scan.ts';
 export { INDEX_SCHEMA_VERSION, STATE_KEYS } from './schema.ts';
-export type { KeywordHit, KeywordSearchOptions, KeywordSearchResult, QueryTerm, Validity } from './search.ts';
-export { buildFtsQuery, queryTerms, searchKeyword, validityOf } from './search.ts';
+export type {
+  KeywordHit,
+  KeywordSearchOptions,
+  KeywordSearchResult,
+  QueryTerm,
+  Validity,
+  ValidityFields,
+} from './search.ts';
+export { buildFtsQuery, queryTerms, searchKeyword, VALIDITIES, validityOf } from './search.ts';
 export type { SqliteModule } from './sqlite.ts';
 export {
   filterSqliteWarning,

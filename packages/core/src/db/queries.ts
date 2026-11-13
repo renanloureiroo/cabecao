@@ -36,11 +36,13 @@ export interface IndexedNote {
    * comum. Uma cópia nunca tem o `id` da original e fica fora das listagens e da busca, a não ser que peçam.
    */
   readonly conflictOf: string | null;
+  /** Data em que outra nota passou a substituir esta (`supersedes`/`superseded_by`); entra na validade. */
+  readonly supersededOn: string | null;
 }
 
 const NOTE_COLUMNS = `n.id, n.path, n.type, n.title, n.scope, n.trust, n.origin, n.created, n.updated, n.confirmed,
   n.valid_from, n.valid_until, n.expires_at, n.archived, n.managed, n.content_hash, n.mtime, n.size, n.frontmatter,
-  n.frontmatter_error, n.conflict_of`;
+  n.frontmatter_error, n.conflict_of, n.superseded_on`;
 
 const text = (value: unknown): string | null => (value === null || value === undefined ? null : String(value));
 
@@ -78,6 +80,7 @@ function toNote(row: Record<string, unknown>): IndexedNote {
     frontmatter: parseObject(row.frontmatter),
     frontmatterError: text(row.frontmatter_error),
     conflictOf: text(row.conflict_of),
+    supersededOn: text(row.superseded_on),
   };
 }
 
@@ -126,13 +129,16 @@ export interface OutgoingLink {
   readonly noteType: string | null;
 }
 
-/** Links de saída da nota `noteId`, na ordem em que foram gravados (frontmatter, depois corpo). */
+/**
+ * Links de saída da nota `noteId`, na ordem em que foram gravados (frontmatter, depois corpo). As menções sem link
+ * (`origin: mention`) não são links e ficam de fora: estão no `graph`.
+ */
 export function outgoingLinks(index: LocalIndex, noteId: string): OutgoingLink[] {
   return connection(index)
     .prepare(
       `select e.origin, e.type, e.target, e.anchor, e.alias, e.line, e.dst_note, d.path, d.title, d.type as note_type
        from edges e left join notes d on d.id = e.dst_note
-       where e.src_note = ? order by e.id`,
+       where e.src_note = ? and e.origin <> 'mention' order by e.id`,
     )
     .all(noteId)
     .map((row) => ({
@@ -169,13 +175,16 @@ export interface ConflictCopyOption {
   readonly includeConflictCopies?: boolean;
 }
 
-/** Links que chegam na nota `noteId`, vindos de outras notas, por caminho de origem. Cópias de conflito, só se pedir. */
+/**
+ * Links que chegam na nota `noteId`, vindos de outras notas, por caminho de origem. Cópias de conflito, só se pedir.
+ * Menções sem link ficam de fora (estão no `graph`).
+ */
 export function backlinks(index: LocalIndex, noteId: string, options: ConflictCopyOption = {}): Backlink[] {
   return connection(index)
     .prepare(
       `select e.origin, e.type, e.line, e.anchor, s.id, s.path, s.title, s.type as note_type, s.archived
        from edges e join notes s on s.id = e.src_note
-       where e.dst_note = ? and e.src_note <> e.dst_note${options.includeConflictCopies === true ? '' : ' and s.conflict_of is null'}
+       where e.dst_note = ? and e.src_note <> e.dst_note and e.origin <> 'mention'${options.includeConflictCopies === true ? '' : ' and s.conflict_of is null'}
        order by s.path, e.id`,
     )
     .all(noteId)
@@ -266,7 +275,7 @@ export function brokenLinks(
     .prepare(
       `select s.id, s.path, e.origin, e.type, e.target, e.line
        from edges e join notes s on s.id = e.src_note
-       where e.dst_note is null${options.includeArchived === true ? '' : ' and s.archived = 0'}${options.includeConflictCopies === true ? '' : ' and s.conflict_of is null'}
+       where e.dst_note is null and e.origin <> 'mention'${options.includeArchived === true ? '' : ' and s.archived = 0'}${options.includeConflictCopies === true ? '' : ' and s.conflict_of is null'}
        order by s.path, e.id`,
     )
     .all()
@@ -334,7 +343,7 @@ export function indexStatus(index: LocalIndex): IndexStatus {
     edges: count('select count(*) as n from edges'),
     brokenLinks: count(
       `select count(*) as n from edges e join notes s on s.id = e.src_note
-       where e.dst_note is null and s.archived = 0 and s.conflict_of is null`,
+       where e.dst_note is null and e.origin <> 'mention' and s.archived = 0 and s.conflict_of is null`,
     ),
     facts: count('select count(*) as n from facts'),
     lastScanAt: state(STATE_KEYS.lastScanAt),
