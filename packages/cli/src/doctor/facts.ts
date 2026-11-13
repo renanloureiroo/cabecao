@@ -44,8 +44,9 @@ import { CliError } from '../errors.ts';
 import type { Location } from '../install-client/clients.ts';
 import { resolveLaunch } from '../install-client/launch.ts';
 import { detectClients, readRegistrations } from '../install-client/register.ts';
+import { scheduleStatus } from '../schedule/system.ts';
 import type { CliIo } from '../types.ts';
-import type { DoctorFacts, EmbeddingsFact, IndexFact, LockFact } from './checks.ts';
+import type { DoctorFacts, EmbeddingsFact, IndexFact, LockFact, ScheduleFact } from './checks.ts';
 
 export type DoctorIo = Pick<CliIo, 'env' | 'platform' | 'homedir' | 'execPath' | 'binPath' | 'exec' | 'stderr'>;
 
@@ -283,6 +284,24 @@ async function clientFacts(io: DoctorIo, root: string): Promise<NonNullable<Doct
   return { kind: 'read', detected, registrations: await readRegistrations(detected, location, launches) };
 }
 
+/** Agendamento: só executa algo no agendador quando o Cabeção anotou que registrou (`schedule.json`). */
+async function scheduleFact(io: DoctorIo): Promise<ScheduleFact> {
+  try {
+    const status = await scheduleStatus(io, { probeWithoutState: false });
+    if (!status.registered || status.mechanism === null) return { kind: 'off' };
+    return {
+      kind: 'on',
+      mechanism: status.mechanism,
+      intervalMin: status.interval_min,
+      loaded: status.loaded,
+      missing: status.missing,
+      brain: status.brain,
+    };
+  } catch (error) {
+    return { kind: 'error', message: messageOf(error).message };
+  }
+}
+
 /** Coleta os fatos de um diagnóstico completo. Não lança: o que falhar vira um fato de erro. */
 export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise<DoctorFacts> {
   const now = options.now?.() ?? Date.now();
@@ -399,5 +418,6 @@ export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise
   facts.gpgSign = (await git(root, ['config', '--type=bool', '--get', 'commit.gpgsign'])).stdout === 'true';
   facts.identity = await identityFact(root);
   facts.clients = options.skipClients === true ? { kind: 'skipped' } : await clientFacts(io, root);
+  facts.schedule = await scheduleFact(io);
   return facts;
 }
