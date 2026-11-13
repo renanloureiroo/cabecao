@@ -14,6 +14,7 @@ import {
   isInvalidConfigError,
   parseBrainConfig,
   readBrainConfig,
+  VaultError,
 } from '../vault/index.ts';
 import { commitMessage, type SyncContext } from './context.ts';
 import { commitTree, editTree, readObjects, revParse, treeOf } from './git.ts';
@@ -91,6 +92,30 @@ async function freeCopyPath(ctx: SyncContext, tree: string): Promise<string> {
   }
 }
 
+/**
+ * `schemaVersion` do `.cabecao.json` em `commit` quando ele é MAIS NOVO do que este Cabeção entende, senão `null`.
+ * O sync de uma máquina antiga para antes de aplicar uma árvore assim: o código antigo regeneraria o `index.md` e
+ * reindexaria com as regras velhas um cérebro já migrado. Nada é aplicado nem enviado; as mudanças desta máquina
+ * ficam em commits locais até ela ser atualizada (regra de compatibilidade em `migrate/migrations.ts`).
+ */
+export async function newerSchemaIn(ctx: SyncContext, commit: string): Promise<number | null> {
+  const blob = await configBlob(ctx, commit);
+  if (blob === null) return null;
+  try {
+    parseBrainConfig(await blobText(ctx, blob));
+    return null;
+  } catch (error) {
+    if (!(error instanceof VaultError) || error.code !== 'config_schema_too_new') return null;
+    try {
+      const version = (JSON.parse((await blobText(ctx, blob)).replace(/^﻿/, '')) as { schemaVersion?: unknown })
+        .schemaVersion;
+      return typeof version === 'number' ? version : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export interface ConfigGuardResult {
   /** Commit novo, sobre `target`, com a versão local de volta e a do remoto na cópia. */
   readonly commit: string;
@@ -100,8 +125,8 @@ export interface ConfigGuardResult {
 /**
  * Confere o `.cabecao.json` da árvore integrada (`target`) contra o local (`head`). Só age quando a integração TROCOU
  * a configuração por uma inválida (ou a apagou) e a local é válida: aí cria um commit sobre `target` que devolve a
- * versão local e guarda a do remoto em `.cabecao.conflict-<máquina>-<data>.json`. Configuração válida que chega (ou
- * de esquema mais novo) entra como veio; uma inválida que já estava aqui não é tocada (é do usuário: `status` e
+ * versão local e guarda a do remoto em `.cabecao.conflict-<máquina>-<data>.json`. Configuração válida que chega
+ * entra como veio (a de esquema mais novo nem chega aqui: o sync para antes, ver `newerSchemaIn`); uma inválida que já estava aqui não é tocada (é do usuário: `status` e
  * `doctor` dizem como consertar). Devolve `null` quando não precisou fazer nada.
  */
 export async function keepValidConfig(
