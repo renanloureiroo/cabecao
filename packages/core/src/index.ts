@@ -10,6 +10,7 @@ export function hello(): string {
 
 export * from './brain/index.ts';
 export * from './db/index.ts';
+export * from './embeddings/index.ts';
 export * from './git/index.ts';
 export * from './indexstore/index.ts';
 export * from './init/index.ts';

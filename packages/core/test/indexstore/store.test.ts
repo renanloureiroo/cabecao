@@ -314,7 +314,7 @@ describe('indexstore: escrita e leitura na branch, sem worktree', { timeout: TES
     for (const r of results) expect(r.code, r.stderr).toBe(0);
     expect((await store.listKeys()).size).toBe(4 * 10 + 3 * 15);
     expect(await git(dir, ['rev-list', '--count', 'cabecao/index'])).toBe('7');
-    expect(existsSync(join(dir, '.cabecao', 'locks', 'index.lock'))).toBe(false);
+    expect(existsSync(join(dir, '.cabecao', 'locks', 'index-branch.lock'))).toBe(false);
   });
 
   it('update-ref condicional: branch movida por fora entre a leitura e a escrita é detectada, não sobrescrita', async ({

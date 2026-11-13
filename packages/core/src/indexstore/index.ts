@@ -4,6 +4,7 @@ export type { CompactOptions, CompactResult, CompactStats } from './compact.ts';
 export { compactIndex } from './compact.ts';
 export type { IndexOptions, IndexStep, SegmentIssue } from './context.ts';
 export { DEFAULT_MAX_SEGMENT_BYTES, INDEX_STEPS } from './context.ts';
+export type { IndexRef } from './git.ts';
 export { IndexRefRaceError } from './git.ts';
 export type { DrainSource, WriteResult as IndexWriteResult } from './integrate.ts';
 export type { EmbeddingModelSpec } from './layout.ts';
@@ -59,4 +60,13 @@ export type {
   ReadAllOptions,
   WriteIndexFileOptions,
 } from './store.ts';
-export { openIndexStore, readIndexFile, readIndexManifest, writeIndexFile } from './store.ts';
+export {
+  indexManifestAt,
+  indexTreeBytes,
+  listIndexBranches,
+  openIndexStore,
+  readIndexFile,
+  readIndexManifest,
+  writeIndexFile,
+  writeIndexFiles,
+} from './store.ts';
