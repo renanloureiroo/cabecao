@@ -23,7 +23,6 @@ Um comando para medir a qualidade da busca no seu próprio cérebro, com as suas
 
 ## Planejado
 
-- **Plugin do Claude Code**, com hooks que chamam o `recall` no começo da sessão e lembram do handoff no fim, sem depender de o modelo seguir as instruções.
 - **Revisão do cérebro (lint)**: links quebrados, menções que poderiam virar links, notas vencidas que ninguém substituiu, memórias repetidas.
 - **Consolidação**: juntar memórias parecidas e propor sínteses, sempre como sugestão revisável.
 - **Esquecer**: tirar uma memória de circulação, movendo-a para `memory/_archive/`, de forma reversível.

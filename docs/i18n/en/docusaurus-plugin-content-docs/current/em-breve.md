@@ -23,7 +23,6 @@ A command to measure search quality on your own brain, with your own questions, 
 
 ## Planned
 
-- **Claude Code plugin**, with hooks that call `recall` at the start of the session and remind you of the handoff at the end, without depending on the model following the instructions.
 - **Brain review (lint)**: broken links, mentions that could become links, expired notes that nobody replaced, duplicate memories.
 - **Consolidation**: merge similar memories and propose syntheses, always as a reviewable suggestion.
 - **Forget**: take a memory out of circulation by moving it to `memory/_archive/`, in a reversible way.
