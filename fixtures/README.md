@@ -27,3 +27,7 @@ Um cérebro pequeno, em português, que segue o modelo de dados. Os testes do pr
 O teste `packages/core/test/fixture-vault.test.ts` confere essas propriedades. Se você mudar o vault, mude o teste junto.
 
 O vault não tem a pasta `.cabecao/` nem a branch de índice: as duas são criadas pelo Cabeção em uso.
+
+## `eval/respostas.jsonl`: perguntas para `cabecao eval --answers`
+
+Oito perguntas sobre o cérebro de exemplo para medir as respostas do `ask`: seis com a nota que responde em `expected` e duas que o cérebro não responde (`"answerable": false`). Rodar com um provedor de verdade custa uma chamada por pergunta.

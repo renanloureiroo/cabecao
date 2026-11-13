@@ -80,6 +80,12 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const [file, ...extra] = ctx.positionals;
   if (file === undefined) throw new UsageError('diga o arquivo de perguntas: cabecao eval <perguntas.jsonl>');
   if (extra.length > 0) throw new UsageError(`argumento a mais: ${extra.join(' ')}`);
+  if (ctx.values.answers === true) {
+    // as respostas do `ask` (opcional): o código dos provedores só carrega aqui
+    const { runAnswersEval } = await import('../llm/eval.ts');
+    return runAnswersEval(ctx, file);
+  }
+  if (ctx.values.provider !== undefined) throw new UsageError('--provider só vale com --answers');
   const alphas = parseAlphas(ctx.values.alpha);
   const k = parseK(ctx.values.k);
   const path = resolve(ctx.cwd, file);
