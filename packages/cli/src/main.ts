@@ -1,5 +1,6 @@
 import { closeSync, openSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { systemExec } from './exec.ts';
 import { execute } from './router.ts';
 import type { CliIo, CommandSpec, ControllingTerminal, Exec, StdinLimits } from './types.ts';
@@ -36,6 +37,9 @@ export async function run(argv: readonly string[], options: RunOptions = {}): Pr
       platform: process.platform,
       execPath: process.execPath,
       exec: noExec,
+      // como biblioteca (testes), a configuração do provedor de respostas nunca é a real da máquina: sem uma pasta
+      // pedida, uma que não existe (nada configurado)
+      llmConfigDir: join(tmpdir(), `cabecao-run-sem-llm-${process.pid}`),
       ...io,
       argv,
       stdout: { write: (chunk) => out.push(chunk) },

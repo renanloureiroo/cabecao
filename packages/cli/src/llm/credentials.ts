@@ -12,10 +12,10 @@
 //     Windows), num arquivo `credentials.dpapi.json` na pasta de configuração;
 // - `file`: `<configDir>/credentials.json` com permissão 0600 (o recuo do gh, do Codex e do Claude Code);
 // - `env:NOME`: só a variável.
-import { chmod, readFile, rm } from 'node:fs/promises';
+import { chmod, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { KeyRef } from '@cabecao/core';
-import { writeFileAtomic } from '@cabecao/core';
+import type { KeyRef, ProviderEntry } from '@cabecao/core';
+import { entryDestination, writeFileAtomic } from '@cabecao/core';
 import { findExecutable } from '../install-client/files.ts';
 import type { Env } from '../types.ts';
 
@@ -180,9 +180,45 @@ async function readStore(path: string): Promise<StoreFile> {
   }
 }
 
+/**
+ * A conta da chave no cofre e no arquivo: o provedor E o destino (`anthropic@api.anthropic.com`). Uma chave gravada
+ * para um endereço nunca é lida para outro, nem se alguém trocar o endereço do provedor.
+ */
+export function credentialAccount(id: string, entry: ProviderEntry): string {
+  const destination = entryDestination(entry);
+  let host = destination;
+  try {
+    host = new URL(destination).host;
+  } catch {
+    // agente (`agent:claude-code`): fica como está
+  }
+  return `${id}@${host}`;
+}
+
+/** A pasta das chaves não pode ser gravável por outros usuários (POSIX): alguém trocaria o arquivo. */
+async function assertPrivateDir(dir: string): Promise<void> {
+  if (process.platform === 'win32') return;
+  try {
+    const info = await stat(dir);
+    if ((info.mode & 0o022) !== 0) {
+      throw new Error(
+        `a pasta ${dir} pode ser alterada por outros usuários da máquina; corrija com "chmod go-w ${dir}" antes de guardar uma chave`,
+      );
+    }
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return;
+    throw error;
+  }
+}
+
 async function writeStore(path: string, store: StoreFile): Promise<void> {
+  const dir = path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
+  await assertPrivateDir(dir);
+  // um arquivo que já existia com permissão aberta é fechado ANTES de receber o conteúdo novo (a escrita atômica
+  // mantém o modo do arquivo antigo)
+  if (process.platform !== 'win32') await chmod(path, 0o600).catch(() => {});
   await writeFileAtomic(path, `${JSON.stringify(store, null, 2)}\n`, { mode: 0o600 });
-  await chmod(path, 0o600).catch(() => {});
+  if (process.platform !== 'win32') await chmod(path, 0o600).catch(() => {});
 }
 
 async function keychainWrite(io: CredentialIo, id: string, key: string): Promise<void> {
@@ -270,16 +306,18 @@ async function keychainRead(io: CredentialIo, id: string): Promise<string | null
   return result.code === 0 && key !== '' ? key : null;
 }
 
-async function keychainDelete(io: CredentialIo, id: string): Promise<void> {
+/** Apaga no cofre do sistema. Devolve o problema, ou `null` se apagou (ou se não havia o que apagar). */
+async function keychainDelete(io: CredentialIo, id: string): Promise<string | null> {
   const run = io.runner ?? systemRunner;
   const env = minimalEnv(io.env);
   if (io.platform === 'darwin') {
-    await run('/usr/bin/security', ['delete-generic-password', '-s', KEYCHAIN_SERVICE, '-a', id], {
+    const result = await run('/usr/bin/security', ['delete-generic-password', '-s', KEYCHAIN_SERVICE, '-a', id], {
       stdin: '',
       env,
       timeoutMs: RUN_TIMEOUT_MS,
     });
-    return;
+    // 44: o item não existe
+    return result.code === 0 || result.code === 44 ? null : `o Keychain não apagou (código ${result.code ?? 'nenhum'})`;
   }
   if (io.platform === 'win32') {
     const path = join(io.configDir, DPAPI_FILE);
@@ -287,13 +325,15 @@ async function keychainDelete(io: CredentialIo, id: string): Promise<void> {
     delete store.keys[id];
     if (Object.keys(store.keys).length === 0) await rm(path, { force: true });
     else await writeStore(path, store);
-    return;
+    return null;
   }
-  await run('secret-tool', ['clear', 'service', KEYCHAIN_SERVICE, 'account', id], {
+  const result = await run('secret-tool', ['clear', 'service', KEYCHAIN_SERVICE, 'account', id], {
     stdin: '',
     env,
     timeoutMs: RUN_TIMEOUT_MS,
   });
+  // o secret-tool sai com 1 quando não havia o item
+  return result.code === 0 || result.code === 1 ? null : `o secret-tool não apagou (código ${result.code ?? 'nenhum'})`;
 }
 
 /**
@@ -405,14 +445,28 @@ export async function readKey(
   }
 }
 
-/** Apaga a chave guardada pelo Cabeção (no cofre e no arquivo). A variável de ambiente não é dele: fica. */
-export async function deleteKey(io: CredentialIo, id: string): Promise<void> {
-  if ((await keychainAvailable(io)).ok) await keychainDelete(io, id).catch(() => {});
-  const path = credentialsFilePath(io.configDir);
-  const store = await readStore(path).catch(() => ({ version: 1 as const, keys: {} as Record<string, string> }));
-  if (id in store.keys) {
-    delete store.keys[id];
-    if (Object.keys(store.keys).length === 0) await rm(path, { force: true });
-    else await writeStore(path, store);
+/**
+ * Apaga a chave guardada pelo Cabeção (no cofre e no arquivo). A variável de ambiente não é dele: fica. Devolve os
+ * problemas (vazio: apagou tudo o que havia), para ninguém dizer "apagado" quando o cofre recusou.
+ */
+export async function deleteKey(io: CredentialIo, id: string): Promise<string[]> {
+  const problems: string[] = [];
+  if ((await keychainAvailable(io)).ok) {
+    const problem = await keychainDelete(io, id).catch((error: unknown) =>
+      error instanceof Error ? error.message : String(error),
+    );
+    if (problem !== null) problems.push(problem);
   }
+  const path = credentialsFilePath(io.configDir);
+  try {
+    const store = await readStore(path);
+    if (id in store.keys) {
+      delete store.keys[id];
+      if (Object.keys(store.keys).length === 0) await rm(path, { force: true });
+      else await writeStore(path, store);
+    }
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  return problems;
 }

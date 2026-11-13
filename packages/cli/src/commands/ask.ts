@@ -2,7 +2,7 @@
 // (`cabecao llm on`). Sem provedor, mostra os trechos achados e como ativar, sem erro. O código do `ask` e dos
 // provedores só é carregado aqui.
 import type { AskInput, AskOutput, AskResult, PreparedAsk } from '@cabecao/core';
-import { AskCancelledError, BrainError, prepareAsk, sanitizeText } from '@cabecao/core';
+import { AskCancelledError, activeProviderIds, BrainError, prepareAsk, sanitizeText } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { describeEntry, detectLlm, loadLlmMachine } from '../llm/machine.ts';
@@ -30,8 +30,10 @@ function typesOf(value: unknown): string[] | undefined {
 
 const oneLine = (text: string): string => sanitizeText(text).replace(/\s+/g, ' ').trim();
 
+/** Caminho e seção, sem nada que o terminal interprete (vêm da nota, que pode ser de fora). */
 function where(item: { path: string; heading_path: readonly string[] }): string {
-  return item.heading_path.length === 0 ? item.path : `${item.path} › ${item.heading_path.join(' › ')}`;
+  const text = item.heading_path.length === 0 ? item.path : `${item.path} › ${item.heading_path.join(' › ')}`;
+  return oneLine(text);
 }
 
 function omittedLine(output: AskOutput): string | null {
@@ -42,6 +44,7 @@ function omittedLine(output: AskOutput): string | null {
     o.policy > 0 ? `${o.policy} pela política do cérebro` : '',
     o.control > 0 ? `${o.control} de arquivo de controle` : '',
     o.budget > 0 ? `${o.budget} por falta de espaço no contexto` : '',
+    o.unreadable > 0 ? `${o.unreadable} de nota com frontmatter ilegível` : '',
   ].filter((part) => part !== '');
   return parts.length === 0 ? null : `Trechos não enviados ao provedor: ${parts.join(', ')}.`;
 }
@@ -115,10 +118,17 @@ async function unavailableLines(ctx: CommandContext, result: AskResult): Promise
         ? 'Este cérebro não permite enviar trechos a este tipo de provedor ("llm_policy" no .cabecao.json).'
         : `O "llm_policy" do .cabecao.json está inválido, então nada foi enviado: ${diagnostics.policy_problem}.`,
     );
+  } else if (reason === 'limit_reached') {
+    lines.push(
+      'O limite de perguntas ao provedor foi atingido (veja "limits" no llm.json), então não há resposta gerada.',
+    );
   } else {
     lines.push('O provedor de respostas não respondeu, então não há resposta gerada.');
-    for (const attempt of diagnostics.attempts) lines.push(`  - ${attempt.provider}: ${oneLine(attempt.message)}`);
-    lines.push('Rode "cabecao llm test" para conferir o provedor, ou "cabecao llm status".');
+    // para um agente, nada do provedor (nome, erro, conta): só para você, no terminal
+    if (ctx.actor.actor === 'human') {
+      for (const attempt of diagnostics.attempts) lines.push(`  - ${attempt.provider}: ${oneLine(attempt.message)}`);
+    }
+    lines.push('Rode "cabecao llm test" no seu terminal para conferir o provedor.');
   }
   return lines;
 }
@@ -181,10 +191,11 @@ async function render(ctx: CommandContext, result: AskResult, streamed: number, 
 async function showContext(ctx: CommandContext, root: string, input: AskInput): Promise<CommandResult> {
   const machine = await loadLlmMachine(ctx);
   const config = machine.config;
-  const first =
-    config?.enabled === true ? config.roles.answer.find((id) => config.providers[id]?.consented_at != null) : undefined;
+  const first = config === null ? undefined : activeProviderIds(config, machine.secret)[0];
   const entry = first === undefined ? undefined : config?.providers[first];
-  const destination = entry === undefined ? null : describeEntry(entry);
+  // para um agente, o destino não aparece (ele não descobre provedor nem modelo)
+  const destination = entry === undefined || ctx.actor.actor !== 'human' ? null : describeEntry(entry);
+  const configured = entry !== undefined;
   const prepared: PreparedAsk = await withBrain(ctx, root, (brain) => prepareAsk(brain, input));
   const data = {
     destination: destination === null ? null : { provider: first, ...destination },
@@ -197,7 +208,9 @@ async function showContext(ctx: CommandContext, root: string, input: AskInput): 
   };
   const head =
     destination === null
-      ? 'Nenhum provedor ativado: nada seria enviado (isto é o que iria, se houvesse). Nada foi enviado.'
+      ? configured
+        ? 'Isto é o que iria ao provedor de respostas ativado nesta máquina. Nada foi enviado.'
+        : 'Nenhum provedor ativado: nada seria enviado (isto é o que iria, se houvesse). Nada foi enviado.'
       : `Seria enviado a: ${destination.destination} (modelo ${destination.model}). Nada foi enviado.`;
   const text = [
     head,
@@ -240,7 +253,8 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   };
   if (ctx.values['show-context'] === true) return showContext(ctx, root, input).catch(usage);
 
-  const verbose = ctx.values.verbose === true;
+  // o diagnóstico (provedor, modelo, custo) é só para você: um agente não o recebe, nem pedindo
+  const verbose = ctx.values.verbose === true && ctx.actor.actor === 'human';
   const interactive = ctx.prompt !== undefined && !ctx.json;
   const progress = (message: string): void => {
     if (interactive) ctx.stderr.write(`cabecao: ${message}\n`);

@@ -28,7 +28,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   // o provedor de respostas (opcional) entra só no doctor, nunca no resumo do init
   let brainConfig: BrainConfig | null = null;
   if ('root' in brain && brain.root !== undefined) brainConfig = await readBrainConfig(brain.root).catch(() => null);
-  const llm = await llmCheck(ctx, brainConfig).catch((error: unknown) => ({
+  const llm = await llmCheck(ctx, brainConfig, ctx.actor.actor === 'agent').catch((error: unknown) => ({
     id: 'llm',
     title: 'Respostas (ask)',
     status: 'warn' as const,

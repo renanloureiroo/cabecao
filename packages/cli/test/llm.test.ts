@@ -63,7 +63,7 @@ async function compatibleServer(
       }
       const user = body.messages[1]?.content ?? '';
       const marker = /Marca dos delimitadores desta mensagem: ([0-9a-f]+)/.exec(user)?.[1];
-      const match = new RegExp(`<<<TRECHO ${marker} (S\\d+)>>>\\n([\\s\\S]*?)\\n<<<FIM`).exec(user);
+      const match = new RegExp(`<<<TRECHO ${marker} (S\\d+)>>>\\n[\\s\\S]*?\\n---\\n([\\s\\S]*?)\\n<<<FIM`).exec(user);
       const sentence =
         (match?.[2] ?? '')
           .replace(/\^/g, ' ')
@@ -195,7 +195,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     );
     results.push(on);
     expect(on.code).toBe(0);
-    expect(on.stderr).toContain(`o serviço em ${api.base}`);
+    expect(on.stderr).toContain(`o serviço nesta máquina (${api.base})`);
     expect(on.stderr).toContain('O que NUNCA sai');
     expect(on.stderr).toContain('private: true');
     expect(on.stdout).toContain('Teste: funcionou');
@@ -225,9 +225,15 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     expect(json.stdout).not.toContain('modelo-local');
     expect(json.stdout).not.toContain('compatible');
     expect(json.stdout).not.toContain('127.0.0.1');
-    const verbose = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir, '--json', '--verbose']);
+    // --verbose mostra provedor e modelo só para você, no terminal; para um agente, nada disso
+    const verbose = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir, '--json', '--verbose'], {
+      terminal: { prompt: async () => '' },
+    });
     results.push(verbose);
     expect(parseJson(verbose).data.diagnostics).toMatchObject({ provider: 'compatible', model: 'modelo-local' });
+    const agentVerbose = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir, '--json', '--verbose']);
+    results.push(agentVerbose);
+    expect(agentVerbose.stdout).not.toMatch(/compatible|modelo-local|127\.0\.0\.1/);
 
     // no terminal: progresso no stderr e cada afirmação conferida sai uma vez só, pelo streaming
     const tty = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir], {
@@ -243,17 +249,28 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     results.push(status);
     expect(status.stdout).toContain('ligadas');
     expect(status.stdout).toContain(maskKey(KEY));
-    const statusJson = await m.cabecao(['llm', 'status', '--json']);
+    const statusJson = await m.cabecao(['llm', 'status', '--json'], { terminal: { prompt: async () => '' } });
     results.push(statusJson);
     expect(parseJson(statusJson).data.providers[0]).toMatchObject({
       id: 'compatible',
       available: true,
-      key: { masked: null },
+      key: { masked: maskKey(KEY) },
     });
-    results.push(await m.cabecao(['status', '--brain', dir]));
+    results.push(await m.cabecao(['status', '--brain', dir], { terminal: { prompt: async () => '' } }));
     expect(results.at(-1)?.stdout).toContain('Respostas (ask): Outro serviço compatível');
-    results.push(await m.cabecao(['doctor', '--offline', '--brain', dir]));
+    results.push(await m.cabecao(['doctor', '--offline', '--brain', dir], { terminal: { prompt: async () => '' } }));
     expect(results.at(-1)?.stdout).toContain('Respostas (ask)');
+    // um agente não descobre provedor, modelo nem destino por status, llm status ou doctor (M1)
+    for (const args of [
+      ['llm', 'status', '--json'],
+      ['status', '--brain', dir, '--json'],
+      ['doctor', '--offline', '--brain', dir, '--json'],
+    ]) {
+      const seen = await m.cabecao(args);
+      results.push(seen);
+      expect(seen.stdout, args.join(' ')).not.toMatch(/compatible|Outro serviço|modelo-local|127\.0\.0\.1/);
+    }
+    expect(parseJson(results.at(-3) as CliResult).data).toEqual({ enabled: true });
 
     const off = await m.cabecao(['llm', 'off'], { terminal: { prompt: async () => '' } });
     results.push(off);
@@ -261,7 +278,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const after = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir, '--json']);
     results.push(after);
     expect(parseJson(after).data.status).toBe('unavailable');
-    expect(api.bodies.length).toBe(5); // teste + 4 perguntas; nada depois do off
+    expect(api.bodies.length).toBe(6); // teste + 5 perguntas; nada depois do off
     // a chave continua guardada depois do off
     expect(await readFile(join(m.configDir, 'credentials.json'), 'utf8')).toContain(KEY);
 
@@ -525,7 +542,7 @@ describe('Claude Code como provedor (agente falso)', { timeout: TEST_TIMEOUT_MS 
     const provider = fakeClaude('ok', log);
     const result = await provider.generate({
       system: 'sistema',
-      user: 'Pergunta: x\nMarca dos delimitadores desta mensagem: abc123\n<<<TRECHO abc123 S1>>>\nUma frase de teste longa o bastante. Outra.\n<<<FIM abc123>>>',
+      user: 'Pergunta: x\nMarca dos delimitadores desta mensagem: abc123\n<<<TRECHO abc123 S1>>>\ncaminho: a.md\ntítulo: A\n---\nUma frase de teste longa o bastante. Outra.\n<<<FIM abc123>>>',
       schema: ANSWER_SCHEMA,
       maxOutputTokens: 100,
       timeoutMs: 30_000,

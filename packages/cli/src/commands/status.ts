@@ -2,7 +2,7 @@ import type { StatusOutput } from '@cabecao/core';
 import { checkTemplate, schemaState, templateUpdatable } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import type { LlmSummary } from '../llm/describe.ts';
-import { llmSummary } from '../llm/describe.ts';
+import { agentSummary, llmSummary } from '../llm/describe.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -78,7 +78,10 @@ export function statusText(status: StatusOutput): string {
 }
 
 /** A linha do provedor de respostas (opcional), depois da busca por significado. */
-export function askLine(summary: LlmSummary): string {
+export function askLine(summary: LlmSummary | ReturnType<typeof agentSummary>): string {
+  if (!('label' in summary)) {
+    return `Respostas (ask): ${summary.state === 'on' ? 'ligadas' : 'desligadas'}`;
+  }
   switch (summary.state) {
     case 'none':
       return 'Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)';
@@ -96,7 +99,9 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const status = await withBrain(ctx, root, (brain) => brain.status());
   const text = statusText(status);
   // a linha do ask (opcional) vai antes de "Problemas"/"Saúde"
-  const ask = await llmSummary(ctx).catch(() => null);
+  const full = await llmSummary(ctx).catch(() => null);
+  // um agente sabe só se as respostas estão ligadas: nada de provedor, modelo ou destino
+  const ask = full === null ? null : ctx.actor.actor === 'human' ? full : agentSummary(full);
   const body = text.split('\n');
   if (ask !== null) {
     const at = body.findIndex((line) => line === 'Problemas:' || line.startsWith('Saúde:'));

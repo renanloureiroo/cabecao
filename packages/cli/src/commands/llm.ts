@@ -1,6 +1,11 @@
-// `cabecao llm on|off|status|test|remove`: o provedor que gera as respostas do `ask` NESTA máquina. Desligado por
-// padrão; nada sai da máquina até você ativar aqui, vendo o que passa a sair e para onde. Ativar, trocar e apagar a
-// chave exigem você no terminal (um agente não faz isso); `status`, `test` e `off` funcionam sem terminal.
+// `cabecao llm on|off|status|test|remove|policy`: o provedor que gera as respostas do `ask` NESTA máquina, e a política
+// de envio do cérebro. Desligado por padrão; nada sai da máquina até você ativar aqui, vendo o que passa a sair e para
+// onde. Pela regra de quem é quem da CLI (`access.ts`), `on`, `off`, `test`, `remove` e `policy` são só do usuário no
+// terminal (código 4 para um agente); `status` roda para todos, mas para um agente diz só se as respostas estão ligadas.
+// A confirmação do `on` é assinada com um segredo local (`llm-consent.key`): um `llm.json` escrito à mão não ativa nada.
+
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type {
   AgentProviderEntry,
   GenerationProvider,
@@ -16,24 +21,39 @@ import {
   ANSWER_SCHEMA,
   activeProviderIds,
   assembleAnswer,
+  BASE_URL_PRESETS,
   buildPrompt,
   emptyLlmConfig,
   HTTP_PRESET_IDS,
   HTTP_PRESETS,
   isHttpPresetId,
   isOllamaCloudModel,
+  LLM_POLICY_ALLOW,
+  LLM_POLICY_KEY,
   PROVIDER_ID_RE,
   ProviderError,
+  readConsentSecret,
   readLlmPolicy,
   selectOutbound,
+  signConsent,
   validateAnswer,
   validateBaseUrl,
   writeLlmConfig,
 } from '@cabecao/core';
+import { resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { CLAUDE_CODE_LABEL } from '../llm/claude-code.ts';
 import type { CredentialIo } from '../llm/credentials.ts';
-import { deleteKey, describeKeyRef, keyProblem, maskKey, readKey, storeKey } from '../llm/credentials.ts';
+import {
+  credentialAccount,
+  deleteKey,
+  describeKeyRef,
+  keyProblem,
+  maskKey,
+  readKey,
+  storeKey,
+} from '../llm/credentials.ts';
+import { confirmed } from '../llm/describe.ts';
 import type { HumanIo } from '../llm/human.ts';
 import { requireHuman } from '../llm/human.ts';
 import type { LlmMachine } from '../llm/machine.ts';
@@ -169,7 +189,12 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
 
   // religar o que já estava, sem perguntar de novo o resto
   const previous = config.roles.answer.find((id) => config.providers[id]?.consented_at != null);
-  if (flagProvider === undefined && !config.enabled && previous !== undefined) {
+  if (
+    flagProvider === undefined &&
+    !config.enabled &&
+    previous !== undefined &&
+    confirmed(machine, previous, config.providers[previous] as ProviderEntry)
+  ) {
     const entry = config.providers[previous] as ProviderEntry;
     const d = describeEntry(entry);
     if (
@@ -255,6 +280,11 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
     const model = await chooseModel(human, preset, flagModel);
     let baseUrl: string | undefined;
     const flagBase = typeof ctx.values['base-url'] === 'string' ? ctx.values['base-url'] : undefined;
+    if (flagBase !== undefined && !BASE_URL_PRESETS.has(preset.id)) {
+      throw new UsageError(
+        `--base-url não vale para ${preset.label}: o endereço dele é fixo. Para outro serviço, use --provider compatible.`,
+      );
+    }
     const wantedBase =
       flagBase ??
       (preset.baseUrl === null
@@ -336,15 +366,22 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
   }
   let keyNote: string | null = null;
   if (pastedKey !== null && entry.kind === 'http') {
+    // a chave fica amarrada ao provedor E ao destino
     const stored = await storeKey(
       credentialIo(ctx, machine),
-      id,
+      credentialAccount(id, entry),
       pastedKey,
       entry.key === 'file' ? 'file' : 'keychain',
     );
     entry = { ...entry, key: stored.stored };
     keyNote = stored.note;
   }
+  // a confirmação é assinada com o segredo local desta máquina (criado aqui, com o usuário no terminal)
+  const secret = await readConsentSecret(machine.configDir, true);
+  if (secret === null) {
+    throw new CliError(`não consegui criar o segredo local em ${machine.configDir}`, { code: 'ELLM_WRITE' });
+  }
+  entry = { ...entry, consent: signConsent(secret, id, entry) };
   config = {
     ...config,
     enabled: true,
@@ -399,6 +436,8 @@ const TEST_PASSAGE: Passage = {
   score: 1,
   content: 'Neste teste do Cabeção, o céu do planeta Atlas é verde-limão durante o dia inteiro.',
   frontmatter: {},
+  unreadable: false,
+  tainted: false,
 };
 
 function fixFor(error: unknown): string {
@@ -490,7 +529,7 @@ async function runTest(ctx: CommandContext): Promise<CommandResult> {
   if (machine.problem !== null) throw new CliError(machine.problem, { code: 'ELLM_CONFIG' });
   const config = machine.config;
   const wanted = typeof ctx.values.provider === 'string' ? ctx.values.provider : undefined;
-  const id = wanted ?? activeProviderIds(config)[0] ?? config?.roles.answer[0];
+  const id = wanted ?? activeProviderIds(config, machine.secret)[0] ?? config?.roles.answer[0];
   const entry = id === undefined ? undefined : config?.providers[id];
   if (id === undefined || entry === undefined) {
     throw new CliError(
@@ -517,6 +556,14 @@ async function runTest(ctx: CommandContext): Promise<CommandResult> {
 async function runStatus(ctx: CommandContext): Promise<CommandResult> {
   const machine = await loadLlmMachine(ctx);
   const config = machine.config;
+  if (ctx.actor.actor !== 'human') {
+    // um agente sabe só se as respostas estão ligadas (decisão 38: ele não descobre provedor, modelo nem destino)
+    const on = config !== null && activeProviderIds(config, machine.secret).length > 0;
+    return {
+      data: { enabled: on },
+      text: `Respostas com modelo: ${on ? 'ligadas' : 'desligadas'}.`,
+    };
+  }
   if (machine.problem !== null) {
     return {
       data: { configured: false, enabled: false, problem: machine.problem, providers: [] },
@@ -536,7 +583,7 @@ async function runStatus(ctx: CommandContext): Promise<CommandResult> {
       text: `Respostas (ask): não configuradas (opcional; nada sai da máquina). ${hint}`,
     };
   }
-  const active = new Set(activeProviderIds(config));
+  const active = new Set(activeProviderIds(config, machine.secret));
   const providers = [];
   const lines = [
     `Respostas (ask): ${config.enabled ? 'ligadas' : 'desligadas ("cabecao llm on" religa)'}`,
@@ -552,7 +599,9 @@ async function runStatus(ctx: CommandContext): Promise<CommandResult> {
       const location = describeKeyRef(entry.key, preset.envKey, ctx.platform, machine.configDir);
       // só mostra o final da chave para alguém no terminal; o resto do tempo, só onde ela está
       const read =
-        ctx.prompt !== undefined ? await readKey(credentialIo(ctx, machine), id, entry.key, preset.envKey) : null;
+        ctx.prompt !== undefined
+          ? await readKey(credentialIo(ctx, machine), credentialAccount(id, entry), entry.key, preset.envKey)
+          : null;
       key = { location: read?.source ?? location, masked: read?.key == null ? null : maskKey(read.key) };
     }
     providers.push({
@@ -620,7 +669,9 @@ async function runRemove(ctx: CommandContext): Promise<CommandResult> {
   if (!yes(await human.prompt(`Apagar o provedor "${id}" e a chave que o Cabeção guardou para ele? [s/N] `), false)) {
     return { code: 1, data: { removed: false }, text: 'Nada foi apagado.' };
   }
-  await deleteKey(credentialIo(ctx, machine), id);
+  const entry0 = config.providers[id] as ProviderEntry;
+  const problems =
+    entry0.kind === 'http' ? await deleteKey(credentialIo(ctx, machine), credentialAccount(id, entry0)) : [];
   const { [id]: _removed, ...providers } = config.providers;
   const answer = config.roles.answer.filter((other) => other !== id);
   await save(machine, { ...config, providers, roles: { answer }, enabled: config.enabled && answer.length > 0 });
@@ -629,15 +680,88 @@ async function runRemove(ctx: CommandContext): Promise<CommandResult> {
     entry?.kind === 'http' && HTTP_PRESETS[entry.preset].envKey !== null
       ? ` Se a chave também estiver na variável ${HTTP_PRESETS[entry.preset].envKey}, ela é sua: apague-a do seu shell.`
       : '';
+  if (problems.length > 0) {
+    return {
+      code: 1,
+      data: { removed: true, provider: id, key_removed: false, problems },
+      text: `Provedor "${id}" apagado da configuração, mas a chave guardada NÃO foi apagada: ${problems.join('; ')}. Apague-a no cofre do sistema (serviço "cabecao").${envNote}`,
+    };
+  }
   return {
-    data: { removed: true, provider: id },
+    data: { removed: true, provider: id, key_removed: true },
     text: `Provedor "${id}" apagado, com a chave que o Cabeção guardava.${envNote}`,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// policy: a política de envio do cérebro (`llm_policy` no .cabecao.json). Só o usuário muda (um agente não, nem com
+// confirmação). Ela só RESTRINGE: quem libera um provedor é sempre a configuração da máquina (`llm on`).
+
+function listOf(value: unknown): string[] {
+  if (value === undefined) return [];
+  return (Array.isArray(value) ? value : [value])
+    .flatMap((item) => String(item).split(','))
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
+}
+
+async function runPolicy(ctx: CommandContext): Promise<CommandResult> {
+  const human = requireHuman(ctx, 'Mudar a política de envio do cérebro');
+  const root = await resolveBrain(ctx);
+  const allow = typeof ctx.values.allow === 'string' ? ctx.values.allow : undefined;
+  const paths = listOf(ctx.values['exclude-path']);
+  const types = listOf(ctx.values['exclude-type']);
+  const trust = listOf(ctx.values['exclude-trust']);
+  const clear = ctx.values.clear === true;
+  if (allow !== undefined && !(LLM_POLICY_ALLOW as readonly string[]).includes(allow)) {
+    throw new UsageError(`--allow deveria ser um de ${LLM_POLICY_ALLOW.join(', ')}`);
+  }
+  const path = join(root, '.cabecao.json');
+  const current = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+  const before = (current[LLM_POLICY_KEY] ?? null) as Record<string, unknown> | null;
+  const show = (policy: unknown): string =>
+    policy === null || policy === undefined ? 'nenhuma (não restringe além da máquina)' : JSON.stringify(policy);
+  if (allow === undefined && paths.length === 0 && types.length === 0 && trust.length === 0 && !clear) {
+    return {
+      data: { policy: before },
+      text: `Política de envio deste cérebro (llm_policy): ${show(before)}`,
+    };
+  }
+  const next: Record<string, unknown> | null = clear
+    ? null
+    : {
+        ...(before ?? {}),
+        ...(allow === undefined ? {} : { allow }),
+        ...(paths.length === 0 ? {} : { exclude_paths: paths }),
+        ...(types.length === 0 ? {} : { exclude_types: types }),
+        ...(trust.length === 0 ? {} : { exclude_trust: trust }),
+      };
+  const policy = readLlmPolicy({ unknown: next === null ? {} : { [LLM_POLICY_KEY]: next } });
+  if (policy.problem !== null) throw new UsageError(policy.problem);
+  if (!yes(await human.prompt(`Gravar a política ${show(next)} no .cabecao.json (vai para o git)? [s/N] `), false)) {
+    return { code: 1, data: { policy: before, changed: false }, text: 'Nada mudou.' };
+  }
+  const updated = { ...current };
+  if (next === null) delete updated[LLM_POLICY_KEY];
+  else updated[LLM_POLICY_KEY] = next;
+  const result = await withBrain(ctx, root, (brain) =>
+    // o usuário acabou de confirmar no terminal
+    brain.writePage(
+      { path: '.cabecao.json', content: `${JSON.stringify(updated, null, 2)}\n`, mode: 'overwrite' },
+      { userConfirmed: true },
+    ),
+  );
+  return {
+    data: { policy: next, changed: true, commit: (result as { commit?: string }).commit ?? null },
+    text: `Política de envio gravada: ${show(next)}. Rode "cabecao sync" para levá-la às outras máquinas.`,
   };
 }
 
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   const [sub, ...rest] = ctx.positionals;
-  if (sub !== 'remove' && rest.length > 0) throw new UsageError(`argumento a mais: ${rest.join(' ')}`);
+  if (sub !== 'remove' && sub !== 'policy' && rest.length > 0) {
+    throw new UsageError(`argumento a mais: ${rest.join(' ')}`);
+  }
   switch (sub) {
     case undefined:
     case 'status':
@@ -650,7 +774,9 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
       return runTest(ctx);
     case 'remove':
       return runRemove(ctx);
+    case 'policy':
+      return runPolicy(ctx);
     default:
-      throw new UsageError(`subcomando desconhecido: ${sub}. Use on, off, status, test ou remove`);
+      throw new UsageError(`subcomando desconhecido: ${sub}. Use on, off, status, test, remove ou policy`);
   }
 }
