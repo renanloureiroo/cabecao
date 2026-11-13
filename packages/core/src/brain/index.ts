@@ -41,6 +41,8 @@ export {
 } from './graph.ts';
 export type { HandoffSaveInput, HandoffSaveOutput, NoteRefOutput } from './handoff.ts';
 export { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS, HANDOFF_TTL_DAYS } from './handoff.ts';
+export type { IngestInput, IngestOptions, IngestOutput, IngestPlanNote } from './ingest.ts';
+export { INGEST_DIR, INGEST_MAX_BYTES, INGEST_MAX_CHARS } from './ingest.ts';
 export type {
   BacklinkOutput,
   ConflictOutput,

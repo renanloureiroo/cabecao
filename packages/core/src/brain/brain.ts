@@ -36,6 +36,8 @@ import type { FactsInput, FactsOutput, GraphInput, GraphOutput } from './graph.t
 import { facts, graph } from './graph.ts';
 import type { HandoffSaveInput, HandoffSaveOutput } from './handoff.ts';
 import { handoffSave } from './handoff.ts';
+import type { IngestInput, IngestOptions, IngestOutput } from './ingest.ts';
+import { ingest } from './ingest.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -130,6 +132,11 @@ export interface Brain {
   relate(input: RelateInput): Promise<RelateOutput>;
   /** Passagem de bastão: o handoff (com validade) e, se a sessão fez algo, o episódio, num commit. */
   handoffSave(input: HandoffSaveInput): Promise<HandoffSaveOutput>;
+  /**
+   * Registra uma fonte em `raw/` (`trust: low`) e devolve o plano de ingestão para o agente executar. `path` só de
+   * dentro do cérebro; `options` é só para a CLI (um arquivo que o usuário indicou).
+   */
+  ingest(input: IngestInput, options?: IngestOptions): Promise<IngestOutput>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -276,6 +283,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     patchPage: (input) => patchPage(ctx, input),
     relate: (input) => relate(ctx, input),
     handoffSave: (input) => handoffSave(ctx, input),
+    ingest: (input, options) => ingest(ctx, input, options),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {

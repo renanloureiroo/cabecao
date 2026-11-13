@@ -3,7 +3,7 @@
 // aqui só a forma; a validação de verdade é do núcleo. A saída espelha a do núcleo e é conferida em `checks.ts`.
 import { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS } from '@cabecao/core';
 import * as z from 'zod';
-import { dataNotice, issue, shortText, text } from './schemas.ts';
+import { dataNotice, INPUT_LIMITS, issue, sessionHandle, shortText, text } from './schemas.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // handoff_save
@@ -71,4 +71,50 @@ export const rememberOutput = z.object({
   ),
   reason: z.string(),
   next_step: z.string().exactOptional(),
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// ingest
+
+export const ingestInput = z.object({
+  path: text(INPUT_LIMITS.path)
+    .min(1)
+    .describe('A text file inside the brain (relative path). Files outside the brain cannot be read.')
+    .exactOptional(),
+  content: text(INPUT_LIMITS.content).describe('The source text (with title), up to 1,000,000 chars.').exactOptional(),
+  title: shortText().exactOptional(),
+  source: shortText().describe('Where it came from: URL or original file name.').exactOptional(),
+  scope: shortText()
+    .describe('Scope for the notes in the plan: "global" (default) or "project:<slug>".')
+    .exactOptional(),
+  session_handle: sessionHandle,
+});
+
+export const ingestOutput = z.object({
+  data_notice: dataNotice,
+  op: z.string(),
+  commit: z.string().nullable(),
+  source: z.object({
+    path: z.string(),
+    title: z.string(),
+    origin: z.string(),
+    trust: z.literal('low'),
+    chars: z.number(),
+    registered: z.boolean(),
+  }),
+  plan: z.object({
+    read: z.array(z.string()),
+    create: z.array(z.object({ path: z.string(), frontmatter: z.record(z.string(), z.unknown()) })),
+    update: z.array(
+      z.object({
+        path: z.string(),
+        title: z.string().nullable(),
+        type: z.string().nullable(),
+        reason: z.enum(['mention', 'related']),
+      }),
+    ),
+    steps: z.array(z.string()),
+  }),
+  warnings: z.array(issue),
+  next_step: z.string(),
 });
