@@ -190,7 +190,7 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(result.stdout).not.toContain('Gemini CLI');
     expect(result.stdout).toContain('1. No Cursor, peça:');
     // os dois leem skills: o opcional aparece, com o comando
-    expect(result.stdout).toMatch(/cabecao install-skills +ensina Cursor, Antigravity a usar o cérebro/);
+    expect(result.stdout).toMatch(/cabecao install-skills +ensina Cursor e Antigravity a usar o cérebro/);
     const cursor = JSON.parse(await readFile(join(a.home, '.cursor', 'mcp.json'), 'utf8'));
     expect(cursor.mcpServers.cabecao.args.slice(-3)).toEqual(['mcp', '--brain', join(a.home, 'cabecao')]);
     expect(a.calls).toEqual([]);
