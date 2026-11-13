@@ -1,12 +1,36 @@
 // `openBrain`: o ponto de entrada da camada de operações, usado pelo servidor MCP e pela CLI.
 import { realpath } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
-import type { LocalIndex } from '../db/index.ts';
+import type { LocalIndex, ScanSummary } from '../db/index.ts';
 import { openIndex } from '../db/index.ts';
-import type { BrainConfig } from '../vault/index.ts';
+import type { EmbeddingProvider, EmbedStep } from '../embeddings/index.ts';
+import { EmbeddingEngine } from '../embeddings/index.ts';
+import type { SyncStep } from '../sync/index.ts';
+import type { BrainConfig, EmbeddingConfig } from '../vault/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
 import { assertOpen, machineName } from './context.ts';
+import type {
+  CompactInput,
+  CompactOutput,
+  ComputeEmbeddingsInput,
+  ComputeEmbeddingsOutput,
+  EmbeddingsStatusOutput,
+  EvaluateInput,
+  EvaluateOutput,
+  SetEmbeddingOutput,
+  SwitchEmbeddingsOutput,
+} from './embeddings.ts';
+import {
+  compactBrainIndex,
+  computeEmbeddings,
+  embeddingsStatus,
+  evaluateSearch,
+  indexSize,
+  reindex,
+  setEmbedding,
+  switchEmbeddings,
+} from './embeddings.ts';
 import { BrainError, toBrainError } from './errors.ts';
 import type { FactsInput, FactsOutput, GraphInput, GraphOutput } from './graph.ts';
 import { facts, graph } from './graph.ts';
@@ -48,6 +72,19 @@ export interface OpenBrainOptions {
   readonly now?: Date | (() => Date);
   /** Gancho de teste: chamado em cada passo da escrita depois da gravação; pode lançar para simular falha. */
   readonly faultAt?: (step: WriteStep) => void | Promise<void>;
+  /**
+   * Runtime de embeddings (marco 2). O núcleo não importa `packages/embeddings`: a CLI e o servidor MCP injetam o
+   * carregador, e os testes injetam um com o embedder falso. Sem ele, a busca é só por palavra-chave e o sync leva a
+   * branch de índice sem calcular nada. Nada é carregado na abertura: o modelo carrega na primeira busca (ou no
+   * primeiro cálculo) que precisa dele.
+   */
+  readonly embeddings?: EmbeddingProvider;
+  /** Trechos por rodada do cálculo de embeddings (um segmento por rodada). Para testes. */
+  readonly embedRoundSize?: number;
+  /** Gancho de teste do cálculo de embeddings. */
+  readonly embeddingsFaultAt?: (step: EmbedStep) => void | Promise<void>;
+  /** Gancho de teste do sync (`SyncOptions.faultAt`). */
+  readonly syncFaultAt?: (step: SyncStep) => void | Promise<void>;
 }
 
 /** Um cérebro aberto. Todas as entradas e saídas são JSON; os campos que vão para as tools são `snake_case`. */
@@ -61,7 +98,10 @@ export interface Brain {
 
   /** Briefing de início de tarefa: regras, handoff, preferências, armadilhas, memórias e um `session_handle` novo. */
   recall(input: RecallInput): Promise<RecallOutput>;
-  /** Busca por palavra-chave, com validade e proveniência em cada resultado. */
+  /**
+   * Busca, com validade e proveniência em cada resultado. `mode` (padrão `auto`): híbrida quando há embeddings
+   * ativados e o runtime está disponível; senão, palavra-chave. A saída diz o modo usado e por quê.
+   */
   search(input: SearchInput): Promise<SearchOutput>;
   /** Uma nota (ou uma seção dela), com frontmatter, links de saída e backlinks. */
   read(input: ReadInput): Promise<ReadOutput>;
@@ -87,6 +127,23 @@ export interface Brain {
   undo(input?: UndoInput): Promise<UndoOutput>;
   /** Operações do Cabeção, da mais nova para a mais antiga, com o que já foi desfeito. */
   listOperations(input?: ListOperationsInput): Promise<ListOperationsOutput>;
+
+  /** Estado da busca por significado (modelo, runtime, trechos com e sem vetor), sem carregar o modelo. */
+  embeddingsStatus(): Promise<EmbeddingsStatusOutput>;
+  /** Tamanho da branch de índice na geração corrente; `null` se ela não existe. */
+  indexSize(): Promise<{ bytes: number; commit: string } | null>;
+  /** Calcula os embeddings que faltam. Só o usuário (CLI). */
+  computeEmbeddings(input?: ComputeEmbeddingsInput): Promise<ComputeEmbeddingsOutput>;
+  /** Grava (ou remove) o modelo no `.cabecao.json`, num commit. Só o usuário (CLI). */
+  setEmbedding(embedding: EmbeddingConfig | null): Promise<SetEmbeddingOutput>;
+  /** Troca de modelo: calcula tudo numa pasta nova e só então muda o `.cabecao.json`. Só o usuário (CLI). */
+  switchEmbeddings(next: EmbeddingConfig, input?: ComputeEmbeddingsInput): Promise<SwitchEmbeddingsOutput>;
+  /** Compacta a branch de índice numa geração nova. Só o usuário (CLI). */
+  compactIndex(input?: CompactInput): Promise<CompactOutput | null>;
+  /** Reconstrói o banco local (incremental, ou do zero com `full`). */
+  reindex(input?: { readonly full?: boolean }): Promise<ScanSummary>;
+  /** Mede a busca com as perguntas do usuário (`cabecao eval`). */
+  evaluateSearch(input: EvaluateInput): Promise<EvaluateOutput>;
 
   /** Espera as operações em andamento e fecha o banco. Chame antes de apagar ou mover a pasta (Windows). */
   close(): Promise<void>;
@@ -179,6 +236,13 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     lastScanStartedAt: Number.NEGATIVE_INFINITY,
     closed: false,
     faultAt: options.faultAt,
+    engine: new EmbeddingEngine({
+      root: real,
+      provider: options.embeddings,
+      ...(options.embedRoundSize === undefined ? {} : { roundSize: options.embedRoundSize }),
+      faultAt: options.embeddingsFaultAt,
+    }),
+    syncFaultAt: options.syncFaultAt,
   };
 
   return {
@@ -207,6 +271,14 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
       assertOpen(ctx);
       return listOperations(ctx, input);
     },
+    embeddingsStatus: () => embeddingsStatus(ctx),
+    indexSize: () => indexSize(ctx),
+    computeEmbeddings: (input) => computeEmbeddings(ctx, input),
+    setEmbedding: (embedding) => setEmbedding(ctx, embedding),
+    switchEmbeddings: (next, input) => switchEmbeddings(ctx, next, input),
+    compactIndex: (input) => compactBrainIndex(ctx, input),
+    reindex: (input) => reindex(ctx, input),
+    evaluateSearch: (input) => evaluateSearch(ctx, input),
     close: async () => {
       if (ctx.closed) return;
       await ctx.writeMutex.run(() =>
@@ -215,6 +287,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
           index.close();
         }),
       );
+      await ctx.engine.dispose();
     },
   };
 }
