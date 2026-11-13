@@ -201,7 +201,13 @@ describe('obsidian setup', { timeout: TEST_TIMEOUT_MS }, () => {
     const config = obsidianConfigCandidates(m.io)[0] as string;
     await mkdir(dirname(config), { recursive: true });
     await writeFile(config, JSON.stringify({ vaults: { abc: { path: brain, ts: 1, open: true } } }));
-    const running = { code: 0, stdout: '4242\n', stderr: '' };
+    // a resposta de "pgrep -x -i obsidian" (PIDs) ou, no Windows, a linha do "tasklist" com o processo
+    const running = {
+      code: 0,
+      stdout:
+        process.platform === 'win32' ? 'Obsidian.exe                  4242 Console    1    150.000 K\r\n' : '4242\n',
+      stderr: '',
+    };
 
     m.replies.push(running);
     const dry = await m.cabecao(['obsidian', 'setup', '--dry-run', '--brain', brain]);
