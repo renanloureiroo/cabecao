@@ -44,6 +44,26 @@ Rode cabecao search --help para ver o uso.
 
 Com `CABECAO_DEBUG=1`, os erros saem com o stack, para relatar um problema.
 
+## A ajuda
+
+`cabecao --help` agrupa os comandos (uso diário, configuração, notas e grafo, manutenção), e `cabecao <comando> --help` mostra o uso, **exemplos**, as opções e uma linha com as opções globais. O texto se ajusta à largura do terminal (até 100 colunas; 80 quando a saída não é um terminal, ou o valor de `COLUMNS`). Não há cor: a saída é igual com ou sem `NO_COLOR` e num leitor de tela.
+
+Um comando, uma opção, um subcomando ou um cliente com erro de digitação recebe uma sugestão:
+
+```text
+$ cabecao statsu
+cabecao: comando desconhecido: statsu. Você quis dizer "cabecao status"?
+Rode cabecao --help para ver o que existe.
+
+$ cabecao doctor --ofline
+cabecao: opção desconhecida: --ofline. Você quis dizer "--offline"?
+Rode cabecao doctor --help para ver o uso.
+
+$ cabecao install-client claude
+cabecao: cliente desconhecido: claude. Você quis dizer "claude-code"? Os clientes são: claude-code, claude-desktop, codex, cursor, vscode, antigravity, gemini
+Rode cabecao install-client --help para ver o uso.
+```
+
 ---
 
 ## cabecao init
@@ -61,7 +81,7 @@ cabecao init [url] [--dir <pasta>] [--machine <nome>] [--no-clients]
 | `--machine <nome>` | Nome desta máquina (padrão: o do computador), ajustado para minúsculas, dígitos e hífen |
 | `--no-clients` | Não registra o servidor MCP nos clientes de IA |
 
-Sem perguntar nada, ele: clona o repositório (ou cria a pasta); vê o que há nele (repositório vazio vira cérebro novo, cérebro existente é só baixado, vault de Obsidian ou Markdown é adotado sem mover arquivos, qualquer outra coisa é recusada); monta o índice local; registra o servidor MCP nos clientes encontrados; e roda o `doctor`.
+Sem perguntar nada, ele: clona o repositório (ou cria a pasta); vê o que há nele (repositório vazio vira cérebro novo, cérebro existente é só baixado, vault de Obsidian ou Markdown é clonado numa pasta nova e adotado, sem mover nem renomear notas, qualquer outra coisa é recusada); monta o índice local; registra o servidor MCP nos clientes encontrados; roda o `doctor`; e termina com "Pronto", o que ficou em cada agente, um bloco "Teste agora" e até três opcionais detectados, cada um com o comando ([Criar ou conectar um cérebro](../comecar/init.md#os-opcionais)).
 
 Usa as credenciais que o seu git já usa e nunca pede senha. Grava `machine` e `defaultBrain` em `~/.config/cabecao/config.json`.
 
@@ -244,7 +264,7 @@ cabecao schedule status
 | --- | --- |
 | `--interval <min>` | Com `on`: minutos entre um sync e outro, de 5 a 1440 (padrão: 30) |
 
-Registra `cabecao sync --log` no agendador, só para o seu usuário e sem administrador: LaunchAgent no macOS, timer do `systemd --user` no Linux (o `crontab` quando não há systemd de usuário) e Agendador de Tarefas no Windows. O sync agendado usa o cérebro padrão desta máquina (o do `init`; `--brain` com outra pasta é recusado) e precisa de uma instalação estável (`npm i -g cabecao`): rodando por `npx`, o comando recusa.
+Registra `cabecao sync --log` no agendador, só para o seu usuário e sem administrador: LaunchAgent no macOS, timer do `systemd --user` no Linux (o `crontab` quando não há systemd de usuário) e Agendador de Tarefas no Windows. O sync agendado usa o cérebro padrão desta máquina (o do `init`; `--brain` com outra pasta é recusado) e precisa de uma instalação estável (`npm i -g cabecao@beta`): rodando por `npx`, o comando recusa.
 
 ```text
 $ cabecao schedule on
@@ -649,6 +669,51 @@ O Antigravity e o Gemini CLI não entram no `--run`: os termos do plano pessoal 
 
 **Saída:** `0` quando preparou, fechou, ou o agente terminou (com ou sem mudanças); `1` quando o id não é de uma consolidação desta máquina, o agente não está instalado, não tem a credencial permitida ou não tem `--run`, ou o agente não fechou a consolidação; `2` com uma opção de `--run` sem `--run` ou um `--timeout` inválido.
 
+## cabecao embeddings
+
+Liga, desliga, mostra e troca a busca por significado.
+
+```text
+cabecao embeddings on [modelo] [--variant <v>] [--yes]
+cabecao embeddings off
+cabecao embeddings status
+cabecao embeddings switch <modelo> [--variant <v>] [--yes]
+```
+
+`on` instala o runtime, baixa o modelo, grava a escolha no `.cabecao.json` e calcula os vetores que faltam; numa segunda máquina, usa o modelo já gravado. `off` desliga só nesta máquina. `switch` troca de modelo calculando tudo numa pasta nova da branch de índice. `on`, `off` e `switch` só rodam para você, no terminal; `status` qualquer um roda. O guia completo, com os modelos sugeridos, está em [Buscar](../guias/buscar.md).
+
+**Saída:** `0`; `4` quando um agente tenta `on`, `off` ou `switch`.
+
+## cabecao compact
+
+Reduz a branch de índice da busca por significado e inicia uma geração nova, sem reescrever histórico; `--prune` apaga no remoto as gerações antigas que já estão inteiras na nova. Só você roda, no terminal.
+
+```text
+cabecao compact [--prune]
+```
+
+**Saída:** `0`; `4` quando um agente tenta.
+
+## cabecao eval
+
+Mede a busca com as suas perguntas (uma por linha, em JSON, com a nota esperada): MRR, nDCG, recall e acerto na primeira posição, por tipo de pergunta, para palavra-chave, vetor e a fusão.
+
+```text
+cabecao eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]
+```
+
+**Saída:** `0`.
+
+## cabecao reindex
+
+Atualiza o banco local (`.cabecao/cabecao.db`) com o que mudou nas notas, ou, com `--full`, refaz do zero. O banco é só uma visão das notas: refazer é sempre seguro.
+
+```text
+cabecao reindex [--full]
+```
+
+**Saída:** `0`.
+
 ## cabecao obsidian
 
 Configura o cérebro para o Obsidian: grafo, propriedades, painéis e Web Clipper.
@@ -908,7 +973,7 @@ cabecao install-client --remove <cliente...> | --remove --all
 | `--all` | Todos os clientes detectados nesta máquina |
 | `--print` | Só mostra a configuração; não grava nada |
 | `--remove` | Tira o registro em vez de criar |
-| `--npx` | Registra como `npx -y cabecao mcp` em vez do caminho direto |
+| `--npx` | Registra como `npx -y cabecao@<versão> mcp` (com a versão deste Cabeção fixada) em vez do caminho direto |
 
 O servidor é registrado como `cabecao mcp --brain <pasta>`. Com uma instalação estável (global ou local), o registro aponta direto para o Node e para o arquivo do Cabeção, o que evita de 0,5 a 1,4 s de `npx` a cada sessão. Os outros servidores e chaves do arquivo do cliente são preservados, e a primeira alteração deixa uma cópia `.bak` do original.
 
@@ -923,9 +988,76 @@ Reinicie o cliente para ele enxergar a mudança.
 
 O `gemini` continua para quem ainda usa o Gemini CLI (licença Enterprise ou chave paga de API); quem o usava com conta pessoal passou para o Antigravity, e o registro do `gemini` avisa isso.
 
+Um nome com erro de digitação recebe uma sugestão (`claude` → `claude-code`). Sem nenhum cliente detectado, `--all` diz como seguir (instalar um cliente, ou `--print` para configurar à mão).
+
 **Saída:** `0`; `2` com um cliente desconhecido ou sem cliente nem `--all`.
 
 Mais em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
+
+## cabecao install-skills
+
+Instala as [skills do Cabeção](../guias/skills.md) nos agentes: elas ensinam o agente a usar o cérebro pela CLI, sem o servidor MCP, com as mesmas regras.
+
+```text
+cabecao install-skills [cliente...] [--project]
+cabecao install-skills --all [--project]
+cabecao install-skills --print [cliente...]
+cabecao install-skills --remove [cliente...] [--project] | --remove --all
+cabecao install-skills --instructions
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `[cliente...]` | Um ou mais de: `claude-code`, `codex`, `cursor`, `vscode`, `antigravity`, `gemini`. Sem nome, os detectados nesta máquina |
+| `--all` | Os detectados; com `--remove`, todas as pastas onde o Cabeção instalou, inclusive as de projeto |
+| `--project` | Na pasta atual (o projeto), em vez da pasta do usuário |
+| `--print` | Mostra onde e o que gravaria, com o conteúdo das skills; não grava nada |
+| `--remove` | Tira só as skills que o Cabeção instalou e você não alterou |
+| `--instructions` | Mostra um bloco para colar no `AGENTS.md` (ou equivalente) de um agente sem skills; não grava nada |
+
+```text
+$ cabecao install-skills
+Codex, Cursor: ~/.agents/skills
+  cabecao-consultar: instalada
+  cabecao-lembrar: instalada
+  cabecao-manutencao: instalada
+  cabecao-passar-bastao: instalada
+  cabecao-pedido-explicito: instalada
+Abra uma sessão nova do agente para ele carregar as skills.
+```
+
+O que foi gravado fica anotado em `skills.json`, na pasta de configuração da máquina: rodar de novo atualiza só as skills que continuam como o Cabeção gravou, e uma skill que você alterou nunca é sobrescrita nem removida. As pastas de cada agente, e o que é confirmado e o que é suposição, estão em [Usar o Cabeção com skills](../guias/skills.md#onde-cada-agente-lê-as-skills). É um comando de administração: roda também sem terminal.
+
+**Saída:** `0`; `1` com o `claude-desktop` (que não roda comandos de terminal: use o servidor MCP); `2` com um cliente desconhecido.
+
+## cabecao uninstall
+
+Tira o Cabeção desta máquina: o registro do servidor MCP em todos os clientes, as skills que ele instalou, o sync agendado, a configuração e o cache. **Nunca o cérebro.**
+
+```text
+cabecao uninstall [--dry-run] [--keep-cache]
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--dry-run` | Só mostra o que sairia; não remove nada |
+| `--keep-cache` | Mantém o cache (runtime e modelos da busca por significado) |
+
+```text
+$ cabecao uninstall --dry-run
+O que "cabecao uninstall" tiraria desta máquina (nada foi feito):
+  registro do servidor MCP no Codex: ~/.codex/config.toml
+  registro do servidor MCP no Cursor: ~/.cursor/mcp.json
+  skills do Cabeção em ~/.agents/skills (codex, cursor; só as que você não alterou)
+  configuração da máquina: ~/.config/cabecao
+
+Fica: o cérebro em ~/cabecao (é seu, está no git e no remoto). Apague a pasta à mão se quiser.
+Para tirar o programa depois: npm uninstall -g cabecao
+```
+
+Sem `--dry-run`, mostra a mesma lista e pergunta no terminal; só você confirma. Uma pasta de configuração ou de cache trocada por variável (que não se chama `cabecao`) não é apagada inteira: saem só os arquivos do Cabeção. Depois, tire o programa com o comando que ele mostra. Mais em [Atualizar e desinstalar](../guias/atualizar.md#desinstalar).
+
+**Saída:** `0`; `1` quando você diz não ou algo não pôde ser removido; `4` sem terminal (um agente ou script), a não ser com `--dry-run`.
 
 ## Variáveis de ambiente
 
@@ -935,6 +1067,7 @@ Mais em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
 | `CABECAO_CONFIG_DIR` | Pasta da configuração da máquina (padrão: `~/.config/cabecao`; no Windows, `%APPDATA%\cabecao`) |
 | `CABECAO_CACHE_DIR` | Pasta do cache: runtime e modelo de embeddings e a saída dos agentes do `consolidate --run` (padrão: `~/.cache/cabecao`; no Windows, `%LOCALAPPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | Com `1`, os erros saem com o stack |
+| `COLUMNS` | Largura da ajuda quando a saída não é um terminal (padrão: 80) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | Chave do provedor de respostas do `ask`; quando definida, vale antes da chave guardada |
 | `HTTPS_PROXY`, `NO_PROXY` | Proxy para os provedores de respostas, onde o Node deixa (veja `cabecao llm status`); no Node 24, com `NODE_USE_ENV_PROXY=1` |
 | `XDG_CONFIG_HOME` | Quando definida, a configuração fica em `$XDG_CONFIG_HOME/cabecao` |

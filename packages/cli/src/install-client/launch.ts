@@ -1,5 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import type { CliIo } from '../types.ts';
+import { VERSION } from '../version.ts';
 
 /** Como o cliente inicia o servidor MCP. */
 export interface Launch {
@@ -36,7 +37,7 @@ export async function stableBin(binPath: string | undefined): Promise<string | u
  *   aplicativos de mesa não herdam o do terminal) e economiza o 0,5–1,4 s de `npx` a cada início de sessão.
  *   Em troca, o registro quebra se esse Node ou essa instalação forem removidos: basta rodar `install-client`
  *   de novo.
- * - Rodando por `npx`/`dlx`, do código-fonte, ou com `--npx`: `npx -y cabecao mcp --brain <pasta>`. No Windows
+ * - Rodando por `npx`/`dlx`, do código-fonte, ou com `--npx`: `npx -y cabecao@<versão> mcp --brain <pasta>`. No Windows
  *   o `npx` é um `.cmd`, que não pode ser iniciado sem shell: vai por `cmd /c`.
  *
  * A pasta do cérebro vai como argumento, e não em `env`, porque assim o formato é o mesmo em todos os clientes.
@@ -49,7 +50,8 @@ export async function resolveLaunch(
   const serverArgs = ['mcp', '--brain', brain];
   const bin = forceNpx ? undefined : await stableBin(io.binPath);
   if (bin !== undefined) return { command: io.execPath, args: [bin, ...serverArgs], via: 'node' };
-  const npx = ['npx', '-y', 'cabecao', ...serverArgs];
+  // a versão fixa: sem ela, o npx resolveria a etiqueta `latest` a cada sessão, que pode ser outra versão (ou mais velha)
+  const npx = ['npx', '-y', `cabecao@${VERSION}`, ...serverArgs];
   if (io.platform === 'win32') return { command: 'cmd', args: ['/c', ...npx], via: 'npx' };
   return { command: 'npx', args: npx.slice(1), via: 'npx' };
 }

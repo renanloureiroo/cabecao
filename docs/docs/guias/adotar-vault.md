@@ -1,6 +1,6 @@
 ---
 title: Adotar um vault existente
-description: Transforme um vault do Obsidian (ou uma pasta de Markdown) num cérebro do Cabeção sem mover nenhum arquivo.
+description: Transforme um vault do Obsidian (ou uma pasta de Markdown) num cérebro do Cabeção, sem mover nem renomear nenhuma nota, e abra a pasta nova no Obsidian.
 sidebar_position: 7
 ---
 
@@ -22,23 +22,29 @@ Use um repositório **privado**.
 
 ## Adotar
 
-O `init` clona o repositório numa pasta nova: ele recusa uma pasta que já existe e não está vazia. Na máquina onde o vault já mora, escolha outra pasta com `--dir` (ou mova a original para o lado) e rode o `init` com a URL:
+O `init` **clona** o repositório numa pasta nova: ele recusa uma pasta que já existe e não está vazia, inclusive a pasta onde o vault mora hoje. Rode o `init` com a URL (o cérebro vai para `~/cabecao`, ou para a pasta de `--dir`):
 
 ```text
-$ cabecao init git@github.com:voce/vault-obsidian.git --dir ~/Obsidian/Notas --machine notebook
+$ cabecao init git@github.com:voce/vault.git
 ...
-Pasta do cérebro: ~/Obsidian/Notas (máquina notebook)
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook) e em git@github.com:voce/vault.git.
 
-Repositório: Vault adotado sem mover nenhum arquivo: .cabecao.json, .gitattributes, .gitignore, AGENTS.md, CLAUDE.md acrescentados ou completados e enviados na branch main.
+Vault adotado: .cabecao.json, .gitattributes, .gitignore, AGENTS.md, CLAUDE.md acrescentados ou completados e enviados na branch main; nenhuma nota foi movida, renomeada ou alterada.
+Índice local: 1 nota indexada em 4 ms.
 
-Índice local: 3 notas indexadas em 7 ms.
+Obsidian: O cérebro é a pasta ~/cabecao, um clone novo do vault. Se o Obsidian abre este vault de outra pasta, ele continua abrindo aquela cópia, que não recebe o que os agentes gravam aqui: no Obsidian, use "Abrir pasta como cofre" (Open folder as vault) e escolha ~/cabecao. Depois de conferir que está tudo aqui, apague a cópia antiga ou deixe de usá-la.
 ...
-Próximos passos:
-  - Nada foi movido: o Obsidian continua abrindo o vault como antes.
-  - Em outra máquina, rode cabecao init git@github.com:voce/vault-obsidian.git.
+Opcional (rode quando quiser):
+  ...
+  cabecao obsidian setup  achei o Obsidian neste cérebro: grafo colorido por
+                          tipo, propriedades e painéis
 ```
 
-Depois, no Obsidian, abra a pasta nova como vault. A antiga pode ser apagada quando você tiver conferido que está tudo lá.
+:::warning[Agora são duas pastas]
+Depois do `init`, o seu cérebro é a pasta **nova**. A pasta antiga do vault continua onde estava e o Obsidian continua abrindo ela até você trocar: o que os agentes gravam vai para a pasta nova, e o que você escrever na antiga não chega aos agentes. No Obsidian, use **Abrir pasta como cofre** e escolha a pasta nova. Quando tiver conferido que está tudo lá, apague a antiga (ela é só mais um clone do mesmo repositório).
+:::
+
+Adotar o vault no lugar onde ele está, sem clonar, ainda não existe (está [em estudo](../em-breve.md)).
 
 ## O que muda no vault
 

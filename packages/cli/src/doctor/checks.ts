@@ -2,8 +2,11 @@
 // recebe os fatos já coletados (`facts.ts` faz a parte que lê disco, git e rede) e devolve o resultado com a correção
 // sugerida. Assim cada regra é testável sem montar um cérebro de verdade.
 import type { ClientId } from '../install-client/clients.ts';
+import type { PluginState } from '../install-client/plugin.ts';
+import { pluginActive } from '../install-client/plugin.ts';
 import type { ClientRegistration } from '../install-client/register.ts';
-import { formatWhen } from '../text.ts';
+import type { InstallState } from '../skills/install.ts';
+import { formatAge, formatWhen, plural } from '../text.ts';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -50,7 +53,7 @@ export type IndexFact =
       notes: number;
       lastScanAt: string | null;
     }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; fix?: string };
 
 /** Busca por significado (marco 2). */
 export type EmbeddingsFact =
@@ -107,6 +110,8 @@ export type ScheduleFact =
 export interface DoctorFacts {
   platform: NodeJS.Platform;
   nodeVersion: string;
+  /** Os comandos de atualização e de instalação global, para a forma de instalação detectada (`install-method.ts`). */
+  install?: { upgrade: string; global: string; version: string; method: string };
   git: { kind: 'ok'; version: string; supported: boolean; minimum: string } | { kind: 'error'; message: string };
   /** A pasta do cérebro, ou por que não há uma. */
   brain: { kind: 'resolved'; root: string } | { kind: 'unresolved'; message: string; hint?: string };
@@ -132,8 +137,13 @@ export interface DoctorFacts {
   lastSync?: { at: string; status: string; message: string } | null;
   conflicts?: readonly { copy: string; original: string; originalExists: boolean }[];
   gpgSign?: boolean;
-  identity?: { kind: 'ok'; ident: string } | { kind: 'error'; message: string };
-  clients?: { kind: 'skipped' } | { kind: 'read'; detected: readonly ClientId[]; registrations: ClientRegistration[] };
+  /** `explicit: false`: o git inventou o e-mail (não há user.email configurado). */
+  identity?: { kind: 'ok'; ident: string; explicit?: boolean } | { kind: 'error'; message: string };
+  clients?:
+    | { kind: 'skipped' }
+    | { kind: 'read'; detected: readonly ClientId[]; registrations: ClientRegistration[]; plugin?: PluginState };
+  /** As skills que o Cabeção instalou (`install-skills`). */
+  skills?: { kind: 'read'; installs: readonly InstallState[] } | { kind: 'error'; message: string };
   schedule?: ScheduleFact;
 }
 
@@ -180,6 +190,27 @@ export const checkNode: Check = (facts) => {
   };
 };
 
+const METHOD_TEXT: Readonly<Record<string, string>> = {
+  'npm-global': 'instalado com npm -g',
+  'pnpm-global': 'instalado com pnpm -g',
+  npx: 'rodando pelo npx',
+  local: 'instalado num projeto',
+  plugin: 'o do plugin do Claude Code',
+  source: 'rodando do código-fonte',
+  unknown: 'instalação não identificada',
+};
+
+export const checkVersion: Check = (facts) => {
+  const { install } = facts;
+  if (install === undefined) return null;
+  return {
+    id: 'version',
+    title: 'Cabeção',
+    status: 'ok',
+    message: `${install.version} (${METHOD_TEXT[install.method] ?? install.method}); para atualizar: ${install.upgrade}`,
+  };
+};
+
 export const checkGit: Check = (facts) => {
   const { git } = facts;
   if (git.kind === 'error') {
@@ -188,7 +219,7 @@ export const checkGit: Check = (facts) => {
       title: 'git',
       status: 'fail',
       message: git.message,
-      fix: 'Instale o git (https://git-scm.com) e confira que ele está no PATH.',
+      fix: 'Instale o git: no macOS, "xcode-select --install" (ou "brew install git"); no Linux, pelo gerenciador de pacotes; no Windows, https://git-scm.com. Depois abra um terminal novo.',
     };
   }
   if (!git.supported) {
@@ -349,7 +380,9 @@ function lineFileCheck(
     id,
     title: file,
     status: 'warn',
-    message: fact.exists ? `faltam ${fact.missing.length} linha(s)` : 'o arquivo não existe',
+    message: fact.exists
+      ? `${fact.missing.length === 1 ? 'falta' : 'faltam'} ${plural(fact.missing.length, 'linha', 'linhas')}`
+      : 'o arquivo não existe',
     fix: `Acrescente ao ${file} do cérebro, e faça um commit (ou rode "cabecao sync"):`,
     items: [...fact.missing],
   };
@@ -378,7 +411,9 @@ export const checkIndex: Check = (facts) => {
       title: 'Banco local',
       status: 'fail',
       message: index.message,
-      fix: 'Apague a pasta .cabecao/ do cérebro (ela não vai para o git) e rode "cabecao status" para refazer o banco.',
+      fix:
+        index.fix ??
+        'Apague a pasta .cabecao/ do cérebro (ela não vai para o git) e rode "cabecao status" para refazer o banco.',
     };
   }
   if (index.rebuilt !== null) {
@@ -401,7 +436,7 @@ export const checkIndex: Check = (facts) => {
       title: 'Banco local',
       status: 'warn',
       message: `esquema ${index.schemaVersion}, esperado ${index.expectedSchemaVersion} (outra versão do Cabeção está usando este cérebro)`,
-      fix: 'Use a mesma versão do Cabeção em todos os clientes desta máquina ("npx cabecao@latest").',
+      fix: `Use a mesma versão do Cabeção em todos os clientes desta máquina (${facts.install?.upgrade ?? 'atualize o Cabeção'}); se o plugin do Claude Code também está instalado, atualize-o junto.`,
     };
   }
   const headTime = facts.repo?.kind === 'ok' ? facts.repo.headTime : null;
@@ -425,7 +460,7 @@ export const checkIndex: Check = (facts) => {
     id: 'index',
     title: 'Banco local',
     status: 'ok',
-    message: `em dia com o último commit (${index.notes} nota(s), varrido em ${formatWhen(index.lastScanAt ?? '')})`,
+    message: `em dia com o último commit (${plural(index.notes, 'nota', 'notas')}, varrido em ${formatWhen(index.lastScanAt ?? '')})`,
   };
 };
 
@@ -441,15 +476,15 @@ export const checkLocks: Check = (facts) => {
   }
   const gitLock = facts.gitIndexLock;
   if (gitLock != null && gitLock.ageMs > GIT_LOCK_STALE_MS) {
-    orphans.push(`${gitLock.path} (do git, há ${Math.round(gitLock.ageMs / 1000)} s)`);
+    orphans.push(`${gitLock.path} (do git, de ${formatAge(gitLock.ageMs)} atrás)`);
   }
   if (orphans.length === 0) return { id: 'locks', title: 'Travas', status: 'ok', message: 'nenhuma trava órfã' };
   return {
     id: 'locks',
     title: 'Travas',
     status: 'warn',
-    message: `${orphans.length} trava(s) de processo que morreu`,
-    fix: 'O próximo sync ou escrita toma as travas do Cabeção sozinho. A do git ("index.lock"), apague à mão se nenhum git estiver rodando.',
+    message: `${plural(orphans.length, 'trava', 'travas')} de processo que já terminou`,
+    fix: 'Nada a fazer: o próximo "cabecao sync" (ou a próxima escrita) toma as travas órfãs sozinho, inclusive o index.lock do git quando nenhum git está rodando.',
     items: orphans,
   };
 };
@@ -497,7 +532,7 @@ export const checkInterrupted: Check = (facts) => {
       id: 'interrupted',
       title: 'Operações interrompidas',
       status: 'warn',
-      message: `o último sync (${last.at}) terminou como "${last.status}": ${last.message}`,
+      message: `o último sync (${formatWhen(last.at)}) ${last.status === 'blocked' ? 'foi bloqueado' : 'deu erro'}: ${last.message}`,
       fix: 'Resolva o que a mensagem aponta e rode "cabecao sync" de novo.',
     };
   }
@@ -512,7 +547,7 @@ export const checkConflicts: Check = (facts) => {
     id: 'conflicts',
     title: 'Conflitos',
     status: 'warn',
-    message: `${facts.conflicts.length} cópia(s) de conflito esperando você`,
+    message: `${plural(facts.conflicts.length, 'cópia', 'cópias')} de conflito esperando você`,
     fix: 'Compare cada cópia com a nota original, junte o que importa na nota e apague a cópia; depois rode "cabecao sync".',
     items: facts.conflicts.map(
       (conflict) =>
@@ -544,6 +579,15 @@ export const checkIdentity: Check = (facts) => {
       title: 'Identidade do git',
       status: 'fail',
       message: `o git não sabe o nome e o e-mail do autor: ${identity.message}`,
+      fix: 'Rode git config --global user.name "Seu Nome" e git config --global user.email "voce@exemplo.com".',
+    };
+  }
+  if (identity.explicit === false) {
+    return {
+      id: 'identity',
+      title: 'Identidade do git',
+      status: 'warn',
+      message: `${identity.ident}: o git inventou este e-mail a partir do usuário e do computador (não há user.email configurado), e ele vai nos commits que o Cabeção envia ao remoto`,
       fix: 'Rode git config --global user.name "Seu Nome" e git config --global user.email "voce@exemplo.com".',
     };
   }
@@ -580,9 +624,15 @@ export const checkClients: Check = (facts) => {
   }
   const items: string[] = [];
   const pending: string[] = [];
+  const gone: string[] = [];
+  const viaPlugin = clients.plugin !== undefined && pluginActive(clients.plugin);
   for (const registration of clients.registrations) {
     const states = registration.files.map((file) => file.state);
-    const ok = states.length > 0 && states.every((state) => state === 'current');
+    for (const file of registration.files) gone.push(...(file.gone ?? []));
+    // com o plugin do Claude Code, o servidor vem dele: a falta do registro direto não é problema
+    const ok =
+      (states.length > 0 && states.every((state) => state === 'current')) ||
+      (registration.client === 'claude-code' && viaPlugin && states.every((state) => state === 'missing'));
     const text = registration.files
       .map((file) => {
         const label =
@@ -599,12 +649,22 @@ export const checkClients: Check = (facts) => {
     items.push(`${registration.label}: ${text || 'sem arquivo de configuração'}`);
     if (!ok) pending.push(registration.client);
   }
+  if (gone.length > 0) {
+    return {
+      id: 'clients',
+      title: 'Clientes MCP',
+      status: 'fail',
+      message: `o registro aponta para o que não existe mais (${[...new Set(gone)].join(', ')}): o cliente não consegue iniciar o servidor. Acontece quando o Node é removido (nvm, fnm, Volta) ou o Cabeção muda de lugar`,
+      fix: `Rode "cabecao install-client ${pending.length > 0 ? pending.join(' ') : '--all'}" e reinicie o cliente.`,
+      items,
+    };
+  }
   if (pending.length === 0) {
     return {
       id: 'clients',
       title: 'Clientes MCP',
       status: 'ok',
-      message: `${clients.registrations.length} cliente(s) registrado(s)`,
+      message: `${plural(clients.registrations.length, 'cliente registrado', 'clientes registrados')}`,
       items,
     };
   }
@@ -612,10 +672,75 @@ export const checkClients: Check = (facts) => {
     id: 'clients',
     title: 'Clientes MCP',
     status: 'warn',
-    message: `${pending.length} de ${clients.registrations.length} cliente(s) sem o registro deste cérebro`,
+    message: `${pending.length} de ${plural(clients.registrations.length, 'cliente', 'clientes')} sem o registro deste cérebro`,
     fix: `Rode "cabecao install-client ${pending.join(' ')}" e reinicie o cliente.`,
     items,
   };
+};
+
+/** O plugin do Cabeção no Claude Code, e o conflito com o registro direto (as tools apareceriam em dobro). */
+export const checkClaudePlugin: Check = (facts) => {
+  const { clients } = facts;
+  if (clients === undefined || clients.kind !== 'read' || clients.plugin === undefined) return null;
+  const plugin = clients.plugin;
+  if (!plugin.installed) return null;
+  const title = 'Plugin do Claude Code';
+  const version = plugin.version === null ? '' : ` (versão ${plugin.version})`;
+  if (!pluginActive(plugin)) {
+    return { id: 'claude-plugin', title, status: 'ok', message: `instalado${version}, mas desligado no Claude Code` };
+  }
+  const direct = clients.registrations
+    .find((registration) => registration.client === 'claude-code')
+    ?.files.some((file) => file.state !== 'missing');
+  if (direct === true) {
+    return {
+      id: 'claude-plugin',
+      title,
+      status: 'warn',
+      message: `instalado${version} E o servidor também está registrado direto no Claude Code: o agente vê as tools do Cabeção em dobro`,
+      fix: 'Fique com um: "cabecao install-client --remove claude-code" tira o registro direto (o plugin já traz o servidor, o briefing e o sync no fim da sessão).',
+    };
+  }
+  return { id: 'claude-plugin', title, status: 'ok', message: `instalado e ligado${version}` };
+};
+
+/** As skills que o Cabeção instalou: em dia com esta versão? */
+export const checkSkills: Check = (facts) => {
+  const { skills } = facts;
+  if (skills === undefined) return null;
+  const title = 'Skills do Cabeção';
+  if (skills.kind === 'error') {
+    return {
+      id: 'skills',
+      title,
+      status: 'warn',
+      message: skills.message,
+      fix: 'Apague o skills.json da configuração e rode "cabecao install-skills".',
+    };
+  }
+  if (skills.installs.length === 0) {
+    return { id: 'skills', title, status: 'ok', message: 'nenhuma instalada (opcional: "cabecao install-skills")' };
+  }
+  const items = skills.installs.map((install) => {
+    const parts = [plural(install.current, 'arquivo em dia', 'arquivos em dia')];
+    if (install.outdated > 0) parts.push(`${install.outdated} de versão anterior`);
+    if (install.missing > 0) parts.push(`${install.missing} faltando`);
+    if (install.modified > 0) parts.push(plural(install.modified, 'alterado por você', 'alterados por você'));
+    return `${install.dir} (${install.clients.join(', ')}): ${parts.join(', ')}`;
+  });
+  const stale = skills.installs.filter((install) => install.outdated > 0 || install.missing > 0);
+  if (stale.length > 0) {
+    const clients = [...new Set(stale.flatMap((install) => install.clients))];
+    return {
+      id: 'skills',
+      title,
+      status: 'warn',
+      message: 'há skills desatualizadas ou faltando: o agente pode seguir instruções de outra versão',
+      fix: `Rode "cabecao install-skills ${clients.join(' ')}" (o que você alterou fica como está).`,
+      items,
+    };
+  }
+  return { id: 'skills', title, status: 'ok', message: 'instaladas e em dia', items };
 };
 
 export const checkSchedule: Check = (facts) => {
@@ -647,7 +772,7 @@ export const checkSchedule: Check = (facts) => {
       status: 'warn',
       message: `registrado${every}, mas o comando agendado aponta para o que não existe mais`,
       items: [...fact.missing],
-      fix: 'Instale com "npm i -g cabecao" e rode "cabecao schedule on" de novo, ou "cabecao schedule off".',
+      fix: `Instale com "${facts.install?.global ?? 'npm i -g cabecao'}" e rode "cabecao schedule on" de novo, ou "cabecao schedule off".`,
     };
   }
   if (fact.loaded === false) {
@@ -699,6 +824,18 @@ export const checkEmbeddings: Check = (facts) => {
       message: `${model}, desligada nesta máquina ("cabecao embeddings on" religa)`,
     };
   }
+  const missing = missingHere(fact);
+  if (missing.length > 0) {
+    // uma causa só (falta instalar nesta máquina), um aviso só: o runtime, o modelo e os trechos sem vetor viram itens
+    return {
+      id: 'embeddings',
+      title,
+      status: 'warn',
+      message: `${model} está ligada no cérebro, mas falta nesta máquina: a busca aqui é só por palavra-chave`,
+      fix: EMBEDDINGS_ON_FIX,
+      items: missing,
+    };
+  }
   if (fact.fake)
     return {
       id: 'embeddings',
@@ -719,9 +856,25 @@ export const checkEmbeddings: Check = (facts) => {
   return { id: 'embeddings', title, status: 'ok', message: `${model}, revisão ${fact.revision.slice(0, 12)}` };
 };
 
+/** O que falta nesta máquina para a busca por significado (runtime, modelo), ou nada. */
+function missingHere(fact: Extract<EmbeddingsFact, { kind: 'configured' }>): string[] {
+  if (fact.fake || fact.runtime === null) return [];
+  const missing: string[] = [];
+  if (!fact.runtime.installed) {
+    missing.push(`runtime não instalado${fact.runtime.problem === null ? '' : ` (${fact.runtime.problem})`}`);
+  }
+  if (fact.modelCached === false) missing.push(`modelo ${fact.model} não baixado`);
+  if (missing.length === 0) return [];
+  if (fact.pending !== null && fact.chunks !== null && fact.pending > 0) {
+    missing.push(`${fact.pending} de ${fact.chunks} trechos sem vetor`);
+  }
+  if (fact.revision === null) missing.push('sem revisão fixada do modelo (nada urgente)');
+  return missing;
+}
+
 export const checkEmbeddingsRuntime: Check = (facts) => {
   const fact = facts.embeddings;
-  if (fact?.kind !== 'configured' || !fact.enabledHere || fact.fake) return null;
+  if (fact?.kind !== 'configured' || !fact.enabledHere || fact.fake || missingHere(fact).length > 0) return null;
   const title = 'Runtime de embeddings';
   const runtime = fact.runtime;
   if (runtime === null) {
@@ -757,6 +910,7 @@ export const checkEmbeddingsRuntime: Check = (facts) => {
 export const checkEmbeddingsModel: Check = (facts) => {
   const fact = facts.embeddings;
   if (fact?.kind !== 'configured' || !fact.enabledHere || fact.fake || fact.modelCached === null) return null;
+  if (missingHere(fact).length > 0) return null;
   return fact.modelCached
     ? { id: 'embeddings-model', title: 'Modelo de embeddings', status: 'ok', message: `${fact.model} baixado` }
     : {
@@ -771,6 +925,7 @@ export const checkEmbeddingsModel: Check = (facts) => {
 export const checkEmbeddingsPending: Check = (facts) => {
   const fact = facts.embeddings;
   if (fact?.kind !== 'configured' || fact.pending === null || fact.chunks === null) return null;
+  if (fact.enabledHere && missingHere(fact).length > 0) return null;
   const title = 'Trechos sem embedding';
   if (fact.pending === 0)
     return { id: 'embeddings-pending', title, status: 'ok', message: `todos os ${fact.chunks} trechos têm vetor` };
@@ -786,6 +941,7 @@ export const checkEmbeddingsPending: Check = (facts) => {
 };
 
 export const CHECKS: readonly Check[] = [
+  checkVersion,
   checkNode,
   checkGit,
   checkBrain,
@@ -806,6 +962,8 @@ export const CHECKS: readonly Check[] = [
   checkConflicts,
   checkWindowsPath,
   checkClients,
+  checkClaudePlugin,
+  checkSkills,
   checkSchedule,
 ];
 
@@ -813,6 +971,8 @@ export interface DoctorReport {
   brain: string | null;
   checks: CheckResult[];
   summary: Record<CheckStatus, number>;
+  /** Próximos passos opcionais ainda pendentes (só no `doctor`; o `init` mostra os dele). */
+  optional?: { id: string; command: string; why: string }[];
 }
 
 /** Roda as verificações sobre os fatos e resume. */

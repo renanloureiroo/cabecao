@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present run build",
+    "build:skills": "node scripts/build-skills.mjs",
     "build:plugin": "pnpm --filter cabecao build && node scripts/build-plugin.mjs",
     "build:mcpb": "pnpm --filter cabecao build && node scripts/build-mcpb.mjs",
     "test": "vitest run",

@@ -43,6 +43,8 @@ export interface CliIo {
   cwd: string;
   stdout: Writer;
   stderr: Writer;
+  /** Largura do terminal da saída (`process.stdout.columns`), só quando a saída é um terminal. */
+  columns?: number | undefined;
   platform: NodeJS.Platform;
   /** Pasta do usuário usada quando `HOME`/`USERPROFILE` não estão em `env`. */
   homedir?: string | undefined;

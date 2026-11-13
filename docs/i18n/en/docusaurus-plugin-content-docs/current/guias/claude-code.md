@@ -9,7 +9,7 @@ The plugin is the most complete way to use Cabeção in Claude Code. It brings:
 - **the bundled MCP server**: Cabeção's tools start with `node`, from a copy of the program that ships inside the plugin. No `npx` and no network, and the server starts in about 0.05 s;
 - **the briefing at the start of every session**: your rules, the latest handoff, your preferences, the gotchas, and the project's memories enter the agent's context before the first message, together with the brain's usage rules;
 - **the sync at the end of every session**, in the background;
-- **the `cabecao:memory` skill**, a short reference on when to look things up and what to remember.
+- **the Cabeção skills** (look up, remember, pass the baton, maintenance on request, and actions with an explicit request), the same as [`cabecao install-skills`](./skills.md). The plugin matches the **published version**: the skills reach it in the next published version; until then, it brings the `cabecao:memory` reference skill.
 
 ## Before installing
 
@@ -56,6 +56,8 @@ The plugin brings its own server. Remove the old registration so the agent does 
 ```bash
 cabecao install-client --remove claude-code
 ```
+
+`cabecao doctor` detects the plugin (by reading Claude Code's plugin registry, without running anything) and warns when it and the direct registration are active at the same time, with that command as the fix. `init` still registers the server directly when it finds Claude Code, even with the plugin; in that case, it warns at the end. With the plugin, you also don't need `cabecao install-skills` in Claude Code.
 
 ## What happens at session start
 
@@ -117,7 +119,7 @@ If another sync is already running, the new one ends as "another sync in progres
 
 ## Update and remove
 
-The plugin follows the versions of the `cabecao` package: `/plugin update cabecao@cabecao` (or `claude plugin update cabecao@cabecao`) brings the new version when it is released. To remove it: `/plugin uninstall cabecao@cabecao`. Removing the plugin does not touch the brain.
+The plugin follows the published versions of the `cabecao` package: the program and the skills inside it only change when a new version is released, and `/plugin update cabecao@cabecao` (or `claude plugin update cabecao@cabecao`) brings that version. To remove it: `/plugin uninstall cabecao@cabecao`. Removing the plugin does not touch the brain; to remove the rest of Cabeção from the machine, see [Update and uninstall](./atualizar.md#uninstall).
 
 ## Troubleshooting
 

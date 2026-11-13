@@ -44,6 +44,26 @@ Rode cabecao search --help para ver o uso.
 
 With `CABECAO_DEBUG=1`, errors include the stack trace, so you can report a problem.
 
+## The help
+
+`cabecao --help` groups the commands (daily use, configuration, notes and graph, maintenance), and `cabecao <command> --help` shows the usage, **examples**, the options, and a line with the global options. The text adapts to the terminal width (up to 100 columns; 80 when the output is not a terminal, or the value of `COLUMNS`). There is no color: the output is the same with or without `NO_COLOR` and in a screen reader.
+
+A command, option, subcommand or client with a typo gets a suggestion:
+
+```text
+$ cabecao statsu
+cabecao: comando desconhecido: statsu. Você quis dizer "cabecao status"?
+Rode cabecao --help para ver o que existe.
+
+$ cabecao doctor --ofline
+cabecao: opção desconhecida: --ofline. Você quis dizer "--offline"?
+Rode cabecao doctor --help para ver o uso.
+
+$ cabecao install-client claude
+cabecao: cliente desconhecido: claude. Você quis dizer "claude-code"? Os clientes são: claude-code, claude-desktop, codex, cursor, vscode, antigravity, gemini
+Rode cabecao install-client --help para ver o uso.
+```
+
 ---
 
 ## cabecao init
@@ -61,7 +81,7 @@ cabecao init [url] [--dir <pasta>] [--machine <nome>] [--no-clients]
 | `--machine <nome>` | Name of this machine (default: the computer's name), adjusted to lowercase letters, digits, and hyphens |
 | `--no-clients` | Does not register the MCP server in the AI clients |
 
-Without asking anything, it: clones the repository (or creates the folder); checks what is in it (an empty repository becomes a new brain, an existing brain is just downloaded, an Obsidian or Markdown vault is adopted without moving files, and anything else is refused); builds the local index; registers the MCP server in the clients it finds; and runs `doctor`.
+Without asking anything, it: clones the repository (or creates the folder); checks what is in it (an empty repository becomes a new brain, an existing brain is just downloaded, an Obsidian or Markdown vault is cloned into a new folder and adopted, without moving or renaming notes, and anything else is refused); builds the local index; registers the MCP server in the clients it finds; runs `doctor`; and ends with "Pronto", what was set up in each agent, a "Teste agora" block, and up to three detected optional steps, each with its command ([Create or connect a brain](../comecar/init.md#the-optional-steps)).
 
 It uses the credentials your git already uses and never asks for a password. It saves `machine` and `defaultBrain` to `~/.config/cabecao/config.json`.
 
@@ -244,7 +264,7 @@ cabecao schedule status
 | --- | --- |
 | `--interval <min>` | With `on`: minutes between syncs, from 5 to 1440 (default: 30) |
 
-It registers `cabecao sync --log` with the scheduler, for your user only and without administrator rights: a LaunchAgent on macOS, a `systemd --user` timer on Linux (your `crontab` when there is no user systemd), and Task Scheduler on Windows. The scheduled sync uses this machine's default brain (the one from `init`; `--brain` with another folder is refused) and needs a stable installation (`npm i -g cabecao`): when run through `npx`, the command refuses.
+It registers `cabecao sync --log` with the scheduler, for your user only and without administrator rights: a LaunchAgent on macOS, a `systemd --user` timer on Linux (your `crontab` when there is no user systemd), and Task Scheduler on Windows. The scheduled sync uses this machine's default brain (the one from `init`; `--brain` with another folder is refused) and needs a stable installation (`npm i -g cabecao@beta`): when run through `npx`, the command refuses.
 
 ```text
 $ cabecao schedule on
@@ -649,6 +669,51 @@ Antigravity and Gemini CLI are not part of `--run`: the personal plan's terms do
 
 **Exit:** `0` when it prepared, closed, or the agent finished (with or without changes); `1` when the id is not a consolidation on this machine, the agent is not installed, lacks the allowed credential, or has no `--run`, or the agent did not close the consolidation; `2` with a `--run` option without `--run` or an invalid `--timeout`.
 
+## cabecao embeddings
+
+Turns semantic search on and off, shows it, and switches it.
+
+```text
+cabecao embeddings on [modelo] [--variant <v>] [--yes]
+cabecao embeddings off
+cabecao embeddings status
+cabecao embeddings switch <modelo> [--variant <v>] [--yes]
+```
+
+`on` installs the runtime, downloads the model, saves the choice in `.cabecao.json`, and computes the missing vectors; on a second machine, it uses the model already saved. `off` turns it off on this machine only. `switch` changes the model, computing everything in a new folder of the index branch. `on`, `off`, and `switch` only run for you, at the terminal; anyone can run `status`. The full guide, with the suggested models, is in [Search](../guias/buscar.md).
+
+**Exit:** `0`; `4` when an agent tries `on`, `off`, or `switch`.
+
+## cabecao compact
+
+Shrinks the semantic search index branch and starts a new generation, without rewriting history; `--prune` deletes on the remote the old generations that are already complete in the new one. Only you run it, at the terminal.
+
+```text
+cabecao compact [--prune]
+```
+
+**Exit:** `0`; `4` when an agent tries.
+
+## cabecao eval
+
+Measures search with your own questions (one per line, in JSON, with the expected note): MRR, nDCG, recall, and first-position hit rate, per question type, for keyword, vector, and the fusion.
+
+```text
+cabecao eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]
+```
+
+**Exit:** `0`.
+
+## cabecao reindex
+
+Updates the local database (`.cabecao/cabecao.db`) with what changed in the notes or, with `--full`, rebuilds it from scratch. The database is only a view of the notes: rebuilding is always safe.
+
+```text
+cabecao reindex [--full]
+```
+
+**Exit:** `0`.
+
 ## cabecao obsidian
 
 Sets up the brain for Obsidian: graph, properties, dashboards and Web Clipper.
@@ -908,7 +973,7 @@ cabecao install-client --remove <cliente...> | --remove --all
 | `--all` | All clients detected on this machine |
 | `--print` | Only shows the configuration; does not write anything |
 | `--remove` | Removes the registration instead of creating it |
-| `--npx` | Registers as `npx -y cabecao mcp` instead of the direct path |
+| `--npx` | Registers as `npx -y cabecao@<versão> mcp` (with this Cabeção's version pinned) instead of the direct path |
 
 The server is registered as `cabecao mcp --brain <pasta>`. With a stable installation (global or local), the registration points directly to Node and to the Cabeção file, which avoids 0.5 to 1.4 s of `npx` on every session. The other servers and keys in the client's file are preserved, and the first change leaves a `.bak` copy of the original.
 
@@ -923,9 +988,76 @@ Reinicie o cliente para ele enxergar a mudança.
 
 `gemini` stays for those who still use Gemini CLI (Enterprise license or paid API key); people who used it with a personal account moved to Antigravity, and registering `gemini` says so.
 
+A name with a typo gets a suggestion (`claude` → `claude-code`). With no client detected, `--all` tells you how to proceed (install a client, or `--print` to configure it by hand).
+
 **Exit:** `0`; `2` with an unknown client, or with no client and no `--all`.
 
 More in [Connect to AI clients](../comecar/conectar-clientes.md).
+
+## cabecao install-skills
+
+Installs the [Cabeção skills](../guias/skills.md) in the agents: they teach the agent to use the brain through the CLI, without the MCP server, under the same rules.
+
+```text
+cabecao install-skills [cliente...] [--project]
+cabecao install-skills --all [--project]
+cabecao install-skills --print [cliente...]
+cabecao install-skills --remove [cliente...] [--project] | --remove --all
+cabecao install-skills --instructions
+```
+
+| Option | What it does |
+| --- | --- |
+| `[cliente...]` | One or more of: `claude-code`, `codex`, `cursor`, `vscode`, `antigravity`, `gemini`. Without a name, the ones detected on this machine |
+| `--all` | The detected ones; with `--remove`, every folder where Cabeção installed them, including project folders |
+| `--project` | In the current folder (the project), instead of the user folder |
+| `--print` | Shows where and what it would write, with the content of the skills; does not write anything |
+| `--remove` | Removes only the skills Cabeção installed and you did not edit |
+| `--instructions` | Shows a block to paste into the `AGENTS.md` (or equivalent) of an agent without skills; does not write anything |
+
+```text
+$ cabecao install-skills
+Codex, Cursor: ~/.agents/skills
+  cabecao-consultar: instalada
+  cabecao-lembrar: instalada
+  cabecao-manutencao: instalada
+  cabecao-passar-bastao: instalada
+  cabecao-pedido-explicito: instalada
+Abra uma sessão nova do agente para ele carregar as skills.
+```
+
+What was written is recorded in `skills.json`, in the machine's configuration folder: running it again updates only the skills still as Cabeção wrote them, and a skill you edited is never overwritten or removed. The folders of each agent, and what is confirmed and what is an assumption, are in [Use Cabeção with skills](../guias/skills.md#where-each-agent-reads-the-skills). It is an administration command: it also runs without a terminal.
+
+**Exit:** `0`; `1` with `claude-desktop` (which does not run terminal commands: use the MCP server); `2` with an unknown client.
+
+## cabecao uninstall
+
+Removes Cabeção from this machine: the MCP server registration in every client, the skills it installed, the scheduled sync, the configuration, and the cache. **Never the brain.**
+
+```text
+cabecao uninstall [--dry-run] [--keep-cache]
+```
+
+| Option | What it does |
+| --- | --- |
+| `--dry-run` | Only shows what would be removed; removes nothing |
+| `--keep-cache` | Keeps the cache (semantic search runtime and models) |
+
+```text
+$ cabecao uninstall --dry-run
+O que "cabecao uninstall" tiraria desta máquina (nada foi feito):
+  registro do servidor MCP no Codex: ~/.codex/config.toml
+  registro do servidor MCP no Cursor: ~/.cursor/mcp.json
+  skills do Cabeção em ~/.agents/skills (codex, cursor; só as que você não alterou)
+  configuração da máquina: ~/.config/cabecao
+
+Fica: o cérebro em ~/cabecao (é seu, está no git e no remoto). Apague a pasta à mão se quiser.
+Para tirar o programa depois: npm uninstall -g cabecao
+```
+
+Without `--dry-run`, it shows the same list and asks at the terminal; only you confirm. A configuration or cache folder changed through a variable (one not named `cabecao`) is not deleted whole: only Cabeção's files are removed. Then remove the program with the command it shows. More in [Update and uninstall](../guias/atualizar.md#uninstall).
+
+**Exit:** `0`; `1` when you say no or something could not be removed; `4` without a terminal (an agent or a script), except with `--dry-run`.
 
 ## Environment variables
 
@@ -935,6 +1067,7 @@ More in [Connect to AI clients](../comecar/conectar-clientes.md).
 | `CABECAO_CONFIG_DIR` | Machine configuration folder (default: `~/.config/cabecao`; on Windows, `%APPDATA%\cabecao`) |
 | `CABECAO_CACHE_DIR` | Cache folder: the embeddings runtime and model, and the output of `consolidate --run` agents (default: `~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | With `1`, errors include the stack trace |
+| `COLUMNS` | Help width when the output is not a terminal (default: 80) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | Key for the `ask` answer provider; when set, it takes precedence over the stored key |
 | `HTTPS_PROXY`, `NO_PROXY` | Proxy for the answer providers, where Node allows it (see `cabecao llm status`); on Node 24, with `NODE_USE_ENV_PROXY=1` |
 | `XDG_CONFIG_HOME` | When set, the configuration lives in `$XDG_CONFIG_HOME/cabecao` |

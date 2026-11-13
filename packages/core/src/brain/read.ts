@@ -725,7 +725,9 @@ export async function status(ctx: BrainContext, machine: string): Promise<Status
   }
   const last = sync?.lastSync ?? null;
   if (last !== null && last.status !== 'ok' && last.status !== 'busy') {
-    problems.push(`o último sync terminou como "${last.status}": ${last.message}`);
+    const how =
+      last.status === 'blocked' ? 'foi bloqueado' : last.status === 'offline' ? 'não alcançou o remoto' : 'deu erro';
+    problems.push(`o último sync ${how}: ${last.message}`);
   }
   if (index.status.schemaVersion !== index.status.expectedSchemaVersion) {
     problems.push(
@@ -748,7 +750,11 @@ export async function status(ctx: BrainContext, machine: string): Promise<Status
   if (conflicts.length > 0) {
     steps.push('Resolva os conflitos: compare cada cópia .conflict-* com a nota original, junte e apague a cópia.');
   }
-  if ((sync?.unpushed ?? 0) > 0 || (sync?.pendingChanges ?? 0) > 0) steps.push('Rode sync para enviar as mudanças.');
+  if (last !== null && last.status === 'blocked') {
+    steps.push('Resolva o que bloqueou o último sync (veja acima) e rode o sync de novo.');
+  } else if ((sync?.unpushed ?? 0) > 0 || (sync?.pendingChanges ?? 0) > 0) {
+    steps.push('Rode o sync para enviar as mudanças.');
+  }
   return {
     healthy: problems.length === 0,
     problems,
