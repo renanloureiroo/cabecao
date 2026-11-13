@@ -125,7 +125,7 @@ With `ask` turned on, the brain's content gets one more recipient: the provider 
 - **Content as data.** Each passage goes between delimiters with a mark drawn at random for each question (a passage that tries to forge the delimiter is neutralized), outside content goes with its words separated by `^`, and the prompt says nothing inside the passages is an instruction.
 - **The answer is read only.** Nothing the provider returns is executed, written to the brain, or used to call anything else. Terminal control sequences are removed.
 - **Citations checked by Cabeção**, not by the model: an invented label or a quote that is not in the passage is dropped; with no valid citation at all, the answer is "the brain does not have this".
-- **The key** lives in the system keychain (or a `0600` file), reaches system programs through standard input, never the command line, and never shows up in the brain, the log, an error message or `--json`.
+- **The key** lives in the system keychain (or a `0600` file), reaches system programs through standard input (on Windows, through the environment of the PowerShell process only), never the command line, and never shows up in the brain, the log, an error message or `--json`.
 - **The installed agent runs without tools.** Claude Code, as a provider, runs with no shell, no file reads and no MCP, in an empty temporary folder, with a minimal environment and a time limit; the process tree is ended afterwards.
 
 Details, providers and each one's data policy in [Answers with a language model](./guias/respostas-com-modelo.md).
