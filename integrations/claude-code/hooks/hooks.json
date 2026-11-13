@@ -1,0 +1,29 @@
+{
+  "description": "Cabeção: briefing do cérebro no início da sessão e sync em segundo plano no fim. Nenhum hook lê ou grava a conversa.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/server/cabecao.mjs", "recall", "--hook"],
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/server/cabecao.mjs", "sync", "--hook"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

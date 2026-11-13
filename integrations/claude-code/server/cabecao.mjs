@@ -1,0 +1,2 @@
+#!/usr/bin/env node
+function e(e){let t=e.replace(/^v/,``).split(`.`),n=Number(t[0]),r=Number(t[1]);if(!(n===22?r>=16:n>=24))return`cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: v${e.replace(/^v/,``)}. Atualize em https://nodejs.org`}const t=e(process.versions.node);t&&(process.stderr.write(`${t}\n`),process.exit(1)),import(`./main.mjs`).then(({main:e})=>e(process.argv.slice(2)),e=>{process.stderr.write(`cabecao: falha ao iniciar: ${String(e)}\n`),process.exit(1)});export{};

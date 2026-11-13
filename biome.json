@@ -16,6 +16,7 @@
       "!spikes",
       "!fixtures",
       "!templates",
+      "!integrations/claude-code/server",
       "!.claude"
     ]
   },
