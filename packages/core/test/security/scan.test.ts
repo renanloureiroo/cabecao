@@ -87,9 +87,9 @@ describe('medição: falsos positivos', () => {
     expect(findings).toEqual([]);
   });
 
-  it('zero falsos positivos nos documentos de docs/', () => {
-    const { files, findings } = scanTree('docs');
-    expect(files).toBeGreaterThan(10);
+  it('zero falsos positivos no modelo de cérebro de templates/vault', () => {
+    const { files, findings } = scanTree('templates/vault');
+    expect(files).toBeGreaterThan(3);
     expect(findings).toEqual([]);
   });
 
@@ -272,7 +272,7 @@ describe('desempenho', () => {
   });
 
   it('nota grande e realista (5 MB de prosa com hashes) em tempo razoável', () => {
-    const paragraph = `${readFileSync(join(ROOT, 'docs/04-sincronizacao.md'), 'utf8')}\ncommit ${fake('0123456789abcdef', 40, 31)}\n`;
+    const paragraph = `${readFileSync(join(ROOT, 'templates/vault/AGENTS.md'), 'utf8')}\ncommit ${fake('0123456789abcdef', 40, 31)}\n`;
     const text = paragraph.repeat(Math.ceil(5_000_000 / paragraph.length));
     const started = performance.now();
     expect(scanSecrets(text)).toEqual([]);

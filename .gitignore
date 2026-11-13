@@ -9,3 +9,6 @@ coverage/
 .cabecao/cache/
 *.tgz
 .claude/
+
+# Provas de conceito: material interno, fica só na máquina.
+/spikes/

@@ -1,105 +1,295 @@
-# Publica o pacote `cabecao` no npm. Só roda quando alguém aperta o botão (workflow_dispatch):
-# nada é publicado por push ou por merge.
+# Versiona e publica o pacote `cabecao` no npm com Changesets.
 #
-# A publicação normal é por "trusted publishing" (OIDC), sem token guardado no repositório. Ela precisa ser
-# ligada uma vez, em npmjs.com > pacote cabecao > Settings > Trusted Publisher: GitHub Actions, usuário
-# `renanloureiroo`, repositório `cabecao`, workflow `release.yml`.
+# A cada push na `main`:
+#   - há changesets pendentes  → abre ou atualiza o PR "Version Packages" (sobe a versão e escreve o CHANGELOG.md);
+#   - não há, e a versão do package.json ainda não está no npm (o PR de versão acabou de entrar)
+#                              → confere tudo, publica no npm, cria a tag vX.Y.Z e a release no GitHub;
+#   - não há, e a versão já está no npm → não faz nada (só garante que a tag e a release existem).
 #
-# Como o npm só deixa cadastrar o trusted publisher num pacote que já existe, a PRIMEIRA publicação tem duas
-# saídas: publicar à mão, ou rodar este workflow com "usar-token" marcado e um secret NPM_TOKEN temporário.
-# O passo a passo está em docs/13-publicacao.md.
+# Rodar à mão (Actions > release > Run workflow, na `main`) faz o mesmo, menos o PR de versão. Com "dry-run" marcado
+# (o padrão) só simula: confere, empacota e roda `npm publish --dry-run`.
+#
+# A publicação usa trusted publishing (OIDC), sem token guardado. O cadastro no npm está amarrado a este repositório
+# e a ESTE NOME DE ARQUIVO (release.yml): renomear o arquivo quebra a publicação.
 name: release
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry-run:
-        description: Só simular (npm publish --dry-run)
+        description: Só simular (confere, empacota e roda npm publish --dry-run; não publica nem cria tag)
         type: boolean
         default: true
-      tag:
-        description: Etiqueta no npm (beta para versões X.Y.Z-beta.N; latest para versões finais)
-        type: choice
-        options: [beta, latest]
-        default: beta
-      usar-token:
-        description: Usar o secret NPM_TOKEN em vez do trusted publishing (só para a primeira publicação)
-        type: boolean
-        default: false
 
-permissions:
-  contents: read
+permissions: {}
 
-concurrency: release
+# Uma execução por vez, sem cancelar a que está no meio: nunca duas publicações ao mesmo tempo.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  publish:
-    name: publicar cabecao no npm
+  plan:
+    name: decidir o que fazer
+    # O trusted publisher do npm não restringe a branch: só a `main` publica.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
-      contents: write # cria a tag e a release no GitHub depois de publicar
-      id-token: write # OIDC: trusted publishing e atestação de proveniência
+      contents: read # checkout e consulta de releases
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+      version: ${{ steps.state.outputs.version }}
+      dist-tag: ${{ steps.state.outputs.dist-tag }}
+      on-npm: ${{ steps.state.outputs.on-npm }}
+      publish: ${{ steps.state.outputs.publish }}
+      release: ${{ steps.state.outputs.release }}
+      dry-run: ${{ steps.state.outputs.dry-run }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      # version: há changesets pendentes; publish: não há, e há versão fora do npm; none: nada a fazer.
+      - name: modo do Changesets
+        id: select
+        uses: changesets/action/select-mode@v2
+      - name: versão, etiqueta e o que já existe no npm e no GitHub
+        id: state
+        env:
+          MODE: ${{ steps.select.outputs.mode }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./packages/cli/package.json').version")"
+
+          # Etiqueta do npm: X.Y.Z-beta.N sai como beta; X.Y.Z sai como latest.
+          case "$version" in
+            *-*) dist_tag="${version#*-}"; dist_tag="${dist_tag%%.*}" ;;
+            *) dist_tag=latest ;;
+          esac
+
+          # Se a consulta ao npm falhar, o passo falha: melhor parar do que tentar publicar às cegas.
+          versions_json="$(npm view cabecao versions --json)"
+          on_npm="$(VERSIONS="$versions_json" VERSION="$version" node -p \
+            "[].concat(JSON.parse(process.env.VERSIONS)).includes(process.env.VERSION)")"
+
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            release_exists=true
+          else
+            release_exists=false
+          fi
+
+          publish=false
+          release=false
+          if [ "$MODE" != version ]; then
+            if [ "$on_npm" = false ]; then publish=true; fi
+            if [ "$release_exists" = false ]; then release=true; fi
+          fi
+
+          # No modo de pré-lançamento, só sai versão com a etiqueta do pre.json.
+          if [ "$publish" = true ] && [ -f .changeset/pre.json ]; then
+            pre_mode="$(node -p "require('./.changeset/pre.json').mode")"
+            pre_tag="$(node -p "require('./.changeset/pre.json').tag")"
+            if [ "$pre_mode" = pre ] && [ "$dist_tag" != "$pre_tag" ]; then
+              echo "::error::modo de pré-lançamento '$pre_tag', mas a versão $version sairia como '$dist_tag'"
+              exit 1
+            fi
+          fi
+
+          {
+            echo "version=$version"
+            echo "dist-tag=$dist_tag"
+            echo "on-npm=$on_npm"
+            echo "publish=$publish"
+            echo "release=$release"
+            echo "dry-run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### release: o que esta execução decidiu"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| modo do Changesets | \`$MODE\` |"
+            echo "| versão no package.json | \`$version\` (etiqueta \`$dist_tag\`) |"
+            echo "| já está no npm? | $on_npm |"
+            echo "| release v$version já existe? | $release_exists |"
+            echo "| publicar no npm? | $publish |"
+            echo "| criar tag e release? | $release |"
+            echo "| só simular? | $DRY_RUN |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  version:
+    name: abrir ou atualizar o PR "Version Packages"
+    needs: plan
+    if: needs.plan.outputs.mode == 'version' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # commit de versão na branch changeset-release/main
+      pull-requests: write # abrir ou atualizar o PR
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # o changelog liga cada entrada ao commit que trouxe o changeset
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      # Roda `changeset version` e empurra o resultado pela API do GitHub. O título ganha " (beta)" no pré-lançamento.
+      - uses: changesets/action/version@v2
+        with:
+          commit-message: "chore: Version Packages"
+
+  ci-version-pr:
+    # O PR criado com o GITHUB_TOKEN não dispara o CI sozinho (o evento pull_request fica esperando aprovação manual).
+    # Um workflow_dispatch disparado pelo GITHUB_TOKEN sempre roda: o CI roda na ponta da branch do PR, e os checks
+    # aparecem no PR porque ficam presos ao commit.
+    name: rodar o CI no PR de versão
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # disparar o workflow ci.yml
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: changeset-release/${{ github.ref_name }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+
+  verify:
+    name: conferir e empacotar
+    needs: plan
+    if: needs.plan.outputs.publish == 'true' || needs.plan.outputs.dry-run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: node -v && npm -v && pnpm -v
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: smoke do bundle
+        run: pnpm smoke
+      - name: ponta a ponta com duas máquinas e um remoto local
+        run: pnpm e2e
+      - name: npm pack
+        working-directory: packages/cli
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+          test -f "$RUNNER_TEMP/pack/cabecao-$VERSION.tgz"
+      - name: npm publish --dry-run
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          DIST_TAG: ${{ needs.plan.outputs.dist-tag }}
+        run: npm publish "$RUNNER_TEMP/pack/cabecao-$VERSION.tgz" --dry-run --tag "$DIST_TAG"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: publicar no npm
+    needs: [plan, verify]
+    if: needs.plan.outputs.publish == 'true' && needs.plan.outputs.dry-run != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write # OIDC: trusted publishing e atestação de proveniência
+    steps:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - run: node -v && npm -v && pnpm -v
-      - name: a versão combina com a etiqueta
-        id: version
-        env:
-          TAG: ${{ inputs.tag }}
+      - name: npm com suporte a trusted publishing (11.5.1 ou superior)
         run: |
-          version="$(node -p "require('./packages/cli/package.json').version")"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          case "$TAG:$version" in
-            beta:*-beta.*) ;;
-            latest:*-*) echo "::error::a versão $version é de pré-lançamento; não pode sair como latest"; exit 1 ;;
-            latest:*) ;;
-            *) echo "::error::a etiqueta $TAG pede uma versão X.Y.Z-$TAG.N, e a versão é $version"; exit 1 ;;
-          esac
-          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
-            echo "::error::a tag v$version já existe; suba a versão antes de publicar"; exit 1
+          npm -v
+          node -e "const [a,b,c]=process.argv[1].split('.').map(Number); process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)" "$(npm -v)"
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack
+      # Publica exatamente o tarball conferido no job anterior.
+      - name: npm publish
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          DIST_TAG: ${{ needs.plan.outputs.dist-tag }}
+        run: npm publish "$RUNNER_TEMP/pack/cabecao-$VERSION.tgz" --tag "$DIST_TAG"
+
+  github-release:
+    name: tag e release no GitHub
+    needs: [plan, publish]
+    # Roda depois de publicar, ou quando a versão já está no npm mas falta a release (recuperação de uma falha).
+    if: >-
+      !cancelled()
+      && needs.plan.outputs.release == 'true'
+      && needs.plan.outputs.dry-run != 'true'
+      && (needs.publish.result == 'success' || needs.plan.outputs.on-npm == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # criar a tag e a release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: notas da versão a partir do CHANGELOG.md
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          DIST_TAG: ${{ needs.plan.outputs.dist-tag }}
+        run: |
+          notes="$RUNNER_TEMP/notes.md"
+          awk -v heading="## $VERSION" '$0 == heading { found = 1; next } found && /^## / { exit } found' \
+            packages/cli/CHANGELOG.md > "$notes" 2> /dev/null || true
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "Esta versão não tem entrada no CHANGELOG.md." > "$notes"
           fi
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke && pnpm e2e
-      - name: npm publish --dry-run
-        if: inputs.dry-run
-        working-directory: packages/cli
-        env:
-          TAG: ${{ inputs.tag }}
-        run: npm publish --dry-run --tag "$TAG"
-      - name: npm publish (trusted publishing)
-        if: ${{ !inputs.dry-run && !inputs.usar-token }}
-        working-directory: packages/cli
-        env:
-          TAG: ${{ inputs.tag }}
-        run: npm publish --tag "$TAG"
-      - name: npm publish (com NPM_TOKEN)
-        if: ${{ !inputs.dry-run && inputs.usar-token }}
-        working-directory: packages/cli
-        env:
-          TAG: ${{ inputs.tag }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          test -n "$NODE_AUTH_TOKEN" || { echo "::error::o secret NPM_TOKEN não está definido"; exit 1; }
-          npm publish --tag "$TAG"
-      - name: tag e release no GitHub
-        if: ${{ !inputs.dry-run }}
+          printf '\n---\n\nInstalar: `npx cabecao@%s` (etiqueta `%s` no npm).\n' "$VERSION" "$DIST_TAG" >> "$notes"
+          cat "$notes"
+      - name: criar a tag v${{ needs.plan.outputs.version }} e a release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ inputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          prerelease=""
-          if [ "$TAG" != "latest" ]; then prerelease="--prerelease"; fi
-          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "cabecao $VERSION" --generate-notes $prerelease
+          tag="v$VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "a release $tag já existe; nada a fazer"
+            exit 0
+          fi
+          prerelease=()
+          case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+          # Se a tag já existir, o gh usa a tag existente; senão, cria no commit desta execução.
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "cabecao $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${prerelease[@]}"

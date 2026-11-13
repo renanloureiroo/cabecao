@@ -2,7 +2,7 @@
 
 ## `vault/`
 
-Estrutura inicial de um cérebro, a mesma que o `cabecao init` cria quando o repositório remoto está vazio (ou quando não há remoto). A estrutura está descrita em [03 · Modelo de dados](../docs/03-modelo-de-dados.md).
+Estrutura inicial de um cérebro, a mesma que o `cabecao init` cria quando o repositório remoto está vazio (ou quando não há remoto). A estrutura está descrita em 03 · Modelo de dados.
 
 | Arquivo | Para quê |
 |---|---|
