@@ -1,5 +1,7 @@
 # 06 · Busca e grafo
 
+> **Estado (marco 1):** existe a busca **por palavra-chave** (FTS5): os termos são combinados com `AND` e, se não houver resultado, com `OR`; palavras vazias são removidas; cada resultado é marcado como vigente ou vencido e o vencido é rebaixado. Cópias de conflito do sync ficam fora de `recall` e `search`. **Não existem ainda**, e são planos: embeddings e fusão com a busca por significado (marco 2); `as_of`, o bloco `related`, as tools `graph`, `facts` e `relate`, relações tipadas e menções (marco 3). O restante deste documento descreve o desenho completo.
+
 > **É só uma wiki ou é um GraphRAG?** É uma **wiki com grafo**. O grafo existe e é útil, mas quem navega por ele é o agente. O pipeline completo de GraphRAG (extração de entidades por LLM, relatórios de comunidade, PageRank no ranking) foi medido e não se pagou.
 
 ## Busca híbrida

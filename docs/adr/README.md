@@ -12,7 +12,7 @@ Cada decisão traz o motivo e a evidência. Os números e os detalhes estão em 
 | 06 | `node:sqlite` embutido como banco local | Passou em 15 combinações de sistema e Node, sem dependência nativa | `better-sqlite3` (fica como plano B) |
 | 07 | Busca vetorial por força bruta em JavaScript | 31–70 ms em 100 mil vetores; mesma velocidade do `sqlite-vec` | `sqlite-vec`, LanceDB |
 | 08 | O usuário escolhe o modelo de embeddings ao ativar a busca por significado; o projeto documenta sugestões testadas | Não impor uma licença de modelo a ninguém; o melhor modelo em português (EmbeddingGemma 300m) não tem licença de código aberto reconhecida | Um modelo padrão fixo |
-| 09 | Runtime de embeddings opcional, baixado sob demanda | Mantém o pacote em ~160 KB | Embutir `transformers.js` (470 MB) |
+| 09 | Runtime de embeddings opcional, baixado sob demanda | Mantém o pacote pequeno (241 kB compactado no marco 1; o plano estimava ~160 KB) | Embutir `transformers.js` (470 MB) |
 | 10 | Vetores em `int8` com escala por vetor | Mesma qualidade do `float32`, um quarto do tamanho | `float16`, binário, truncamento |
 | 11 | Fusão convexa com cobertura (α = 0,5) | RRF derrubou paráfrases de 67% para 15% | RRF, reranker |
 | 12 | Embeddings em segmentos imutáveis numa branch do mesmo repositório | Sem conflito por construção | JSONL com merge por união, Git LFS, segundo repositório |
@@ -38,3 +38,5 @@ Cada decisão traz o motivo e a evidência. Os números e os detalhes estão em 
 | 32 | Plugin com o servidor embutido | 0,05 s por execução, contra 1,4 s com `npx` | Plugin chamando `npx` |
 | 33 | pnpm, tsdown, Vitest, Biome, Changesets | Build e testes passaram nos três sistemas | — |
 | 34 | CI e publicação do **projeto** no GitHub Actions; o produto continua sem depender dele (decisão 03) | O repositório do projeto já está no GitHub; a matriz de três sistemas e três versões do Node sai de graça | Outro serviço de CI; publicar sempre à mão |
+| 35 | O sync leva tudo o que o git não ignora; arquivo de configuração nunca se perde e só é alterado quando necessário | A revisão do marco 1 achou um backup incompleto sem aviso (só as pastas de notas iam para o remoto) e um travamento permanente por conflito em arquivo de configuração. Conflito em qualquer arquivo preserva as duas versões; o sync só regenera o `index.md` | Sincronizar só as pastas de notas |
+| 36 | Agente não cria nem edita regra, não escreve em arquivos de controle, e toda edição de agente em nota do usuário rebaixa a confiança e fica registrada | A revisão adversária provou que um agente manipulado criava uma regra e forjava proveniência. Agora o código impede (`type: rule`, `memory/rules/`, arquivos de controle, `trust: high`, troca de `origin`) e a nota alterada ganha `trust: medium` e `edited_by` | Confiar nas instruções do servidor |
