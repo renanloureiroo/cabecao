@@ -483,7 +483,7 @@ cabecao consolidate --run [--agent <name>] [--scope <scope>] [--timeout <min>] [
 | `--finish <id>` | Closes the consolidation with this id in one commit |
 | `--title <label>` | With `--finish`: the commit label (`consolidate: <label>`) |
 | `--run` | Calls a non-interactive agent to do the whole consolidation |
-| `--agent <name>` | With `--run`: `claude-code`, `codex` or `antigravity`. Without it, the `"agent"` in the machine's `config.json`; without that, the first one installed in that order |
+| `--agent <name>` | With `--run`: `claude-code` or `codex` (the latter only with `CODEX_API_KEY` or `OPENAI_API_KEY`). Without it, the `"agent"` in the machine's `config.json`; without that, the first one available in that order |
 | `--timeout <min>` | With `--run`: time limit in minutes, up to 240 (default: 20; fractions such as `0.5` are accepted) |
 | `--model <m>` | With `--run`: the agent's model (default: the cheapest one it lets you pick) |
 | `--allow-forget` | With `--run`: lets the agent archive notes with `forget` (blocked by default) |
@@ -528,7 +528,9 @@ The agent's full output is kept in `~/.cache/cabecao/consolidate-runs/<id>.log` 
 
 If the agent does not close the consolidation (error, time limit, Ctrl+C, or it left without calling `finish`), Cabeção undoes what it wrote with `undo --session` (a revert commit, which `cabecao undo --op <id>` redoes), says why, and exits with `1`. If the agent finished cleanly without writing anything, nothing changes and the exit code is `0`.
 
-**Exit:** `0` when it prepared, closed, or the agent finished (with or without changes); `1` when the id is not a consolidation on this machine, the agent is not installed or has no `--run`, or the agent did not close the consolidation; `2` with a `--run` option without `--run` or an invalid `--timeout`.
+Antigravity and Gemini CLI are not part of `--run`: the personal plan's terms do not allow another program to call them (see [Consolidate with an agent](../guias/consolidar-com-agente.md#agentes)).
+
+**Exit:** `0` when it prepared, closed, or the agent finished (with or without changes); `1` when the id is not a consolidation on this machine, the agent is not installed, lacks the allowed credential, or has no `--run`, or the agent did not close the consolidation; `2` with a `--run` option without `--run` or an invalid `--timeout`.
 
 ## cabecao mcp
 

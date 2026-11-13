@@ -483,7 +483,7 @@ cabecao consolidate --run [--agent <nome>] [--scope <escopo>] [--timeout <min>] 
 | `--finish <id>` | Fecha a consolidação com este id num commit |
 | `--title <rótulo>` | Com `--finish`: o rótulo do commit (`consolidate: <rótulo>`) |
 | `--run` | Chama um agente não interativo para fazer a consolidação inteira |
-| `--agent <nome>` | Com `--run`: `claude-code`, `codex` ou `antigravity`. Sem ele, o `"agent"` do `config.json` da máquina; sem esse, o primeiro instalado nessa ordem |
+| `--agent <nome>` | Com `--run`: `claude-code` ou `codex` (este, só com `CODEX_API_KEY` ou `OPENAI_API_KEY`). Sem ele, o `"agent"` do `config.json` da máquina; sem esse, o primeiro disponível nessa ordem |
 | `--timeout <min>` | Com `--run`: tempo limite em minutos, até 240 (padrão: 20; aceita fração, como `0.5`) |
 | `--model <m>` | Com `--run`: o modelo do agente (padrão: o mais barato que ele deixa escolher) |
 | `--allow-forget` | Com `--run`: deixa o agente arquivar notas com `forget` (bloqueado por padrão) |
@@ -528,7 +528,9 @@ A saída completa do agente fica em `~/.cache/cabecao/consolidate-runs/<id>.log`
 
 Se o agente não fechar a consolidação (erro, tempo limite, Ctrl+C, ou saiu sem chamar `finish`), o Cabeção desfaz o que ele gravou com `undo --session` (um commit de revert, que `cabecao undo --op <id>` refaz), diz o motivo e sai com `1`. Se o agente terminou bem sem gravar nada, nada muda e a saída é `0`.
 
-**Saída:** `0` quando preparou, fechou, ou o agente terminou (com ou sem mudanças); `1` quando o id não é de uma consolidação desta máquina, o agente não está instalado ou não tem `--run`, ou o agente não fechou a consolidação; `2` com uma opção de `--run` sem `--run` ou um `--timeout` inválido.
+O Antigravity e o Gemini CLI não entram no `--run`: os termos do plano pessoal não permitem que outro programa os chame (veja [Consolidar com um agente](../guias/consolidar-com-agente.md#agentes)).
+
+**Saída:** `0` quando preparou, fechou, ou o agente terminou (com ou sem mudanças); `1` quando o id não é de uma consolidação desta máquina, o agente não está instalado, não tem a credencial permitida ou não tem `--run`, ou o agente não fechou a consolidação; `2` com uma opção de `--run` sem `--run` ou um `--timeout` inválido.
 
 ## cabecao mcp
 

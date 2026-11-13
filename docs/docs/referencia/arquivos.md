@@ -19,7 +19,7 @@ sidebar_position: 5
 | --- | --- |
 | `machine` | O nome desta máquina: minúsculas, dígitos e hífen, até 32 caracteres. Aparece nos commits (`Cabecao-Machine`) e nas cópias de conflito |
 | `defaultBrain` | O cérebro usado quando nenhum é informado (`--brain` ou `CABECAO_BRAIN`) |
-| `agent` | Opcional. O agente que o `cabecao consolidate --run` usa sem `--agent`: `claude-code`, `codex` ou `antigravity`. Você grava à mão; o `init` o mantém |
+| `agent` | Opcional. O agente que o `cabecao consolidate --run` usa sem `--agent`: `claude-code` ou `codex`. Você grava à mão; o `init` o mantém |
 
 Onde fica a pasta:
 

@@ -31,7 +31,7 @@ Antigravity: registrado
 Reinicie o cliente para ele enxergar a mudança.
 ```
 
-`agy mcp list` then shows the `cabecao` server. Antigravity's IDE and App read the same file. In the update to version 2.0, the old path (`~/.gemini/antigravity/mcp_config.json`) became a link to the new one; Cabeção writes through the link without replacing it with a regular file.
+`agy mcp list` then shows the `cabecao` server. Antigravity's IDE and App read the same file. Using Cabeção in an Antigravity session is ordinary use of the product; what Cabeção does not do is call Antigravity on its own, through `consolidate --run`, because the personal plan's terms do not allow it (see [Consolidate with an agent](../guias/consolidar-com-agente.md#agentes)). In the update to version 2.0, the old path (`~/.gemini/antigravity/mcp_config.json`) became a link to the new one; Cabeção writes through the link without replacing it with a regular file.
 
 If you still use Gemini CLI, `gemini` keeps working, with a notice:
 
