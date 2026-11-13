@@ -1,86 +1,119 @@
 <p align="center">
-  <strong>🧠 Cabeção</strong><br/>
-  <em>Seu segundo cérebro pessoal, em Markdown e git, para você e seus agentes de IA.</em>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.png">
+    <img src="assets/banner.png" alt="Cabeção" width="640">
+  </picture>
 </p>
 
 <p align="center">
-  <a href="README.en.md">English</a> · <strong>Português</strong>
+  Seu segundo cérebro em Markdown e git, para você e seus agentes de IA, servido por MCP.
 </p>
 
-> **Status: 🚧 beta.** Publicado no npm como [`cabecao@beta`](https://www.npmjs.com/package/cabecao). Comandos e formatos ainda podem mudar antes da 1.0.
+<p align="center">
+  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao/beta?label=npm%40beta&color=1C3D8F" alt="Versão no npm (beta)"></a>
+  <a href="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml"><img src="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/renanloureiroo/cabecao?color=1C3D8F" alt="Licença MIT"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao/beta?color=1C3D8F" alt="Node.js"></a>
+</p>
 
----
+<!-- README-I18N:START -->
 
-O nome homenageia o **Cabeção** de *Malhação*: o personagem que sabe e lembra de tudo.
+**Português** | [English](./README.en.md)
 
-## O que é
+<!-- README-I18N:END -->
 
-Um **segundo cérebro pessoal** que vive num **repositório git seu**, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio), e que qualquer agente de IA acessa por **MCP**. Você usa em quantas máquinas quiser: tudo sincroniza, inclusive embeddings e grafo.
+Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor. Os agentes de IA (Claude Code, Codex, Cursor e outros) consultam e gravam nelas por MCP, e cada gravação vira um commit que você desfaz com um comando. O nome homenageia o Cabeção de *Malhação*, o personagem que lembrava de tudo.
 
-- 📝 **Markdown é a fonte da verdade.** Você lê e edita no Obsidian ou em qualquer editor.
-- 🔗 **Qualquer remoto git.** Sem depender de API de provedor, Pull Request ou CI.
-- 🔄 **Sincroniza tudo o que o git não ignora.** Hoje: notas, anexos e configuração. Planejado (marco 2): embeddings e grafo, para que uma máquina nunca recalcule o que outra já calculou.
-- 🔎 **Busca** por palavra-chave (hoje) e, no marco 2, também por significado, com um modelo local que você escolhe (nada sai da sua máquina).
-- 🕸️ **Wiki com grafo** (marco 3, em revisão na branch `feat/m3-grafo`): wikilinks, relações tipadas, menções sem link e fatos com validade no tempo, que o agente navega (`graph`, `facts`, `relate`, `as_of` na busca).
-- 🧠 **Memória de agente:** o que você ensinou numa sessão está disponível na próxima, em qualquer cliente.
-- ↩️ **Tudo reversível:** cada operação é um commit, com comando para desfazer.
-- 🪶 **Leve:** um pacote de 241 kB compactado (cerca de 840 kB instalado), sem dependências de runtime nem nativas; `cabecao --version` leva cerca de 26 ms. O modelo de embeddings (marco 2) será baixado só quando você ativar a busca semântica.
+> **Beta.** A versão atual é a `0.1.0-beta.1`. Já funciona no dia a dia, mas comandos e formatos ainda podem mudar antes da 1.0.
+
+## Como é
+
+```text
+$ cabecao init git@github.com:voce/cerebro.git
+Pasta do cérebro: ~/cabecao (máquina notebook)
+
+Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
+
+Índice local: 0 notas indexadas em 2 ms.
+
+Clientes de IA:
+  Claude Code: registrado
+    ~/.claude.json: registrado
+  Reinicie o cliente para ele enxergar a mudança.
+...
+  14 ok, 0 avisos, 0 falhas.
+```
+
+Numa sessão do Claude Code, você pede "guarde que os testes de pagamento só passam com `TZ=UTC`", e o agente chama a tool `remember`:
+
+```json
+{
+  "op": "01M79DRQR9648E1JZ60MF0EBNN",
+  "path": "memory/gotchas/testes-de-pagamento-precisam-do-fuso-fixo.md",
+  "action": "add",
+  "commit": "1af64e1dc48f5627dd086474c571b22326eaa3c0"
+}
+```
+
+A nota é um arquivo `.md` comum. Na próxima sessão, em qualquer máquina, ela volta no `recall` do agente. E também pelo terminal:
+
+```text
+$ cabecao search "testes pagamento"
+1 resultado(s) para "testes pagamento", com todos os termos (validade em 2026-11-13):
+
+1. Testes de pagamento precisam do fuso fixo  [gotcha · project:pagamentos]  vigente
+   memory/gotchas/testes-de-pagamento-precisam-do-fuso-fixo.md
+   Os «testes» do serviço de pagamentos falham perto da meia-noite se o fuso não for fixo. Rode com `TZ=UTC npm test`.
+```
+
+## Por quê
+
+- **Seus dados, num formato seu.** Markdown num repositório git que você controla. Abre no Obsidian, em qualquer editor, e continua seu se você parar de usar o Cabeção.
+- **Qualquer provedor.** GitHub, GitLab, Bitbucket, Gitea, um servidor seu ou só a sua máquina. Só git, sem API de provedor.
+- **Memória entre sessões e máquinas.** O que você ensina numa conversa volta na próxima, em qualquer cliente MCP.
+- **Tudo reversível.** Cada gravação é um commit identificado; `cabecao undo` desfaz uma operação ou uma sessão inteira de um agente.
+- **Agentes com limites.** Eles não criam regras, não editam arquivos de instrução, não gravam segredos e deixam rastro quando mexem numa nota sua.
 
 ## Instalação
 
-> **Ainda não é possível instalar pelo npm.** O pacote `cabecao` não foi publicado, então `npx cabecao` só vai funcionar depois da publicação. Até lá, rode a partir do repositório: `pnpm install && pnpm build` e `node packages/cli/dist/cabecao.mjs init <url>`.
-
-Depois de publicado, você informa só a URL do repositório:
+Requer Node.js 22.16+ (recomendado: 24) e git 2.38+. Crie antes um repositório **vazio e privado**.
 
 ```bash
-npx cabecao init git@gitlab.com:voce/meu-cerebro.git
+npm i -g cabecao@beta
+cabecao init git@github.com:voce/cerebro.git
+cabecao doctor
 ```
 
-O Cabeção descobre o resto:
+O `init` também adota um vault do Obsidian que já existe, sem mover arquivos, e sem URL cria um cérebro só local.
 
-| O repositório... | O que acontece |
-|---|---|
-| está vazio | cria a estrutura, o primeiro commit e envia |
-| já tem um cérebro Cabeção | baixa e monta o índice local (a partir do marco 2, sem recalcular embeddings) |
-| tem um vault de Obsidian ou Markdown comum | adota, sem mover nenhum arquivo |
-| tem outra coisa (código, por exemplo) | recusa e explica |
+## Conectar ao Claude Code
 
-Sem URL, ele cria um cérebro só local. Depois ele registra o servidor MCP nos clientes que encontrar (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI). A configuração do Obsidian é do marco 5.
+O `init` já registra o servidor MCP nos clientes que encontrar. Para registrar depois:
 
-Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
-
-> ⚠️ **O código do Cabeção é público; o seu cérebro não deve ser.** Use um repositório **privado**.
-
-## Como funciona
-
+```bash
+cabecao install-client claude-code
 ```
- Claude Code · Claude Desktop · Codex · Cursor            Obsidian
-             │ MCP (stdio)                                   │
-             ▼                                               ▼
- ┌──────────────────────── cabecao ────────────────────────────┐
- │ marco 1: recall · search · read · status · remember ·       │
- │ write_page · patch_page · sync · undo                       │
- │ marco 3: graph · facts · relate                             │
- │ planejadas: ingest · handoff_save · forget · lint ·         │
- │ consolidate                                                 │
- └──────────┬──────────────────────────────────┬───────────────┘
-            ▼                                  ▼
-  Repositório git do cérebro            Índice local (fora do git)
-  ├─ branch principal: suas notas       SQLite com busca por texto
-  └─ branch cabecao/index (marco 2):    + grafo e validade (marco 3)
-     embeddings e grafo                 + vetores em memória (marco 2)
-            │
-            ▼  cabecao sync
-   Qualquer remoto git
-```
+
+Reinicie o Claude Code. Também funciona com Claude Desktop, Codex, Cursor, VS Code e Gemini CLI (`cabecao install-client --all`).
+
+## Recursos
+
+| Hoje (`0.1.0-beta.1`) | Em breve |
+| --- | --- |
+| `init` em qualquer remoto git, com adoção de vault do Obsidian | Busca por significado, com modelo local |
+| `sync` sem perder nada: cópia de conflito em vez de sobrescrever | Plugin do Claude Code com hooks |
+| Busca por palavra-chave com validade no tempo (`--as-of`) | Revisão, consolidação e "esquecer" memórias |
+| Grafo: wikilinks, relações tipadas, fatos e menções sem link | Integração com o Obsidian |
+| Servidor MCP com 12 tools e restrições a agentes | Pacote para o Claude Desktop |
+| `undo` por operação ou sessão; scanner de segredos | |
 
 ## Documentação
 
-O site de documentação está sendo escrito. Até ele ser publicado, `cabecao --help` e `cabecao <comando> --help` descrevem cada comando.
+Tudo está no site: **[renanloureiroo.github.io/cabecao](https://renanloureiroo.github.io/cabecao/)**, em português e em inglês. Começo rápido, conceitos, guias (Obsidian, conflitos, desfazer, regras), referência da CLI e das tools MCP, segurança e solução de problemas.
 
-## Contribuindo
+## Contribuir
 
-Leia o [CONTRIBUTING.md](CONTRIBUTING.md). O projeto é escrito em TypeScript.
+Issues e pull requests são bem-vindos. Leia o [CONTRIBUTING.md](CONTRIBUTING.md) para rodar o projeto e as convenções. Para relatar uma vulnerabilidade, use o relato privado de vulnerabilidades do GitHub.
 
 ## Licença
 

@@ -1,0 +1,120 @@
+/* Página inicial: a folha pautada com a margem vermelha fica só atrás do herói. */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 4rem 0 4.5rem;
+  background-color: var(--cb-paper);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 2.4rem,
+    var(--cb-rule) 2.4rem calc(2.4rem + 1px)
+  );
+}
+
+.heroInner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 2rem;
+}
+
+.heroInner::before {
+  content: "";
+  position: absolute;
+  inset-block: -4rem -4.5rem;
+  inset-inline-start: -1.25rem;
+  width: 2px;
+  background: var(--cb-margin);
+  opacity: 0.7;
+}
+
+.title {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 1.25rem;
+}
+
+.tagline {
+  font-size: 1.2rem;
+  max-width: 36rem;
+  margin-bottom: 2rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.mark {
+  justify-self: center;
+  width: min(100%, 18rem);
+  height: auto;
+}
+
+.section {
+  padding: 2.5rem 0 0;
+  max-width: 60rem;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature {
+  border: 1px solid var(--ifm-toc-border-color);
+  border-inline-start: 3px solid var(--cb-ink);
+  border-radius: 4px;
+  padding: 1.25rem 1.5rem;
+  background: var(--ifm-background-surface-color);
+}
+
+.feature h3 {
+  margin-bottom: 0.5rem;
+}
+
+.feature p {
+  margin: 0;
+}
+
+.last {
+  padding-bottom: 4rem;
+}
+
+@media (max-width: 996px) {
+  .heroInner {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .heroInner::before {
+    inset-inline-start: -0.6rem;
+  }
+
+  .mark {
+    order: -1;
+    width: 9rem;
+  }
+
+  .tagline {
+    margin-inline: auto;
+  }
+
+  .actions {
+    justify-content: center;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
+  }
+}
