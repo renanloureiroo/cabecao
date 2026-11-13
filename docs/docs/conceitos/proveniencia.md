@@ -55,4 +55,6 @@ Essa é a ordem de autoridade quando duas fontes discordam:
 
 ## Regras são só suas
 
-Uma nota só entra como regra no `recall` quando está em `memory/rules/` **e** tem `origin: human`. Um agente não consegue gravar `type: rule` (recebe o erro `rule_requires_human`) nem escrever em `memory/rules/`. Como criar as suas está em [Criar regras](../guias/regras.md).
+Uma nota só entra como regra no `recall` quando está em `memory/rules/` **e** é sua: `origin: human`, ou gravada por um agente com a sua confirmação (`approved_by: user`, marca que só o Cabeção grava, no fluxo confirmado). Uma "regra" de agente sem a marca fica fora. Um agente só grava uma regra com o seu pedido explícito; veja [Criar regras](../guias/regras.md).
+
+Quando um agente faz algo com a sua confirmação, a nota ganha `approved_by: user` e `approved_at`, e o commit, o rodapé `Cabecao-Approved`. A proveniência continua a de agente (`origin: agent:<cliente>`); nada vira `origin: human`.
