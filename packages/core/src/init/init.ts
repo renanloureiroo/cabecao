@@ -330,7 +330,9 @@ async function occupiedTarget(
       remote: remote === null ? null : shown(remote),
       canStartLocal: false,
       warnings,
-      nextSteps: ['Escolha outra pasta (--dir) ou esvazie esta e repita o comando.'],
+      nextSteps: [
+        'Escolha com --dir uma pasta que ainda não existe (ou vazia). Para usar um vault do Obsidian que já está nesta máquina, ponha-o num repositório remoto e rode "cabecao init <url>": o cérebro é clonado numa pasta nova.',
+      ],
     });
   }
   const machine = await planMachine(options, warnings);
@@ -648,7 +650,7 @@ async function fromRemote(ctx: Context, remote: string): Promise<InitResult> {
     ok: true,
     case: adopting ? 'adopted' : 'created',
     message: adopting
-      ? `Vault adotado sem mover nenhum arquivo: ${changed.join(', ')} acrescentados ou completados e enviados na branch ${branch}.`
+      ? `Vault adotado: ${changed.join(', ')} acrescentados ou completados e enviados na branch ${branch}; nenhuma nota foi movida, renomeada ou alterada.`
       : `Repositório vazio: estrutura do cérebro criada na branch ${branch} e enviada para ${shown(remote)}.`,
     branch,
     remote: shown(remote),
@@ -660,10 +662,20 @@ async function fromRemote(ctx: Context, remote: string): Promise<InitResult> {
     detection: summary,
     warnings: ctx.warnings,
     nextSteps: [
-      ...(adopting ? ['Nada foi movido: o Obsidian continua abrindo o vault como antes.'] : []),
+      // O vault foi CLONADO para `root`: se o Obsidian abre o vault de outra pasta, ele continua abrindo aquela cópia,
+      // que não recebe o que os agentes gravam aqui (adotar no lugar, sem clonar, é decisão pendente do dono).
+      ...(adopting ? [adoptedVaultStep(root)] : []),
       `Em outra máquina, rode cabecao init ${shown(remote)}.`,
     ],
   });
+}
+
+/**
+ * O que dizer depois de adotar um vault: o cérebro é a pasta NOVA (um clone do vault), e o Obsidian tem de abrir ela.
+ * Exportado para a CLI e os testes usarem o mesmo texto.
+ */
+export function adoptedVaultStep(root: string): string {
+  return `O cérebro é a pasta ${root}, um clone novo do vault. Se o Obsidian abre este vault de outra pasta, ele continua abrindo aquela cópia, que não recebe o que os agentes gravam aqui: no Obsidian, use "Abrir pasta como cofre" (Open folder as vault) e escolha ${root}. Depois de conferir que está tudo aqui, apague a cópia antiga ou deixe de usá-la.`;
 }
 
 /** Depois do primeiro envio: grava `refs/remotes/origin/HEAD` (a branch principal fica conhecida sem rede). */

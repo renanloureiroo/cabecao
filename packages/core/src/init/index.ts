@@ -11,7 +11,7 @@ export {
   vaultLayout,
 } from './detect.ts';
 export type { InitCase, InitDetection, InitHooks, InitOptions, InitResult, InitStep } from './init.ts';
-export { ADOPTED_INDEX_MD, connectLaterStep, initBrain } from './init.ts';
+export { ADOPTED_INDEX_MD, adoptedVaultStep, connectLaterStep, initBrain } from './init.ts';
 export type { LineMergeResult } from './merge-lines.ts';
 export { mergeGitattributes, mergeGitignore } from './merge-lines.ts';
 export type {

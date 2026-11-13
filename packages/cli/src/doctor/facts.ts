@@ -14,6 +14,7 @@ import {
   GitError,
   gitVersion,
   indexDbPath,
+  indexOpenFailure,
   indexStatus,
   isGitVersionSupported,
   isInvalidConfigError,
@@ -43,9 +44,13 @@ import { embeddingProvider, embeddingsCacheDir, fakeEmbedderOn, specOf } from '.
 import { CliError } from '../errors.ts';
 import type { Location } from '../install-client/clients.ts';
 import { resolveLaunch } from '../install-client/launch.ts';
+import { claudePlugin } from '../install-client/plugin.ts';
 import { detectClients, readRegistrations } from '../install-client/register.ts';
+import { channel, installMethod, upgradeCommand } from '../install-method.ts';
 import { scheduleStatus } from '../schedule/system.ts';
+import { installStates, readRegistry } from '../skills/install.ts';
 import type { CliIo } from '../types.ts';
+import { VERSION } from '../version.ts';
 import type { DoctorFacts, EmbeddingsFact, IndexFact, LockFact, ScheduleFact } from './checks.ts';
 
 export type DoctorIo = Pick<CliIo, 'env' | 'platform' | 'homedir' | 'execPath' | 'binPath' | 'exec' | 'stderr'>;
@@ -126,7 +131,8 @@ async function indexFact(root: string): Promise<IndexFact> {
       index.close();
     }
   } catch (error) {
-    return { kind: 'error', message: `não consegui abrir o banco local: ${messageOf(error).message}` };
+    const failure = indexOpenFailure(root, error);
+    return { kind: 'error', message: failure.message, fix: failure.nextStep };
   }
 }
 
@@ -265,7 +271,7 @@ async function gitStateFacts(
   return { operation, indexLock };
 }
 
-async function identityFact(root: string): Promise<NonNullable<DoctorFacts['identity']>> {
+async function identityFact(io: DoctorIo, root: string): Promise<NonNullable<DoctorFacts['identity']>> {
   let ident = '';
   for (const name of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {
     const result = await git(root, ['var', name]);
@@ -274,14 +280,23 @@ async function identityFact(root: string): Promise<NonNullable<DoctorFacts['iden
     // "Nome <email> 1700000000 -0300": a data não interessa
     ident ||= result.stdout.replace(/\s+\d+\s+[+-]\d{4}$/, '');
   }
-  return { kind: 'ok', ident };
+  // Sem user.email configurado (nem GIT_AUTHOR_EMAIL ou EMAIL no ambiente), o git INVENTA um e-mail a partir do nome
+  // do usuário e do computador (usuario@Computador.local), e ele vai nos commits enviados ao remoto.
+  const configured = (await git(root, ['config', '--get', 'user.email'])).stdout !== '';
+  const fromEnv = ['GIT_AUTHOR_EMAIL', 'EMAIL'].some((name) => (io.env[name] ?? process.env[name] ?? '') !== '');
+  return { kind: 'ok', ident, explicit: configured || fromEnv };
 }
 
 async function clientFacts(io: DoctorIo, root: string): Promise<NonNullable<DoctorFacts['clients']>> {
   const location: Location = { platform: io.platform, env: io.env, home: homeDir(io) };
   const detected = await detectClients(io, location);
   const launches = [await resolveLaunch(io, root, false), await resolveLaunch(io, root, true)];
-  return { kind: 'read', detected, registrations: await readRegistrations(detected, location, launches) };
+  return {
+    kind: 'read',
+    detected,
+    registrations: await readRegistrations(detected, location, launches),
+    plugin: await claudePlugin(location),
+  };
 }
 
 /** Agendamento: só executa algo no agendador quando o Cabeção anotou que registrou (`schedule.json`). */
@@ -320,6 +335,12 @@ export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise
   const facts: DoctorFacts = {
     platform: io.platform,
     nodeVersion: options.nodeVersion,
+    install: {
+      upgrade: upgradeCommand(io),
+      global: `npm i -g cabecao@${channel()}`,
+      version: VERSION,
+      method: installMethod(io),
+    },
     git: gitFact,
     brain:
       'root' in options.brain
@@ -416,8 +437,16 @@ export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise
   facts.gitIndexLock = state.indexLock;
   facts.syncJournal = existsSync(syncLayout(root).journal);
   facts.gpgSign = (await git(root, ['config', '--type=bool', '--get', 'commit.gpgsign'])).stdout === 'true';
-  facts.identity = await identityFact(root);
+  facts.identity = await identityFact(io, root);
   facts.clients = options.skipClients === true ? { kind: 'skipped' } : await clientFacts(io, root);
   facts.schedule = await scheduleFact(io);
+  if (options.skipClients !== true) {
+    try {
+      const registry = await readRegistry(machineConfigDir(io));
+      facts.skills = { kind: 'read', installs: await installStates(registry) };
+    } catch (error) {
+      facts.skills = { kind: 'error', message: messageOf(error).message };
+    }
+  }
   return facts;
 }

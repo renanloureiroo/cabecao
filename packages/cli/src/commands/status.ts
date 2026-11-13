@@ -1,8 +1,20 @@
 import type { StatusOutput } from '@cabecao/core';
 import { checkTemplate, schemaState, templateUpdatable } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
+import { stableBin } from '../install-client/launch.ts';
+import { gatherOptional, optionalSteps, optionalText } from '../optional.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+
+/** O estado do runtime de embeddings nesta máquina, em português (o código técnico fica no `--json`). */
+export const RUNTIME_TEXT: Readonly<Record<string, string>> = {
+  ready: 'pronta nesta máquina',
+  runtime_missing: 'falta instalar nesta máquina ("cabecao embeddings on")',
+  runtime_outdated: 'runtime de outra versão nesta máquina ("cabecao embeddings on")',
+  model_missing: 'falta baixar o modelo nesta máquina ("cabecao embeddings on")',
+  disabled_here: 'desligada nesta máquina',
+  invalid_config: 'configuração inválida no .cabecao.json',
+};
 
 function notesLine(status: StatusOutput): string {
   const { notes } = status;
@@ -61,7 +73,7 @@ export function statusText(status: StatusOutput): string {
     if (!embeddings.configured) lines.push('Busca por significado: desativada ("cabecao embeddings on" ativa)');
     else {
       lines.push(
-        `Busca por significado: ${embeddings.model} · ${embeddings.enabled_here ? `runtime ${embeddings.runtime}` : 'desligada nesta máquina'} · embeddings na fila: ${embeddings.pending ?? '?'} de ${embeddings.chunks} trechos`,
+        `Busca por significado: ${embeddings.model} · ${embeddings.enabled_here ? (RUNTIME_TEXT[embeddings.runtime] ?? embeddings.runtime) : 'desligada nesta máquina'} · trechos sem vetor: ${embeddings.pending ?? '?'} de ${embeddings.chunks}`,
       );
     }
   }
@@ -92,9 +104,17 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
       `Modelo do cérebro: atualização opcional (${template.join(', ')}). Veja com "cabecao upgrade --template --dry-run".`,
     );
   }
+  const optional = optionalSteps(
+    await gatherOptional(ctx, root, {
+      hasRemote: status.sync?.remote != null,
+      stableInstall: (await stableBin(ctx.binPath)) !== undefined,
+    }),
+  );
+  if (optional.length > 0) lines.push(`Opcional (rode quando quiser):\n${optionalText(optional)}`);
   return {
     data: {
       ...status,
+      optional,
       upgrade: {
         schema_version: schema?.version ?? null,
         supported: schema?.supported ?? null,
