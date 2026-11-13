@@ -158,7 +158,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Remember',
       description:
-        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact...), committed to git. Checks the same scope and type first: identical is skipped, a superset updates, a fact with a new object supersedes the old one; ambiguous cases return candidates and need a second call with resolution. Never store passwords, tokens or keys.',
+        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact...), committed to git. Same scope and type are checked first: duplicates are skipped, supersets update, a fact with a new object supersedes; ambiguous cases return candidates for a second call with resolution. Never store secrets.',
       inputSchema: rememberInput,
       outputSchema: rememberOutput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
