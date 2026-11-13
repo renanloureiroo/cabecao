@@ -89,6 +89,8 @@ Nunca grave chaves, tokens ou senhas em arquivos versionados, nem neste cérebro
 ...
 ```
 
+O hook entrega o último handoff à sessão, e é ela que o lê: por isso ele conta como entregue (o `recall` anota isso em `.cabecao/`, fora do git). Se a próxima sessão receber o mesmo handoff sem que ninguém tenha gravado um novo, o briefing avisa, fora do bloco de dados: "o último handoff já tinha sido entregue a outra sessão em ...; confira se ele ainda vale". Ao retomar uma sessão ou compactar o contexto, a conversa é a mesma, e esse aviso não aparece.
+
 O hook nunca impede a sessão de começar: sem cérebro, com o banco ocupado ou em qualquer erro, ele não acrescenta nada e o motivo vai para a saída de erro. Para ver o briefing que um projeto receberia, rode [`cabecao recall`](../referencia/cli.md#cabecao-recall) no terminal.
 
 ## O que acontece no fim da sessão
@@ -110,7 +112,7 @@ Se outro sync já estiver rodando, o novo sai como "outro sync em andamento", se
 ## O que o plugin NÃO faz
 
 - **Não captura a conversa.** Nenhum hook lê, copia ou grava seus prompts, as respostas ou as chamadas de tools. No cérebro entra só o que o agente grava pelas tools (`remember`, `write_page`...), como sem o plugin.
-- **Não bloqueia o encerramento** para pedir um handoff. O handoff fica por conta das regras de uso: antes de encerrar um trabalho relevante, o agente grava um com `remember`.
+- **Não bloqueia o encerramento** para pedir um handoff. O handoff fica por conta das regras de uso: antes de encerrar um trabalho relevante, o agente grava um com `handoff_save`.
 - **Não usa rede** para subir: o servidor e os hooks rodam a cópia do Cabeção que vem no plugin. A única rede é a do próprio sync (`git fetch` e `git push`).
 
 ## Atualizar e remover

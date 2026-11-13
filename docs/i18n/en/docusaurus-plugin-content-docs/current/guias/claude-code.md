@@ -89,6 +89,8 @@ Nunca grave chaves, tokens ou senhas em arquivos versionados, nem neste cérebro
 ...
 ```
 
+The hook delivers the latest handoff to the session, and the session is what reads it: so it counts as delivered (`recall` records that in `.cabecao/`, outside git). If the next session receives the same handoff and nobody saved a new one, the briefing warns about it, outside the data block: "o último handoff já tinha sido entregue a outra sessão em ..." (the latest handoff was already delivered to another session; check whether it still holds). When resuming a session or compacting the context, the conversation is the same, and that warning does not appear.
+
 The hook never stops a session from starting: with no brain, a busy database, or any error, it adds nothing and the reason goes to standard error. To see the briefing a project would receive, run [`cabecao recall`](../referencia/cli.md#cabecao-recall) in the terminal.
 
 ## What happens at session end
@@ -110,7 +112,7 @@ If another sync is already running, the new one ends as "another sync in progres
 ## What the plugin does NOT do
 
 - **It does not capture the conversation.** No hook reads, copies, or saves your prompts, the answers, or the tool calls. Only what the agent saves through the tools (`remember`, `write_page`...) goes into the brain, just like without the plugin.
-- **It does not block the session from ending** to ask for a handoff. The handoff is left to the usage rules: before wrapping up relevant work, the agent saves one with `remember`.
+- **It does not block the session from ending** to ask for a handoff. The handoff is left to the usage rules: before wrapping up relevant work, the agent saves one with `handoff_save`.
 - **It does not use the network** to start: the server and the hooks run the copy of Cabeção that ships with the plugin. The only network traffic is the sync itself (`git fetch` and `git push`).
 
 ## Update and remove
