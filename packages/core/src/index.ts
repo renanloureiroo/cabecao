@@ -17,6 +17,8 @@ export * from './indexstore/index.ts';
 export * from './init/index.ts';
 export * from './llm/index.ts';
 export * from './markdown/index.ts';
+export * from './migrate/index.ts';
+export * from './obsidian/index.ts';
 export * from './security/index.ts';
 export * from './sync/index.ts';
 export * from './util/index.ts';

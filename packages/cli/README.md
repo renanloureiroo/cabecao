@@ -6,7 +6,7 @@
 
 Seu segundo cérebro em Markdown e git, para você e seus agentes de IA, servido por MCP.
 
-Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio ou só a sua máquina). Os agentes de IA (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI) consultam e gravam nelas pelo servidor MCP do `cabecao`. Cada gravação vira um commit que você desfaz com um comando.
+Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio ou só a sua máquina). Os agentes de IA (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity, Gemini CLI) consultam e gravam nelas pelo servidor MCP do `cabecao`. Cada gravação vira um commit que você desfaz com um comando.
 
 > **Beta:** `0.1.0-beta.1`. Instale com a etiqueta `beta`.
 

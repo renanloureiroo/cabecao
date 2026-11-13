@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "cabecao",
+  "display_name": "Cabeção",
+  "version": "0.1.0-beta.1",
+  "description": "Segundo cérebro pessoal em Markdown e git, servido ao Claude por MCP.",
+  "long_description": "O Cabeção guarda a memória de longo prazo dos seus agentes de IA numa pasta de notas em Markdown, versionada com git: preferências, decisões, fatos com validade no tempo, armadilhas e passagens de bastão entre sessões. O Claude lê e grava pelas tools do Cabeção; você lê e corrige no Obsidian ou em qualquer editor. Crie o cérebro antes com `npx cabecao init` e escolha a pasta dele na instalação.",
+  "author": {
+    "name": "Renan Pereira Loureiro",
+    "url": "https://github.com/renanloureiroo"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/renanloureiroo/cabecao"
+  },
+  "homepage": "https://github.com/renanloureiroo/cabecao#readme",
+  "support": "https://github.com/renanloureiroo/cabecao/issues",
+  "license": "MIT",
+  "keywords": ["memory", "second-brain", "markdown", "git", "obsidian", "segundo-cerebro"],
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server/cabecao.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/cabecao.mjs", "mcp"],
+      "env": {
+        "CABECAO_BRAIN": "${user_config.brain_dir}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "recall", "description": "Briefing do cérebro para a tarefa: regras, handoff, preferências e memórias" },
+    { "name": "search", "description": "Busca no cérebro, com validade no tempo e proveniência" },
+    { "name": "read", "description": "Lê uma nota, com frontmatter, links e backlinks" },
+    { "name": "graph", "description": "Vizinhos de uma nota no grafo, com o tipo de cada relação" },
+    { "name": "facts", "description": "Fatos e se valem numa data, com a cadeia de versões" },
+    { "name": "status", "description": "Saúde, contagens, sync e conflitos do cérebro" },
+    { "name": "lint", "description": "Relatório de saúde por regras, só leitura" },
+    { "name": "remember", "description": "Grava uma memória, tratando duplicatas e contradições" },
+    { "name": "handoff_save", "description": "Grava a passagem de bastão da sessão" },
+    { "name": "write_page", "description": "Cria ou reescreve uma nota da wiki" },
+    { "name": "patch_page", "description": "Troca um trecho exato de uma nota" },
+    { "name": "relate", "description": "Liga duas notas com uma relação tipada" },
+    { "name": "ingest", "description": "Registra uma fonte de fora em raw/ e devolve o plano de ingestão" },
+    { "name": "forget", "description": "Arquiva uma memória, com confirmação" },
+    { "name": "sync", "description": "Sincroniza o cérebro com o remoto git" },
+    { "name": "consolidate", "description": "Prepara e fecha uma consolidação da memória" },
+    { "name": "undo", "description": "Desfaz uma operação ou uma sessão" }
+  ],
+  "user_config": {
+    "brain_dir": {
+      "type": "directory",
+      "title": "Pasta do cérebro",
+      "description": "A pasta do seu cérebro do Cabeção (criada por \"npx cabecao init\"; o padrão é ~/cabecao).",
+      "required": true,
+      "default": "${HOME}/cabecao"
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": "^22.16.0 || >=24.0.0"
+    }
+  }
+}

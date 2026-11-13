@@ -74,7 +74,7 @@ O **Claude Code** entra porque a Anthropic documenta que o `claude -p` usa os li
 
 ### Por que o Antigravity instalado não é oferecido
 
-A [FAQ do Antigravity](https://antigravity.google/docs/faq) (consultada em 13/11/2026) diz que embrulhar o `agy` em outro aplicativo "is not supported under consumer plans" e que usar software de terceiros para acessá-lo viola os termos, com risco para a conta. Por isso o Cabeção não chama o `agy`. Para os modelos do Google, use a **API do Gemini com chave** (`--provider gemini`). O Codex também não é oferecido: não achamos fonte oficial dizendo que os termos permitem chamá-lo de outro programa com o login do ChatGPT; use a API da OpenAI.
+A [FAQ do Antigravity](https://antigravity.google/docs/faq) (consultada em 13/11/2026) diz que embrulhar o `agy` em outro aplicativo "is not supported under consumer plans" e que usar software de terceiros para acessá-lo viola os termos, com risco para a conta. Por isso o Cabeção não chama o `agy`. Para os modelos do Google, use a **API do Gemini com chave** (`--provider gemini`). O Codex também não é oferecido: a OpenAI só orienta chamá-lo de outro programa com chave de API (não com o login do ChatGPT), e com essa chave a API da OpenAI (`--provider openai`) faz o mesmo sem subir um agente.
 
 ## O que sai da máquina, e o que nunca sai
 

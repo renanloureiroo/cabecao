@@ -28,6 +28,9 @@ const COMMANDS = [
   'consolidate',
   'recall',
   'schedule',
+  'obsidian',
+  'export',
+  'upgrade',
   'ask',
   'llm',
 ];

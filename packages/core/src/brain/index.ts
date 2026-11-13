@@ -1,7 +1,7 @@
 // API pública da camada de operações do cérebro: o que o servidor MCP e a CLI chamam.
 export type { Brain, OpenBrainOptions } from './brain.ts';
 export { openBrain } from './brain.ts';
-export type { ConsolidateInput, ConsolidateOutput, MaterialNote } from './consolidate.ts';
+export type { ConsolidateInput, ConsolidateOutput, ConsolidationState, MaterialNote } from './consolidate.ts';
 export { EPISODE_GROUP_JACCARD } from './consolidate.ts';
 export type { Actor, WriteStep } from './context.ts';
 export type {
@@ -49,6 +49,8 @@ export type { IngestInput, IngestOptions, IngestOutput, IngestPlanNote } from '.
 export { INGEST_DIR, INGEST_MAX_BYTES, INGEST_MAX_CHARS } from './ingest.ts';
 export type { LintFinding, LintInput, LintOutput, LintRule, LintSeverity } from './lint.ts';
 export { CONFIRMABLE_TYPES, DEFAULT_LINT_LIMIT, LINT_RULES, MAX_LINT_LIMIT, UNCONFIRMED_AFTER_DAYS } from './lint.ts';
+export type { MapGraphEdge, MapGraphInput, MapGraphNote, MapGraphOutput } from './map.ts';
+export { DEFAULT_MAP_LIMIT, MAX_MAP_LIMIT } from './map.ts';
 export type {
   BacklinkOutput,
   ConflictOutput,
@@ -66,6 +68,15 @@ export type {
 export { DEFAULT_RECALL_BUDGET_TOKENS, RECALL_ITEM_MAX_CHARS, RECALL_MEMORY_LIMIT, RECALL_PRIORITY } from './read.ts';
 export type { RelateInput, RelateOutput } from './relate.ts';
 export type { DuplicateCandidate, RememberDecision, RememberOutput } from './remember.ts';
+export type { ConsolidateRunRoutineInput } from './routines.ts';
+export {
+  consolidateRoutine,
+  consolidateRunRoutine,
+  ingestRoutine,
+  quotedArgument,
+  ROUTINE_NOTICE,
+  reviewRoutine,
+} from './routines.ts';
 export type { SearchMode, SearchModeUsed } from './semantic.ts';
 export { SEARCH_MODES } from './semantic.ts';
 export type { DedupComparison, DedupVerdict, MemoryText } from './similarity.ts';

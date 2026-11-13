@@ -73,6 +73,7 @@ $ cabecao search "testes pagamento"
 - **Memória entre sessões e máquinas.** O que você ensina numa conversa volta na próxima, em qualquer cliente MCP.
 - **Tudo reversível.** Cada gravação é um commit identificado; `cabecao undo` desfaz uma operação ou uma sessão inteira de um agente.
 - **Agentes com limites.** Eles não criam regras, não editam arquivos de instrução, não gravam segredos e deixam rastro quando mexem numa nota sua.
+- **Manutenção sem você olhando.** `cabecao consolidate --run` chama o Claude Code ou o Codex para consolidar a memória, só com as tools do Cabeção, e desfaz o que ficar pela metade.
 
 ## Instalação
 
@@ -94,7 +95,7 @@ O `init` já registra o servidor MCP nos clientes que encontrar. Para registrar 
 cabecao install-client claude-code
 ```
 
-Reinicie o Claude Code. Também funciona com Claude Desktop, Codex, Cursor, VS Code e Gemini CLI (`cabecao install-client --all`).
+Reinicie o Claude Code. Também funciona com Claude Desktop, Codex, Cursor, VS Code, Antigravity e Gemini CLI (`cabecao install-client --all`).
 
 ## Recursos
 
@@ -105,8 +106,7 @@ Reinicie o Claude Code. Também funciona com Claude Desktop, Codex, Cursor, VS C
 | Busca por palavra-chave com validade no tempo (`--as-of`) | Revisão, consolidação e "esquecer" memórias |
 | Grafo: wikilinks, relações tipadas, fatos e menções sem link | Integração com o Obsidian |
 | Servidor MCP com 12 tools e restrições a agentes | Pacote para o Claude Desktop |
-| | Respostas com citações conferidas (`ask`), opcionais, com o provedor que você escolher |
-| `undo` por operação ou sessão; scanner de segredos | |
+| `undo` por operação ou sessão; scanner de segredos | Respostas com citações conferidas (`ask`), opcionais, com o provedor que você escolher |
 
 ## Documentação
 

@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import type { AskInput, AskOutput, Brain, BrainConfig, EmbeddingProvider, SyncOutput } from '@cabecao/core';
-import { readBrainConfig } from '@cabecao/core';
+import { isUlid, readBrainConfig } from '@cabecao/core';
 import { machineConfigDir, readMachine, resolveBrain, toCliError } from '../brain.ts';
 import { embeddingProvider } from '../embeddings.ts';
 import { CliError, UsageError } from '../errors.ts';
@@ -23,6 +23,8 @@ export interface StdioServerOptions {
   embeddings?: EmbeddingProvider;
   /** Respostas geradas (tool `ask`); só quando há provedor ativo nesta máquina e o cérebro permite. */
   ask?: (brain: Brain, input: AskInput, signal?: AbortSignal) => Promise<AskOutput>;
+  /** Modo sem ninguém olhando, preso a uma consolidação (`--consolidation <id>`). */
+  unattended?: { consolidationId: string; allowForget: boolean };
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
@@ -121,6 +123,13 @@ const DEFAULT_DEPS: McpDeps = {
  */
 export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS): Promise<CommandResult> {
   if (ctx.positionals.length > 0) throw new UsageError(`argumento a mais: ${ctx.positionals.join(' ')}`);
+  const consolidation =
+    typeof ctx.values.consolidation === 'string' ? ctx.values.consolidation.trim().toUpperCase() : undefined;
+  const allowForget = ctx.values['allow-forget'] === true;
+  if (consolidation !== undefined && !isUlid(consolidation)) {
+    throw new UsageError('--consolidation espera o consolidation_id inteiro (26 caracteres)');
+  }
+  if (allowForget && consolidation === undefined) throw new UsageError('--allow-forget vale só com --consolidation');
   const brainRoot = await resolveBrain(ctx);
   // Confere antes de subir: um cliente MCP mostra o stderr de um servidor que não sobe, e a mensagem diz o que fazer.
   let brainConfig: BrainConfig;
@@ -129,7 +138,8 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
   } catch (error) {
     throw toCliError(error);
   }
-  const ask = await askRunnerFor(ctx, brainConfig);
+  // a tool `ask` só no servidor dos clientes de IA; o da consolidação sem ninguém olhando não chama provedor
+  const ask = consolidation === undefined ? await askRunnerFor(ctx, brainConfig) : undefined;
   const machine = (await readMachine(ctx))?.machine;
   let runStdioServer: RunStdioServer;
   try {
@@ -151,6 +161,7 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     syncRunner: createSyncRunner(ctx, brainRoot),
     embeddings: embeddingProvider(ctx),
     ...(ask === undefined ? {} : { ask }),
+    ...(consolidation === undefined ? {} : { unattended: { consolidationId: consolidation, allowForget } }),
   });
   return {};
 }
