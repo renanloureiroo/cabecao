@@ -380,7 +380,7 @@ export const syncOutput = z.object({
   remote: z.string().nullable(),
   integration: z.enum(['none', 'fast-forward', 'replay', 'merge']),
   reason: z
-    .enum(['secrets', 'unscannable', 'local-file', 'git-operation', 'detached-head', 'schema-too-new'])
+    .enum(['secrets', 'unscannable', 'local-file', 'git-operation', 'detached-head', 'schema-too-new', 'permission'])
     .nullable(),
   remote_error: z.object({ category: z.string(), detail: z.string() }).nullable(),
   recovered: z.array(z.string()),

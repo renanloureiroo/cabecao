@@ -24,7 +24,8 @@ jobs:
   check:
     name: ${{ matrix.os }} / node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # No Windows, só o "pnpm test" já leva de 8 a 13 minutos (medido na main): 15 deixava o job no limite.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

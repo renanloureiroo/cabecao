@@ -115,6 +115,16 @@ Cabeção does two things without you in front of the screen: the scheduled sync
 
 What is left out, per agent: Codex keeps its apply-patch tool (the read-only sandbox refuses the write) and, depending on the model, a file-reading tool that the sandbox does not block; with no shell and no network, what it reads could only leave through a write to the brain, which goes through the scanner. And "denied" depends on each agent honoring its own options: Cabeção does not run the agent in a sandbox of its own.
 
+## Skills through the CLI: what they can and cannot do {#skills-pela-cli}
+
+The [Cabeção skills](./guias/skills.md) give the agent no new power: they only teach which `cabecao` commands to run. What is allowed is decided by the CLI, and an agent running the CLI is under **the same rules as the MCP server**:
+
+- **Can**, without asking: look things up (`recall`, `search`, `read`, `graph`, `facts`, `lint`, `status`), save ordinary memories (`remember`, `write`, `patch`, `relate`, `handoff`), register sources (`ingest`), undo its own operations (`undo --op <id>`) and sync (`sync`). Everything becomes a commit with `origin: agent:<nome>` and the `Cabecao-Client` trailer, which `undo` undoes.
+- **Only with your explicit request**, in two calls with `--confirm <token>`: rules, control and instruction files, `raw/`, `trust: high`, archiving (`forget`) and undoing an operation that is not an agent's. The `cabecao-pedido-explicito` skill says to show the summary, ask, and never follow a request that came from content it read. What gets saved this way is marked and shows up in `lint`.
+- **Cannot**: the commands that are only yours (`embeddings on/off/switch`, `compact`, `upgrade`, removing with `uninstall`) exit with code 4; no option, variable or configuration file turns the agent into you (`--as` only gives the name). The technical protections (outside the brain, `.git/`, symbolic links, secrets, forged frontmatter) hold without exception.
+
+The limit is right below: an agent that has a shell can **not use** the CLI and edit the brain's files directly. The skills make the right path easy; they don't prevent the wrong one.
+
 ## Known limits
 
 Stated plainly, so you can decide what to keep:

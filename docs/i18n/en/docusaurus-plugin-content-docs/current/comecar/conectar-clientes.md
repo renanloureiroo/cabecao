@@ -6,6 +6,16 @@ sidebar_position: 3
 
 `init` already registers the MCP server in every AI client it finds on this machine. Use `cabecao install-client` when you install a client later, when you want to see the configuration before writing it, or to remove the registration.
 
+There are three ways for an agent to use your brain, and they combine:
+
+| Way | For whom | How |
+| --- | --- | --- |
+| **MCP server** | Any MCP client, including the ones without a terminal (Claude Desktop) | `cabecao install-client` (this page) |
+| **Skills** | Agents with a shell that read skills: Claude Code, Codex, Cursor, VS Code, Antigravity, Gemini CLI | `cabecao install-skills` ([Use Cabeção with skills](../guias/skills.md)) |
+| **Plugin** | Claude Code only: bundled server, briefing at the start, sync at the end, and the skills | `/plugin install cabecao@cabecao` ([Claude Code plugin](../guias/claude-code.md)) |
+
+The skills don't need the server: the agent runs `cabecao` in the shell, under the same rules. With the server also registered, the skills tell the agent to prefer the tools.
+
 ## Supported clients
 
 | Client | Identifier | Where the registration lives |
@@ -47,8 +57,8 @@ If you had already registered `gemini`, nothing is lost: the entry stays where i
 
 ## Connect to Claude Code
 
-:::tip[Prefer the plugin]
-In Claude Code, the [Cabeção plugin](../guias/claude-code.md) does more than the registration below: it bundles the server, puts the brain's briefing at the start of every session, and syncs at the end. Use one or the other, not both (the tools would show up twice).
+:::tip[Plugin or direct registration: one or the other]
+In Claude Code, the [Cabeção plugin](../guias/claude-code.md) does more than the registration below: it bundles the server, puts the brain's briefing at the start of every session, and syncs at the end. Use one or the other, not both: the tools would show up twice. `init` registers the server directly even with the plugin installed, and then warns you; `cabecao doctor` also warns and tells you how to remove the direct registration (`cabecao install-client --remove claude-code`).
 :::
 
 ```bash
@@ -91,7 +101,7 @@ command = "/caminho/do/node"
 args = ["/caminho/do/cabecao/dist/cabecao.mjs", "mcp", "--brain", "~/cabecao"]
 ```
 
-The paths depend on your installation. The server is always registered as `cabecao mcp --brain <pasta>`. With a global install, the registration points straight to Node and to the Cabeção file, which avoids 0.5 to 1.4 s of `npx` on every session. With `--npx` (or when you ran Cabeção through `npx`), the registration uses `npx -y cabecao mcp`.
+The paths depend on your installation. The server is always registered as `cabecao mcp --brain <pasta>`. With a global install, the registration points straight to Node and to the Cabeção file, which avoids 0.5 to 1.4 s of `npx` on every session. With `--npx` (or when you ran Cabeção through `npx`), the registration uses `npx -y cabecao@<versão> mcp`, with the version pinned: without it, `npx` could download a different version on every session.
 
 ## Remove the registration
 
@@ -109,8 +119,11 @@ Cabeção only touches the `cabecao` entry. The other servers and keys in the fi
 `doctor` reads the clients' files (without running anything) and tells you which ones have the registration for this brain:
 
 ```text
-ok     Clientes MCP             1 cliente(s) registrado(s)
-                                - Claude Code: ~/.claude.json: registrado para este cérebro
+ok     Clientes MCP             2 clientes registrados
+                                - Codex: ~/.codex/config.toml: registrado para este cérebro
+                                - Cursor: ~/.cursor/mcp.json: registrado para este cérebro
 ```
+
+It also flags, as a failure, a registration that points to a Node (or a Cabeção file) that no longer exists, for example after removing a Node version with nvm, fnm or Volta: run `cabecao install-client --all` again. And it warns when the Claude Code plugin and the direct registration are active together.
 
 All the options are in the [CLI reference](../referencia/cli.md#cabecao-install-client).

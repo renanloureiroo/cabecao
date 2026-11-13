@@ -37,6 +37,8 @@ const COMMANDS = [
   'obsidian',
   'export',
   'upgrade',
+  'install-skills',
+  'uninstall',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];

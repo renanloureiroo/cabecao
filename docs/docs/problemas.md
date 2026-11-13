@@ -99,7 +99,7 @@ O cérebro é escolhido nesta ordem: `--brain`, `CABECAO_BRAIN`, o padrão grava
 ## O init recusou o repositório
 
 - **"parece um projeto de código"**: o repositório tem `package.json`, `src/` ou outro marcador. Use um repositório só para o cérebro.
-- **"A pasta ... já existe e não está vazia"**: escolha outra pasta com `--dir` ou esvazie a que você indicou.
+- **"A pasta ... já existe e não está vazia"**: escolha com `--dir` uma pasta que ainda não existe (ou vazia). Se é o seu vault do Obsidian, não esvazie nada: ponha o vault num repositório remoto e rode `cabecao init <url>`, que clona numa pasta nova ([Adotar um vault existente](./guias/adotar-vault.md)).
 
 ## O agente não vê o Cabeção
 

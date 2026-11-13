@@ -9,7 +9,7 @@ O plugin é a forma mais completa de usar o Cabeção no Claude Code. Ele traz:
 - **o servidor MCP embutido**: as tools do Cabeção sobem com `node`, a partir de uma cópia do programa que vem dentro do plugin. Não usa `npx` nem rede, e o servidor sobe em cerca de 0,05 s;
 - **o briefing no início de cada sessão**: suas regras, o último handoff, suas preferências, as armadilhas e as memórias do projeto entram no contexto do agente antes da primeira mensagem, junto com as regras de uso do cérebro;
 - **o sync no fim de cada sessão**, em segundo plano;
-- **a skill `cabecao:memory`**, uma referência curta de quando consultar e do que lembrar.
+- **as skills do Cabeção** (consultar, lembrar, passar o bastão, manutenção a pedido e ações com pedido explícito), as mesmas do [`cabecao install-skills`](./skills.md). O plugin corresponde à **versão publicada**: as skills chegam a ele na próxima versão publicada; até lá, ele traz a skill de referência `cabecao:memory`.
 
 ## Antes de instalar
 
@@ -56,6 +56,8 @@ O plugin traz o próprio servidor. Tire o registro antigo, para o agente não ve
 ```bash
 cabecao install-client --remove claude-code
 ```
+
+O `cabecao doctor` detecta o plugin (lendo o registro de plugins do Claude Code, sem executar nada) e avisa quando ele e o registro direto estão ativos ao mesmo tempo, com esse comando como correção. O `init` continua registrando o servidor direto quando acha o Claude Code, mesmo com o plugin; nesse caso, ele avisa no fim. Com o plugin, você também não precisa do `cabecao install-skills` no Claude Code.
 
 ## O que acontece no início da sessão
 
@@ -117,7 +119,7 @@ Se outro sync já estiver rodando, o novo sai como "outro sync em andamento", se
 
 ## Atualizar e remover
 
-O plugin acompanha as versões do pacote `cabecao`: `/plugin update cabecao@cabecao` (ou `claude plugin update cabecao@cabecao`) traz a versão nova quando ela sai. Para remover: `/plugin uninstall cabecao@cabecao`. Remover o plugin não toca no cérebro.
+O plugin acompanha as versões publicadas do pacote `cabecao`: o programa e as skills dentro dele só mudam quando sai uma versão nova, e `/plugin update cabecao@cabecao` (ou `claude plugin update cabecao@cabecao`) traz essa versão. Para remover: `/plugin uninstall cabecao@cabecao`. Remover o plugin não toca no cérebro; para tirar o resto do Cabeção da máquina, veja [Atualizar e desinstalar](./atualizar.md#desinstalar).
 
 ## Problemas
 
