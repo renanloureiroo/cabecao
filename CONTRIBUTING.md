@@ -1,17 +1,18 @@
 # Contribuindo com o Cabeção
 
-O plano de arquitetura está **validado por provas de conceito**. O marco 1 (núcleo: `init`, `sync`, busca por palavra-chave, servidor MCP com 9 tools e CLI com 8 comandos) está **implementado e em revisão**, na branch `feat/m1-nucleo`; nada foi publicado no npm ainda. Busca por significado, grafo, plugin e o resto vêm nos marcos seguintes. A melhor contribuição agora é validar os pontos em aberto, principalmente com provedores git reais e clientes MCP reais, ou discutir o desenho.
+O Cabeção está em beta e publicado no npm (`cabecao@beta`). O que ele faz hoje, e o que vem em breve, está no [site de documentação](https://renanloureiroo.github.io/cabecao/). A melhor contribuição agora é usar e relatar o que encontrar, principalmente com provedores git reais e clientes MCP reais.
 
 ## Como ajudar hoje
-- Leia a [documentação](docs/) e abra uma *issue* com dúvidas, furos ou sugestões.
-- Os pontos ainda não validados estão em "O que ainda precisa de prova" no [roadmap](docs/10-roadmap.md). Testes que confirmem ou derrubem algum deles são muito bem-vindos, principalmente em provedores git reais.
-- Mudanças de arquitetura entram como uma linha nova no [registro de decisões](docs/adr/README.md), com motivo e evidência.
+- Leia a [documentação](https://renanloureiroo.github.io/cabecao/) e abra uma *issue* com dúvidas, bugs ou sugestões. Inclua a saída de `cabecao doctor --offline`.
+- Relatos de uso com provedores git (GitHub, GitLab, Bitbucket, Gitea, servidor próprio) e com clientes MCP reais são muito bem-vindos.
+- Para uma mudança grande, abra uma *issue* antes do PR para combinar o desenho.
 
 ## Convenções
-- **Commits do projeto:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/) (`feat:`, `fix:`, `docs:`, `chore:`...). Os commits que o Cabeção faz no repositório de um cérebro têm um [padrão próprio](docs/12-commits.md).
-- **Idioma:** documentação em português (com versão em inglês planejada); código, identificadores e schema em inglês.
+- **Commits do projeto:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/) (`feat:`, `fix:`, `docs:`, `chore:`...). Os commits que o Cabeção faz no repositório de um cérebro têm um [padrão próprio](https://renanloureiroo.github.io/cabecao/conceitos/commits-e-undo/).
+- **Idioma:** documentação em português, com a versão em inglês no mesmo site (`website/src/content/docs/en/`); código, identificadores e schema em inglês.
 - **Código:** TypeScript estrito, pnpm, testes com Vitest, lint e formatação com Biome.
-- **Antes de abrir um PR:** `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e`. Os comandos estão em [13 · Desenvolvimento, CI e publicação](docs/13-publicacao.md).
+- **Antes de abrir um PR:** `pnpm install`, depois `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke && pnpm e2e`.
+- **Site de documentação:** fica em `website/` (Astro Starlight). `pnpm docs:dev` abre o site localmente e `pnpm docs:build` constrói e confere os links. Mudou um comando ou uma tool? Atualize a página nos dois idiomas.
 - **Dados de teste:** use o cérebro de exemplo em [`fixtures/vault`](fixtures/README.md), que só tem dados inventados.
 
 ## Segurança
