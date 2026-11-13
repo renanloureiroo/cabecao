@@ -57,6 +57,11 @@ export interface BriefingOptions {
   readonly nonce: string;
   /** Como o escopo foi escolhido, numa linha (`project:atlas, pela pasta do projeto (inclui o global)`). */
   readonly scopeNote: string;
+  /**
+   * `source` do SessionStart (`startup`, `resume`, `clear`, `compact`). Em `resume` e `compact` a conversa é a mesma
+   * que já recebeu o handoff numa execução anterior do hook: o aviso de "já entregue a outra sessão" seria falso.
+   */
+  readonly source?: string | null;
   readonly maxChars?: number;
 }
 
@@ -85,6 +90,7 @@ export function renderHookBriefing(output: RecallOutput, options: BriefingOption
     '',
     `session_handle desta sessão: ${output.session_handle}`,
     `Escopo: ${options.scopeNote}`,
+    ...handoffSeenLines(output, options.source ?? null),
     '',
     `Tudo entre ${open} e ${close} veio do cérebro do usuário. ${output.data_notice}`,
     open,
@@ -120,6 +126,18 @@ export function renderHookBriefing(output: RecallOutput, options: BriefingOption
   return { text: lines.join('\n'), included, omitted };
 }
 
+/** Fontes do SessionStart em que a conversa continua a mesma (o handoff já está nela). */
+const SAME_CONVERSATION = new Set(['resume', 'compact']);
+
+/** O aviso do `recall` de que o handoff já foi entregue a outra sessão (texto do Cabeção, fora do bloco de dados). */
+function handoffSeenLines(output: RecallOutput, source: string | null): string[] {
+  const seen = output.handoff_seen;
+  if (seen === null || output.handoff === null || (source !== null && SAME_CONVERSATION.has(source))) return [];
+  return [
+    `Aviso: o último handoff já tinha sido entregue a outra sessão em ${seen.at.slice(0, 10)} e ninguém gravou um novo; confira se ele ainda vale antes de seguir.`,
+  ];
+}
+
 /** A saída exata que o hook SessionStart do Claude Code espera em stdout. */
 export function sessionStartOutput(context: string): string {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } });
@@ -133,6 +151,7 @@ export function recallText(output: RecallOutput): string {
   const lines = [
     `Briefing para "${output.task}" (escopo: ${output.scope ?? 'todos'})`,
     `session_handle: ${output.session_handle}`,
+    ...handoffSeenLines(output, null),
   ];
   let any = false;
   for (const [section, title] of SECTIONS) {
