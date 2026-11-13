@@ -32,6 +32,12 @@ const COMMAND_NAMES = [
   'ingest',
   'forget',
   'consolidate',
+  'read',
+  'remember',
+  'write',
+  'patch',
+  'relate',
+  'handoff',
 ];
 
 function cabecao(args, env = process.env) {

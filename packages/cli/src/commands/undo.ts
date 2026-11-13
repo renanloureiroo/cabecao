@@ -2,6 +2,7 @@ import type { ListOperationsOutput, UndoInput, UndoOutput } from '@cabecao/core'
 import { MIN_HUMAN_ID_PREFIX } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { UsageError } from '../errors.ts';
+import { confirmationText, confirmTokenOf, withConfirmation } from '../memory.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -24,6 +25,8 @@ function idOption(ctx: CommandContext, name: string, min: number): string | unde
 }
 
 export function undoText(output: UndoOutput): string {
+  const pending = confirmationText(output, 'cabecao undo');
+  if (pending !== null) return pending;
   const lines: string[] = [];
   if (output.commit === null) {
     lines.push(
@@ -86,7 +89,13 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
     );
     return { data: output, text: listText(output) };
   }
-  const input: UndoInput = op !== undefined ? { op } : session !== undefined ? { session } : {};
-  const output = await withBrain(ctx, root, (brain) => brain.undo(input));
-  return { data: output, text: undoText(output) };
+  const input: UndoInput = {
+    ...(op !== undefined ? { op } : session !== undefined ? { session } : {}),
+    ...confirmTokenOf(ctx),
+  };
+  // um agente desfaz sem confirmação só as próprias operações, pelo id inteiro; o resto volta com o resumo e o token
+  const { output, code } = await withBrain(ctx, root, (brain) =>
+    withConfirmation(ctx, (options) => brain.undo(input, options)),
+  );
+  return { data: output, text: undoText(output), code };
 }
