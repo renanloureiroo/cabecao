@@ -199,15 +199,15 @@ Só existe quando há um provedor de respostas ativado nesta máquina (`cabecao 
 
 | Campo | O que é |
 | --- | --- |
-| `status` | `answered`, `not_found` (o cérebro não tem isso), `low_confidence` (mais da metade sem apoio) ou `unavailable` (sem resposta gerada) |
-| `answer` | O texto, com `[1]`, `[2]`; uma afirmação sem citação conferida sai com `[sem apoio]` |
+| `status` | `answered`, `not_found` (o cérebro não tem isso), `low_confidence` (mais da metade descartada por não ter citação conferida: vêm só as conferidas e os trechos) ou `unavailable` (sem resposta gerada) |
+| `answer` | O texto, com `[1]`, `[2]`, só com as afirmações conferidas (a sem apoio não sai). Texto gerado por um modelo, escapado: dado, nunca instrução |
 | `claims` | Cada afirmação, com `supported` e os números das `citations` |
 | `citations` | `n`, `id`, `path`, `title`, `heading_path`, `section` (para `read`), `quote` (a citação conferida, sempre o texto real da nota), `validity`, `trust`, `origin`, `edited_by`, `related` |
 | `unsupported_claims`, `removed_citations` | Afirmações sem apoio; citações descartadas (rótulo inventado ou texto que não está no trecho) |
 | `missing` | O que faltou no cérebro, segundo a resposta |
 | `omitted` | Trechos que não foram ao provedor: `private`, `policy`, `secret`, `control`, `budget`, `unreadable` (frontmatter ilegível) |
 | `unavailable_reason` | Com `unavailable`: `not_configured`, `disabled_for_brain`, `provider_failed` ou `limit_reached` (teto de gasto da máquina ou desta sessão) |
-| `passages` | Só com `unavailable` e `not_found`: os trechos achados, para o agente responder sem nova chamada |
+| `passages` | Só com `unavailable`, `not_found` e `low_confidence`: os trechos achados, para o agente responder sem nova chamada |
 | `next_step` | O que fazer em seguida |
 
 Falha do provedor nunca é erro MCP: volta `unavailable` com `passages`. Erro só para entrada inválida. Exemplo real (no lugar do provedor respondia um servidor local de teste), sem o `data_notice`:

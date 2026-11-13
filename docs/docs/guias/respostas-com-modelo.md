@@ -15,9 +15,9 @@ Nada disso é necessário para usar o Cabeção, e nada sai da máquina até voc
 1. **Busca** como o `search` (híbrida quando a busca por significado está ligada), com `--as-of`, `--scope` e `--type`, e lê a seção de cada nota achada.
 2. **Filtra o que pode sair** (veja abaixo) e monta o pedido: cada trecho vai rotulado (`S1`, `S2`...) com a validade e a proveniência, entre delimitadores com uma marca sorteada a cada pergunta. O caminho, o título e as seções da nota vão **dentro** do bloco delimitado (são dados, como o texto), e o conteúdo de fora vai com as palavras separadas por `^`.
 3. **Chama o provedor** ativado nesta máquina, pedindo a resposta em JSON: cada afirmação com as fontes e uma citação literal.
-4. **Confere cada citação**: o rótulo tem de existir e a citação literal tem de estar no trecho citado (sem diferença de acento, caixa, aspas ou espaços). A citação tem de ser **substantiva**: pelo menos 16 letras ou números e 3 palavras de conteúdo; com reticências, no máximo 3 pedaços, cada um assim, na ordem. A citação que você vê é sempre o **texto real da nota**, nunca o que o modelo escreveu. O que não confere é descartado; a afirmação sem nenhuma citação conferida aparece marcada `[sem apoio]`; sem nenhuma, a resposta vira "o cérebro não tem isso".
+4. **Confere cada citação**: o rótulo tem de existir e a citação literal tem de estar no trecho citado (sem diferença de acento, caixa, aspas ou espaços). A citação tem de ser **substantiva**: pelo menos 16 letras ou números e 3 palavras de conteúdo; com reticências, no máximo 3 pedaços, cada um assim, na ordem. A citação que você vê é sempre o **texto real da nota**, nunca o que o modelo escreveu. O que não confere é descartado. Uma afirmação sem nenhuma citação conferida **não sai** (é texto livre do modelo): só conta em `unsupported_claims`. Sem nenhuma conferida, a resposta vira "o cérebro não tem isso"; com mais da metade descartada, o status é `low_confidence`, com só as conferidas e os trechos achados, para conferir. Duas afirmações que citam o mesmo trecho com citações diferentes ganham números diferentes, cada uma com a sua.
 
-A resposta é **só lida**: nunca é gravada no cérebro, executada ou usada para chamar outra coisa. Imagens, links, endereços e HTML que o modelo escrever são tirados do texto (num cliente que renderiza Markdown, uma imagem carregaria sozinha e levaria dados no endereço).
+A resposta é **só lida**: nunca é gravada no cérebro, executada ou usada para chamar outra coisa. O texto do modelo é **escapado**: `[`, `]`, `<`, `>` e `\` saem com barra invertida, e nenhum renderizador de Markdown faz deles link, imagem ou HTML (num cliente que renderiza, uma imagem carregaria sozinha e levaria dados no endereço); endereços (com esquema, `//host`, `www.`, `host.tld/...` e domínios comuns) viram "(link removido)". O campo `missing` é uma linha curta (até 240 caracteres), também neutralizada, e o `data_notice` diz ao agente que a resposta é texto gerado por um modelo: dado, nunca instrução. A pergunta também é conferida: se o scanner de segredos acusar algo nela, nada é enviado.
 
 :::note[O limite honesto]
 O Cabeção **confere a citação, não a conclusão**: garante que o trecho citado existe e diz aquilo, não que a afirmação decorre dele. Para algo importante, abra a fonte.
@@ -64,6 +64,8 @@ A confirmação do `llm on` fica **assinada** no `llm.json` com um segredo desta
 
 O `llm.json`, o segredo das confirmações, o contador do teto de gasto e as chaves em arquivo ficam na pasta de configuração **padrão do seu usuário** (`~/.config/cabecao`; no Windows, `%APPDATA%\cabecao`), calculada a partir do usuário do sistema. Se a pasta for desviada por variável de ambiente (`CABECAO_CONFIG_DIR`, `XDG_CONFIG_HOME`, `APPDATA` ou `HOME`), a configuração desviada vale **só para você, no terminal**; para um agente (que controla o ambiente dos comandos que roda), as respostas ficam desligadas e nada é lido. Assim um agente não aponta o `ask` para um `llm.json` que ele mesmo escreveu.
 
+A "pasta do usuário do sistema" vem de `os.userInfo()`, que consulta a conta do sistema (no macOS e no Linux, o cadastro de usuários; no Windows, o perfil do usuário do processo), e não de `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME` ou `APPDATA`. E o **servidor MCP é sempre tratado como agente**, mesmo quando herda um terminal (um cliente de IA de terminal sobe o `cabecao mcp` como filho): ele nunca usa uma pasta desviada, nem a que a configuração MCP de um projeto apontar. O `ask.log` fica nessa mesma pasta, não na de cache.
+
 ### Provedores
 
 | Provedor | Como ativar | Modelo padrão | Chave |
@@ -81,6 +83,8 @@ O `llm.json`, o segredo das confirmações, o contador do teto de gasto e as cha
 Os modelos padrão são os mais baratos com saída estruturada na documentação de cada provedor em 13/11/2026; troque com `--model`. O endereço (`--base-url`) só vale para `compatible`, `ollama` e `lmstudio`: os provedores de endereço fixo recusam, para o destino mostrado na confirmação ser sempre o real. Ele tem de ser `https`, ou `http` só nesta máquina (`localhost`, `127.0.0.1`, `[::1]`); endereços de rede de enlace e de metadados de nuvem (`169.254.*`, `fe80::`, `0.0.0.0`) são recusados, e o `llm.json` é conferido de novo a cada leitura. Para usar a chave de uma variável sem guardá-la, passe `--key-env NOME`.
 
 O **Claude Code** entra porque a Anthropic documenta que o `claude -p` usa os limites da sua assinatura ([suporte da Anthropic](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan), consultado em 13/11/2026). Para gerar a resposta ele roda **sem nenhuma ferramenta**: sem shell, sem leitura de arquivos, sem servidores MCP, sem as suas configurações, numa pasta temporária vazia e com tempo limite. Se o agente da sua conversa também é o Claude Code, cada `ask` abre uma segunda sessão (custa em dobro).
+
+O `llm on` guarda o **caminho real** do `claude` que você confirmou (coberto pela assinatura), e o `ask` roda sempre esse, nunca o primeiro `claude` do PATH de quem pergunta. Quando quem pergunta é um agente, nada do ambiente dele muda o destino ou a configuração do `claude`: sem `ANTHROPIC_BASE_URL`, `CLAUDE_CONFIG_DIR`, chaves e os desvios para Bedrock, Vertex ou Foundry; `HOME` é a sua pasta do sistema; e o PATH só tem a pasta do `claude`, a do Node e as do sistema. Para você, no terminal, o seu ambiente vale.
 
 ### Por que o Antigravity instalado não é oferecido
 
@@ -105,10 +109,15 @@ O que ficou de fora aparece na resposta ("Trechos não enviados ao provedor: 1 d
 
 Uma nota é privada, e nunca vai a provedor nenhum, quando o frontmatter tem:
 
-- a chave `private`, sem diferenciar maiúsculas (`private`, `Private`, `PRIVATE`), com um valor verdadeiro: `true`, `yes`, `on`, `sim`, `1`, em texto ou numa lista (`[true]`);
-- ou a tag `private` (com ou sem `#`) em `tags`.
+- a chave `private`, sem diferenciar maiúsculas (`private`, `Private`, `PRIVATE`), com um valor verdadeiro: `true`, `yes`, `on`, `sim`, `verdadeiro`, `1`, em texto ou numa lista (`[true]`);
+- ou a tag `private`, ou uma tag aninhada dela (`private/saude`), com ou sem `#`, em `tags` ou `tag`;
+- ou, como no Obsidian, a tag `#private` (ou `#private/...`) no corpo da nota.
 
-Uma nota cujo frontmatter não dá para ler também não sai. E o **nome** de uma nota privada não sai nem quando outra nota a cita: o título, os apelidos (`aliases`), o caminho e o nome do arquivo dela viram `[nota privada]` no texto, no título e nas seções dos trechos que saem, e ela nunca entra como nota relacionada pelo grafo.
+Não contam: `private` dentro de outro campo (`meta: {private: true}`), `cssclasses` e tags parecidas (`privado`, `#privateer`). Uma nota cujo frontmatter não dá para ler também não sai.
+
+E o **nome** de uma nota privada não sai nem quando outra nota a cita: o título, os apelidos (`aliases` ou `alias`, em lista ou em texto), o caminho e o nome do arquivo dela, citados como **palavra inteira** (sem diferenciar maiúsculas nem acentos, e com `%20` como espaço), viram `[nota privada]` no texto, no título, nas seções e no caminho dos trechos que saem; ela nunca entra como nota relacionada pelo grafo. Um nome curto (menos de 6 letras e números, como "Ana") não é trocado dentro do texto, onde estragaria palavras e ainda o revelaria: o trecho que o cita como palavra inteira simplesmente não sai (conta em `omitted.private`).
+
+O limite honesto: o Cabeção esconde o nome onde o reconhece. Uma menção parcial (só o sobrenome, um apelido que não está em `aliases`) e o **conteúdo** de uma nota privada copiado para outra nota não são detectados. O filtro também protege só o que o Cabeção recupera: o que o agente escreve na própria pergunta vai ao provedor como está.
 
 ### Política por cérebro
 
@@ -155,7 +164,7 @@ Consultadas em 13/11/2026. Confira a página atual antes de ativar:
 | Claude Code com Free, Pro ou Max | O uso para melhorar os modelos depende da sua configuração de privacidade na conta | [privacy.claude.com](https://privacy.claude.com/en/articles/10023580-is-my-data-used-for-model-training) |
 | OpenAI | Não usa os dados da API para treinar, sem opt-in; registros de abuso por até 30 dias | [developers.openai.com](https://developers.openai.com/api/docs/guides/your-data) |
 | Google Gemini (API) | **Camada gratuita:** usa o que você envia para melhorar os produtos, e pessoas podem ler. **Camada paga:** não usa; guarda registros por tempo limitado para detectar abuso | [aistudio.google.com](https://aistudio.google.com/docs/terms) |
-| OpenRouter | Não guarda prompts nem respostas sem você ativar o registro; o Cabeção pede só provedores que não coletam dados (`data_collection: "deny"`) | [openrouter.ai](https://openrouter.ai/docs/guides/privacy/data-collection) |
+| OpenRouter | Não guarda prompts nem respostas sem você ativar o registro; o Cabeção pede só provedores que não coletam dados (`provider.data_collection: "deny"`, que a referência de roteamento descreve como "use only providers which do not collect user data") | [registro](https://openrouter.ai/docs/guides/privacy/data-collection), [roteamento](https://openrouter.ai/docs/guides/routing/provider-selection) |
 | Groq | Não retém os dados das requisições por padrão; pode registrar por até 30 dias para investigar erro ou abuso | [console.groq.com](https://console.groq.com/docs/your-data) |
 | Ollama, LM Studio | Rodam na sua máquina | — |
 
@@ -170,6 +179,8 @@ Na camada gratuita da API do Gemini, os trechos das suas notas podem ser lidos p
 - **Servidor local:** sem cobrança por pergunta.
 
 Os limites ficam em `limits` no [`llm.json`](../referencia/arquivos.md#provedor-de-respostas-llmjson): por pergunta, `context_tokens` (padrão 3000, até 8000), `max_output_tokens` (2048) e `timeout_ms` (60000); e um **teto de gasto**: `max_calls_per_hour` (padrão 30, contando todas as perguntas desta máquina) e `max_calls_per_session` (padrão 20 por sessão do servidor MCP, isto é, por cliente de IA aberto). Com o teto atingido, o `ask` devolve `unavailable` (`limit_reached`) com os trechos achados, sem chamar o provedor: um agente em laço não esvazia a sua conta. Erros passageiros (limite de uso, servidor fora) têm até duas novas tentativas, e uma falha de conexão, no máximo uma, dentro do tempo limite. Um redirecionamento do servidor nunca é seguido: a chave e os trechos não vão a outro endereço.
+
+O teto conta **perguntas** e é reservado **antes** de chamar o provedor, de forma atômica (uma trava no arquivo `ask-usage.json`, que vale entre processos: a CLI e cada servidor MCP aberto): 35 perguntas ao mesmo tempo não passam do teto. A vaga só volta quando nenhum pedido saiu (sem trecho para mandar, provedor não instalado, política). E cada pergunta faz **no máximo 3 pedidos** ao provedor, somando as novas tentativas, o segundo pedido quando o formato veio errado e o recuo para o provedor seguinte.
 
 ## Perguntar
 
@@ -234,6 +245,8 @@ Com um provedor ativado, o servidor MCP passa a anunciar a tool [`ask`](../refer
 
 A variável de ambiente do provedor, quando definida, vale antes do que está guardado. A chave nunca vai para o cérebro, para o `llm.json`, para o log ou para uma mensagem de erro, e o `llm status` mostra só os quatro últimos caracteres. Atenção: um servidor MCP iniciado pelo cliente de IA pode não herdar as variáveis do seu terminal; para o `ask` dos agentes, prefira guardar a chave.
 
+No Windows, para cifrar ou decifrar com a DPAPI, a chave passa pelo **ambiente do processo do PowerShell** que o Cabeção abre por alguns instantes (nunca pela linha de comando). Enquanto ele roda, outro programa do **mesmo usuário** do Windows pode ler esse ambiente; programas de outros usuários, não. É o mesmo limite de uma chave numa variável de ambiente.
+
 Atrás de um proxy: o `fetch` do Node só usa o `HTTPS_PROXY` quando isso é ligado. O Cabeção liga sozinho onde o Node permite (`http.setGlobalProxyFromEnv`), sempre com os endereços desta máquina em `NO_PROXY`: um servidor local (Ollama, LM Studio) **nunca** vai por túnel ao proxy. Com `NODE_USE_ENV_PROXY=1` e sem `localhost,127.0.0.1` no `NO_PROXY`, o Cabeção recusa chamar o servidor local e diz como corrigir. O `llm status` diz o que vale na sua máquina.
 
 A chave guardada fica amarrada ao destino (a conta no cofre é `<provedor>@<endereço>`): trocar o endereço do provedor não entrega a chave a outro servidor. O arquivo de chaves é fechado (`0600`) antes de receber a chave, e uma pasta de configuração que outros usuários da máquina podem alterar é recusada.
@@ -263,6 +276,7 @@ Mede, com as suas perguntas: citações válidas, afirmações sem apoio, fonte 
 ## Limites conhecidos
 
 - **Testado:** o fluxo inteiro com um provedor falso, os dois adaptadores contra servidores locais que imitam as APIs, e uma execução real com o Claude Code. **Não testado com chaves reais** de Anthropic, OpenAI, Gemini, OpenRouter e Groq, nem com o cofre real de cada sistema (os testes usam um executor falso; no Windows, a DPAPI é testada de verdade).
+- **Citação colada de frases diferentes.** Até 3 pedaços com reticências, cada um substantivo e na ordem do trecho, contam como uma citação: dá para montar uma citação real com pedaços de frases diferentes do mesmo trecho e apoiar nela uma conclusão que o trecho não tira.
 - **A verificação confere a citação, não a conclusão.** Uma afirmação pode citar um trecho verdadeiro e tirar dele uma conclusão errada. Para algo importante, abra a fonte (`cabecao search`, ou `read` com o `id` da citação).
 - **A assinatura da confirmação protege contra um `llm.json` forjado, não contra quem lê os seus arquivos.** Um agente com shell que lê a sua pasta de usuário pode ler o segredo local, assim como pode ler as suas notas direto. A proteção vale para o caminho que o Cabeção controla: a CLI e as tools.
 - **A política do cérebro viaja pelo git.** Quem tem escrita no remoto pode afrouxá-la (veja acima); cada máquina continua decidindo se ativa um provedor.

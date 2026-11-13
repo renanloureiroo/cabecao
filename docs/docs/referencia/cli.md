@@ -395,7 +395,7 @@ Ordem de uso: ollama
   ollama: Ollama (servidor local) · modelo llama3.2 · roda nesta máquina
     ativado em 2026-11-13 · disponível
 Limites: ~3000 tokens de contexto, 2048 de saída e 60 s por chamada
-Configuração: ~/.config/cabecao/llm.json · log: ~/.cache/cabecao/ask.log
+Configuração: ~/.config/cabecao/llm.json · log: ~/.config/cabecao/ask.log
 ```
 
 O Antigravity instalado e o Codex não são oferecidos; o motivo está no [guia](../guias/respostas-com-modelo.md#por-que-o-antigravity-instalado-não-é-oferecido).
