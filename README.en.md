@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao/beta?label=npm%40beta&color=14121c" alt="npm version (beta)"></a>
+  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao?color=14121c" alt="npm version"></a>
   <a href="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml"><img src="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/renanloureiroo/cabecao?color=14121c" alt="MIT license"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao/beta?color=14121c" alt="Node.js"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao?color=14121c" alt="Node.js"></a>
 </p>
 
 <!-- README-I18N:START -->
@@ -24,7 +24,7 @@
 
 Your notes are Markdown files in a git repository you own, on any host. AI agents (Claude Code, Codex, Cursor and others) read and write them over MCP, and every write becomes a commit you can undo with one command. The name is a tribute to Cabeção from *Malhação*.
 
-> **Beta.** The current version is `0.1.0-beta.1`. It works day to day, but commands and formats may still change before 1.0. The CLI prints its messages in Portuguese for now; the MCP tools that agents use are described in English.
+> The CLI prints its messages in Portuguese for now; the MCP tools that agents use are described in English.
 
 ## What it looks like
 
@@ -84,10 +84,10 @@ $ cabecao search "testes pagamento"
 
 ## Install
 
-Requires Node.js 22.16+ (24 recommended) and git 2.38+. Create an **empty, private** repository first.
+Requires Node.js 22.16+ or 24+ and git 2.38+. Create an **empty, private** repository first.
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao init git@github.com:voce/cerebro.git
 cabecao doctor
 ```

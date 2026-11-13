@@ -26,12 +26,14 @@ Relacionadas (vizinhas dos melhores resultados no grafo; fora da ordem acima):
 - Idempotência  (wiki/concepts/Idempotência.md)  ← depends_on de wiki/decisions/usar-sqs-para-filas.md
 - SQS  (wiki/entities/SQS.md)  ← uses de wiki/decisions/usar-sqs-para-filas.md
 - Ana Prado  (wiki/entities/Ana Prado.md)  ← decided_by de wiki/decisions/usar-sqs-para-filas.md
+
+Modo: keyword (a busca por significado não está ativada neste cérebro ("cabecao embeddings on" ativa)).
 ```
 
 Como ler:
 
 - Cada resultado traz título, tipo, escopo, se vale na data, o caminho (com a seção, depois de `›`) e um trecho com os termos entre `«»`.
-- A busca tenta primeiro as notas com **todos** os termos. Se nenhuma tiver, ela diz e passa a aceitar **algum** dos termos: `3 resultado(s) para "kafka lumen", com algum dos termos (nenhuma nota tinha todos)`.
+- A busca tenta primeiro as notas com **todos** os termos. Se nenhuma tiver, ela diz e passa a aceitar **algum** dos termos: `3 resultado(s) para "kafka lumen", com algum dos termos (nenhuma nota tinha todos) (validade em 2026-11-12):`.
 - Maiúsculas e acentos não importam.
 - Notas vencidas aparecem, mais abaixo e marcadas. Notas arquivadas (`memory/_archive/`) não aparecem.
 - O bloco **Relacionadas** lista até 5 notas ligadas no grafo aos melhores resultados, com o motivo. Ele não muda a ordem da lista.
@@ -43,8 +45,9 @@ Filtros:
 | `--type <tipo>` | `--type gotcha,handoff` (repita ou separe por vírgula) |
 | `--scope <escopo>` | `--scope project:atlas` traz o projeto e as notas globais; `--scope global`, só as globais |
 | `--limit <n>` | De 1 a 100 (padrão: 10) |
+| `--mode <modo>` | `auto` (padrão), `keyword`, `semantic` ou `hybrid` |
 
-A busca é por palavra-chave: ela acha a palavra, não o assunto. Se não achar, tente um sinônimo ou o nome exato. A busca por significado está [a caminho](../em-breve.md).
+Sem a busca por significado, a busca é por palavra-chave: ela acha a palavra, não o assunto. Se não achar, tente um sinônimo ou o nome exato. Com a busca por significado ligada ([`cabecao embeddings on`](../referencia/cli.md#cabecao-embeddings)), o modo `auto` junta palavra-chave e significado. A última linha da saída diz o modo usado e por quê.
 
 ## Perguntas sobre o passado
 

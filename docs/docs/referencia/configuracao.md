@@ -29,7 +29,7 @@ O `.cabecao.json` fica na raiz do cérebro. Ele marca a pasta como cérebro do C
 | `indexMd` | caminho `.md` | `"index.md"` | Onde o catálogo é gerado |
 | `relations` | lista de nomes | `[]` | Relações tipadas suas, além das seis fixas |
 | `commit` | objeto | ausente | O modelo do assunto dos commits |
-| `embedding` | objeto | ausente | Reservado para a busca por significado, [em breve](../em-breve.md). Hoje não tem efeito |
+| `embedding` | objeto | ausente | O modelo da busca por significado (`model`, `variant`, `dims`, `recipe` e a `revision` exata), gravado por `cabecao embeddings on` e `switch`. Não edite à mão; um agente não altera esta seção nem com confirmação |
 | `llm_policy` | objeto | ausente (sem restrição) | O que um provedor de respostas do `ask` pode receber deste cérebro. Veja [Política por cérebro](../guias/respostas-com-modelo.md#política-por-cérebro) |
 
 Chaves que o Cabeção não conhece são mantidas quando ele regrava o arquivo.

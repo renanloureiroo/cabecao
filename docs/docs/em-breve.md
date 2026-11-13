@@ -16,7 +16,6 @@ Estas mudanças de experiência já foram avaliadas, mas dependem de uma decisã
 - **O sync automático ligado pelo `init`**. Hoje ele só aparece entre os opcionais do fim do `init`, do `status` e do `doctor` (`cabecao schedule on`).
 - **Um `cabecao setup`**: uma lista do que está ligado e do que falta (skills, sync automático, busca por significado, Obsidian), com uma pergunta só para aplicar o recomendado.
 - **Mensagens da CLI em inglês**, escolhidas pelo idioma do sistema. Hoje a CLI fala português; o site e os READMEs têm as duas línguas.
-- **A versão mais nova no `npm i -g cabecao` sem etiqueta**. Hoje use `cabecao@beta`; a CLI já sugere o comando com a etiqueta certa.
 
 ## Planejado
 
@@ -25,6 +24,6 @@ Estas mudanças de experiência já foram avaliadas, mas dependem de uma decisã
 - **Mais agentes no `consolidate --run`**: o GitHub Copilot CLI e o OpenCode têm opções para restringir as tools, mas ainda não foram testados.
 - **Apagar de vez** (`cabecao purge`): tirar uma nota do histórico do git, para o caso raro de algo que não podia estar lá. Hoje o `forget` arquiva, e o arquivado continua no git.
 - **Explorador do grafo dentro do Claude**, para navegar pelas notas e relações numa janela da conversa.
-- **Mais do provedor de respostas** (o [`ask`](./guias/respostas-com-modelo.md) já chega na próxima versão): resumos por tema e ajuda na consolidação escritos pelo provedor, sempre com as mesmas restrições de um agente; um modelo que rode embutido, sem servidor; e busca por significado com o Ollama.
+- **Mais do provedor de respostas** (o [`ask`](./guias/respostas-com-modelo.md) já existe): resumos por tema e ajuda na consolidação escritos pelo provedor, sempre com as mesmas restrições de um agente; um modelo que rode embutido, sem servidor; e busca por significado com o Ollama.
 
 Quer acompanhar ou opinar? Abra uma [issue](https://github.com/renanloureiroo/cabecao/issues).

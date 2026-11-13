@@ -52,7 +52,7 @@ Rode no seu terminal. Nenhuma opção, variável ou configuração muda isso (ve
 
 ## O que cada um pode, nos comandos de memória
 
-Como **agente**, a CLI abre o cérebro exatamente como o servidor MCP: grava com `origin: agent:<cliente>` e `trust: medium`, não forja proveniência, passa tudo pelo scanner de segredos, e as **ações elevadas** só acontecem com o pedido explícito do usuário (decisão 37):
+Como **agente**, a CLI abre o cérebro exatamente como o servidor MCP: grava com `origin: agent:<cliente>` e `trust: medium`, não forja proveniência, passa tudo pelo scanner de segredos, e as **ações elevadas** só acontecem com o pedido explícito do usuário:
 
 - criar ou alterar uma regra (`type: rule`, `memory/rules/`);
 - escrever nos arquivos de controle (`AGENTS.md`, `CLAUDE.md`, `log.md`, `.cabecao.json`, `.gitignore`...) e em arquivos com nome de instrução de cliente de IA, em qualquer pasta;

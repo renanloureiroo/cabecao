@@ -26,12 +26,14 @@ Relacionadas (vizinhas dos melhores resultados no grafo; fora da ordem acima):
 - Idempotência  (wiki/concepts/Idempotência.md)  ← depends_on de wiki/decisions/usar-sqs-para-filas.md
 - SQS  (wiki/entities/SQS.md)  ← uses de wiki/decisions/usar-sqs-para-filas.md
 - Ana Prado  (wiki/entities/Ana Prado.md)  ← decided_by de wiki/decisions/usar-sqs-para-filas.md
+
+Modo: keyword (a busca por significado não está ativada neste cérebro ("cabecao embeddings on" ativa)).
 ```
 
 How to read it:
 
 - Each result shows the title, type, scope, whether it is in effect on the date, the path (with the section, after `›`), and an excerpt with the terms between `«»`.
-- Search first tries notes with **all** the terms. If none has them, it says so and switches to accepting **any** of the terms: `3 resultado(s) para "kafka lumen", com algum dos termos (nenhuma nota tinha todos)`.
+- Search first tries notes with **all** the terms. If none has them, it says so and switches to accepting **any** of the terms: `3 resultado(s) para "kafka lumen", com algum dos termos (nenhuma nota tinha todos) (validade em 2026-11-12):`.
 - Case and accents do not matter.
 - Expired notes show up, lower down and marked. Archived notes (`memory/_archive/`) do not show up.
 - The **Relacionadas** (related) block lists up to 5 notes linked in the graph to the best results, with the reason. It does not change the order of the list.
@@ -43,8 +45,9 @@ Filters:
 | `--type <tipo>` | `--type gotcha,handoff` (repeat it or separate with commas) |
 | `--scope <escopo>` | `--scope project:atlas` returns the project and the global notes; `--scope global`, only the global ones |
 | `--limit <n>` | From 1 to 100 (default: 10) |
+| `--mode <modo>` | `auto` (default), `keyword`, `semantic` or `hybrid` |
 
-Search is by keyword: it finds the word, not the topic. If it does not find anything, try a synonym or the exact name. Search by meaning is [on the way](../em-breve.md).
+Without search by meaning, search is by keyword: it finds the word, not the topic. If it does not find anything, try a synonym or the exact name. With search by meaning turned on ([`cabecao embeddings on`](../referencia/cli.md#cabecao-embeddings)), the `auto` mode combines keyword and meaning. The last line of the output says which mode was used and why.
 
 ## Questions about the past
 

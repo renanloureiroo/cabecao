@@ -16,8 +16,8 @@ Uso e exemplos: [Usar com o Obsidian](https://renanloureiroo.github.io/cabecao/g
 
 ## O que foi conferido e o que não foi
 
-- Sintaxe dos `.base`: conferida na documentação oficial do Bases (obsidian.md/help/bases/syntax e /functions) e nas duas armadilhas medidas no aplicativo pela prova de conceito (`prop == null`, `(today() - data).days`). Os painéis finais não foram abertos num Obsidian durante o desenvolvimento.
+- Sintaxe dos `.base`: conferida na documentação oficial do Bases (obsidian.md/help/bases/syntax e /functions) e nas duas armadilhas medidas no aplicativo (`prop == null`, `(today() - data).days`). Os painéis finais não foram abertos num Obsidian durante o desenvolvimento.
 - `.canvas`: conferido contra a especificação JSON Canvas 1.0 (jsoncanvas.org/spec/1.0) por um validador e por testes de propriedade.
-- `app.json`, `graph.json` e `types.json` não têm documentação oficial: as chaves são as conferidas no Obsidian 1.15 pela prova de conceito.
+- `app.json`, `graph.json` e `types.json` não têm documentação oficial: as chaves são as conferidas no Obsidian 1.15.
 - Web Clipper: conferido contra o importador da extensão (`obsidianmd/obsidian-clipper`, `src/utils/import-export.ts`); não foi importado numa extensão de verdade.
 - Obsidian aberto: detectado pelo `obsidian.json` do aplicativo (só leitura) e pela lista de processos.

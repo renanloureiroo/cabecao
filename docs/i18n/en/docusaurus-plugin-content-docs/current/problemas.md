@@ -9,7 +9,7 @@ description: Use doctor and fix the most common errors, about credentials, confl
 cabecao doctor
 ```
 
-It checks Node.js, git, the brain, the machine configuration, the git identity, the remote and the credential, `.gitignore`, the local database, locks, interrupted operations, conflicts, and the registration in AI clients. Each item comes out as `ok`, `aviso` (warning), or `falha` (failure), with the fix next to it. The exit code is 1 if there is any failure.
+It checks the Cabeção version, Node.js, git, the brain, the machine configuration, the git identity, the remote and the credential, `.gitignore`, the local database, semantic search, locks, interrupted operations, conflicts, the registration in AI clients, the skills, the scheduled sync, and the `ask` answer provider. Each item comes out as `ok`, `aviso` (warning), or `falha` (failure), with the fix next to it. The exit code is 1 if there is any failure.
 
 Offline, or to be quick, use `cabecao doctor --offline`: it does not query the remote.
 
@@ -17,13 +17,15 @@ Offline, or to be quick, use `cabecao doctor --offline`: it does not query the r
 $ cabecao doctor --offline --brain ~/pasta-qualquer
 Diagnóstico do Cabeção: ~/pasta-qualquer
 
+ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ok     Node.js                  v24.21.0
 ok     git                      2.54.0
 falha  Cérebro                  não achei .cabecao.json em ~/pasta-qualquer: a pasta não é um cérebro do Cabeção. Rode "cabecao init".
                                 Correção: Confira o caminho do cérebro ou rode "cabecao init".
 ok     Configuração da máquina  máquina "notebook"
+ok     Respostas (ask)          opcional e desligado: nada sai da máquina ("cabecao llm on" ativa)
 
-3 ok, 0 avisos, 1 falha.
+5 ok, 0 avisos, 1 falha.
 ```
 
 ## Credentials: "Sem permissão para acessar"
@@ -109,7 +111,7 @@ The brain is chosen in this order: `--brain`, `CABECAO_BRAIN`, the default saved
 
 ## Odd local database
 
-Results that do not match the notes, or the `index_failed` error: delete the brain's `.cabecao/` folder (it does not go to git) and run `cabecao status`. The database is rebuilt from the notes.
+Results that do not match the notes, or the `index_failed` error: run `cabecao reindex --full` (or delete `.cabecao/cabecao.db`, which does not go to git, and run `cabecao status`). The database is rebuilt from the notes.
 
 ## Report a problem
 

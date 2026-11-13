@@ -2,16 +2,16 @@
 
 O plugin liga o Cabeção ao Claude Code sem configuração manual. Ele traz quatro coisas:
 
-- **o servidor MCP do Cabeção, embutido**: as 17 tools (`recall`, `search`, `remember`, `handoff_save`...) sobem com `node`, a partir do bundle que vem dentro do plugin, sem `npx` e sem rede (0,05 s por início, contra 1,4 s do `npx`);
+- **o servidor MCP do Cabeção, embutido**: as 17 tools (`recall`, `search`, `remember`, `handoff_save`...), mais o `ask` quando você ativa um provedor, sobem com `node`, a partir do bundle que vem dentro do plugin, sem `npx` e sem rede (0,05 s por início, contra 1,4 s do `npx`);
 - **o hook de início de sessão**: roda `cabecao recall --hook` e põe no contexto do agente as regras de uso e o briefing do cérebro (suas regras, o último handoff, preferências, armadilhas e memórias do projeto), marcado como dado e abaixo de 10 mil caracteres;
 - **o hook de fim de sessão**: roda `cabecao sync --hook`, que dispara o sync num processo em segundo plano e volta na hora (o Claude Code dá só 1,5 s a esse hook);
-- **as skills do Cabeção** (fonte: [`integrations/skills/`](../skills/)), copiadas para `skills/` no passo de versão: o plugin corresponde à versão publicada, então as skills novas chegam a ele na próxima versão (até lá, fica a skill `cabecao:memory`).
+- **as skills do Cabeção** (fonte: [`integrations/skills/`](../skills/)), copiadas para `skills/` no passo de versão: o plugin corresponde à versão publicada.
 
 Nenhum hook lê, copia ou grava a conversa. O que entra no cérebro é só o que o agente grava pelas tools, como sem o plugin.
 
 ## Instalar
 
-Antes: Node.js 22.16 ou mais novo no `PATH` e um cérebro nesta máquina (`npx cabecao@beta init <url>`, ou uma pasta de cérebro que você vai informar).
+Antes: Node.js 22.16+ ou 24+ no `PATH` e um cérebro nesta máquina (`npx cabecao init <url>`, ou uma pasta de cérebro que você vai informar).
 
 Dentro do Claude Code:
 
@@ -71,6 +71,6 @@ Para não mexer na sua configuração do Claude Code, use uma pasta de configura
 
 ## Problemas
 
-- O servidor não conecta (`claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect`): rode `cabecao doctor`; confira se o `node` do `PATH` é 22.16+ e se `brain_dir` aponta para um cérebro.
+- O servidor não conecta (`claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect`): rode `cabecao doctor`; confira se o `node` do `PATH` é 22.16+ ou 24+ e se `brain_dir` aponta para um cérebro.
 - O briefing não aparece: rode à mão `echo '{}' | node <pasta do plugin>/server/cabecao.mjs recall --hook`; o motivo sai no stderr.
 - O sync do fim de sessão: veja `<cérebro>/.cabecao/logs/sync.log`.

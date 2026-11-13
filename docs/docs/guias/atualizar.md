@@ -11,18 +11,18 @@ Atualizar tem duas partes: o **programa** (o pacote `cabecao`, o plugin do Claud
 O comando depende de como você instalou. O `cabecao doctor` mostra o da sua instalação na primeira linha:
 
 ```text
-ok     Cabeção                  0.1.0-beta.1 (instalado com npm -g); para atualizar: npm i -g cabecao@beta
+ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ```
 
 | Instalou com | Para atualizar |
 | --- | --- |
-| `npm i -g` | `npm i -g cabecao@beta` |
-| `pnpm add -g` | `pnpm add -g cabecao@beta` |
-| `npx` | `npx cabecao@beta <comando>` (o `npx` usa a versão que você pedir) |
-| Dentro de um projeto | `npm i cabecao@beta`, na pasta do projeto |
+| `npm i -g` | `npm i -g cabecao@latest` |
+| `pnpm add -g` | `pnpm add -g cabecao@latest` |
+| `npx` | `npx cabecao@latest <comando>` (o `npx` usa a versão que você pedir) |
+| Dentro de um projeto | `npm i cabecao@latest`, na pasta do projeto |
 | Plugin do Claude Code | `/plugin update cabecao@cabecao` |
 
-Enquanto o Cabeção for beta, use a etiqueta `@beta`: sem ela, o npm pode instalar uma beta mais velha. As mensagens da CLI que mandam atualizar (um cérebro de versão mais nova, o sync agendado que perdeu o programa) já dizem o comando da sua instalação, com a etiqueta do canal em uso. O pacote do Claude Desktop se atualiza instalando o `.mcpb` novo por cima ([Claude Desktop](./claude-desktop.md)). Nada disso mexe no cérebro.
+As mensagens da CLI que mandam atualizar (um cérebro de versão mais nova, o sync agendado que perdeu o programa) já dizem o comando da sua instalação. O pacote do Claude Desktop se atualiza instalando o `.mcpb` novo por cima ([Claude Desktop](./claude-desktop.md)). Nada disso mexe no cérebro.
 
 Depois de atualizar, rode `cabecao install-skills` de novo se você instalou as [skills](./skills.md): ele troca só as que continuam como o Cabeção gravou. O `doctor` avisa quando elas ficaram de uma versão anterior. Se o Node mudou (nvm, fnm, Volta), rode também `cabecao install-client --all`: o registro nos clientes aponta para o caminho do Node, e o `doctor` acusa quando ele não existe mais.
 
@@ -64,7 +64,7 @@ $ cabecao sync
 Sync: bloqueado. O cérebro no remoto foi atualizado para o esquema 2 por uma versão mais nova do Cabeção, e este Cabeção só entende até o 1. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina e rode o sync de novo.
 Recebidos: 0 commits · enviados: 0 · criados neste sync: 1
 Próximo passo: Atualize o Cabeção nesta máquina e rode o sync de novo ("cabecao doctor" mostra o comando para a sua instalação); até lá, as mudanças daqui ficam em commits locais e nada é enviado.
-Para atualizar: npm i -g cabecao@beta
+Para atualizar: npm i -g cabecao@latest
 ```
 
 Uma mudança de esquema só sai em versão menor ou maior do pacote, nunca numa correção.
@@ -79,7 +79,7 @@ O `init` grava um `AGENTS.md` (as regras do cérebro para os agentes), um `CLAUD
 - um arquivo que não existe não é recriado;
 - tudo num commit, que `cabecao undo --op <id>` desfaz.
 
-O `cabecao status` avisa quando há atualização do modelo. Num cérebro criado pela beta:
+O `cabecao status` avisa quando há atualização do modelo. Num cérebro criado por uma dessas betas:
 
 ```text
 $ cabecao upgrade --template --dry-run

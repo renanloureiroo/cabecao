@@ -81,11 +81,22 @@ Pasta de cada máquina, fora do git:
 | `.cabecao/cabecao.db` | O banco local (SQLite): índice de busca, grafo, fatos e menções |
 | `.cabecao/locks/` | Travas entre processos (sync, escritas) |
 | `.cabecao/sync/` | Estado do último sync, o diário de um sync em andamento e o cache do catálogo |
+| `.cabecao/logs/` | `sync.log`, o resultado de `cabecao sync --log` (o sync agendado) e de `--detach` |
+| `.cabecao/confirm.key` | O segredo desta máquina que assina os tokens de confirmação |
+| `.cabecao/embeddings.json` | Se a busca por significado foi desligada só nesta máquina (`cabecao embeddings off`) |
+| `.cabecao/backups/obsidian/`, `.cabecao/obsidian-setup.json` | Os originais guardados e o registro do `cabecao obsidian setup` |
+| `.cabecao/template/` | O modelo novo de um arquivo que você editou, deixado pelo `cabecao upgrade --template` |
 
-Tudo ali é derivado das notas e do git. Se o banco der problema, apague a pasta `.cabecao/` e rode `cabecao status`: o banco é refeito a partir das notas.
+O banco é derivado das notas e do git. Se ele der problema, rode `cabecao reindex --full` (ou apague `.cabecao/cabecao.db` e rode `cabecao status`): ele é refeito a partir das notas. Apagar a pasta `.cabecao/` inteira também refaz o banco, mas leva junto o que é só desta máquina: os logs, os backups e o registro do `obsidian setup` e um `embeddings off` feito aqui.
 
 ## O que o Cabeção escreve fora do cérebro
 
-Só os arquivos de configuração dos clientes de IA, quando você roda `init` ou `install-client`, e só a entrada `cabecao` dentro deles. A primeira alteração em cada arquivo deixa uma cópia `.bak` ao lado. A lista de arquivos por cliente está em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
+- A pasta de configuração da máquina (acima): `config.json` e, conforme o que você usa, `llm.json` e os arquivos dele, `skills.json` (as skills instaladas) e `schedule.json` (o sync agendado).
+- Os arquivos de configuração dos clientes de IA, quando você roda `init` ou `install-client`, e só a entrada `cabecao` dentro deles. A primeira alteração em cada arquivo deixa uma cópia `.bak` ao lado. A lista de arquivos por cliente está em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
+- As pastas de skills dos agentes, com `cabecao install-skills`.
+- A tarefa do agendador do sistema, com `cabecao schedule on`.
+- A pasta de cache (`~/.cache/cabecao`; no Windows, `%LOCALAPPDATA%\cabecao`): o runtime e os modelos da busca por significado e a saída do `consolidate --run`.
+
+O `cabecao uninstall` tira tudo isso desta máquina, nunca o cérebro.
 
 O `cabecao consolidate --run` cria uma pasta temporária (a configuração de MCP do agente e o diretório de trabalho dele), apagada no fim, e guarda a saída do agente em `~/.cache/cabecao/consolidate-runs/<id>.log` (no Windows, `%LOCALAPPDATA%\cabecao\consolidate-runs`). Ele não altera a configuração dos clientes.

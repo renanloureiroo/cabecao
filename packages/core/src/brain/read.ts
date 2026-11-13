@@ -1,7 +1,16 @@
 // Operações de leitura: `recall`, `search`, `read` e `status` (doc 05). Toda leitura começa pela varredura
 // incremental (feita só se nenhuma começou depois do pedido) e devolve o conteúdo dentro do envelope de dado.
 import type { IndexedNote, KeywordHit } from '../db/index.ts';
-import { backlinks, getNote, indexStatus, listNotes, outgoingLinks, searchKeyword, validityOf } from '../db/index.ts';
+import {
+  backlinks,
+  embeddingKeys,
+  getNote,
+  indexStatus,
+  listNotes,
+  outgoingLinks,
+  searchKeyword,
+  validityOf,
+} from '../db/index.ts';
 import { readLocalEmbeddingState } from '../embeddings/index.ts';
 import type { ParsedNote } from '../markdown/index.ts';
 import { estimateTokens, HEADING_PATH_SEPARATOR } from '../markdown/index.ts';
@@ -399,7 +408,7 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
       used = 'keyword';
     }
   }
-  const { result, notes, related } = await withFreshIndex(ctx, () => {
+  const { result, notes, related, unembedded } = await withFreshIndex(ctx, () => {
     const filters = {
       ...(scopes === undefined ? {} : { scope: scopes }),
       ...(types === undefined ? {} : { types }),
@@ -434,8 +443,16 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
       found.hits.map((hit) => ({ id: hit.noteId, path: hit.path })),
       asOf,
     );
-    return { result: found, notes: byId, related: neighbors };
+    // trechos gravados depois do último cálculo ainda não têm vetor: a busca por significado não os enxerga
+    const store = semantic?.store;
+    const missing = store == null ? 0 : embeddingKeys(ctx.index).filter((key) => !store.has(key)).length;
+    return { result: found, notes: byId, related: neighbors, unembedded: missing };
   });
+  if (unembedded > 0) {
+    warnings.push(
+      `${unembedded} trecho(s) ainda sem vetor (gravados depois do último sync): nesta busca eles só aparecem por palavra-chave; o próximo sync calcula`,
+    );
+  }
   const hits = result.hits.map((hit: KeywordHit): SearchHit => {
     const note = notes.get(hit.noteId);
     const base = dataItem(

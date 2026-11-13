@@ -83,9 +83,9 @@ It cannot:
 - write to `index.md` or outside the brain;
 - push to the remote (`sync`), undo (`undo`), leave a note for the next session (`handoff_save`), or bring in outside content (`ingest`);
 - archive notes (`forget`), unless you pass `--allow-forget`;
-
-Only you pass `--allow-forget` and `--allow-elevated`, at your terminal: a process without a controlling terminal (a schedule, another agent) that tries them exits with code 4. Without them, `--run` also runs without a terminal (scheduled), and counts as an agent;
 - write outside the consolidation's session: every write carries its id, which is why `undo --session` reaches everything.
+
+Only you pass `--allow-forget` and `--allow-elevated`, at your terminal: a process without a controlling terminal (a schedule, another agent) that tries them exits with code 4. Without them, `--run` also runs without a terminal (scheduled), and counts as an agent.
 
 The usual agent restrictions still apply; these come on top. How each agent is contained:
 

@@ -81,11 +81,22 @@ A per-machine folder, outside git:
 | `.cabecao/cabecao.db` | The local database (SQLite): search index, graph, facts, and mentions |
 | `.cabecao/locks/` | Locks between processes (sync, writes) |
 | `.cabecao/sync/` | State of the last sync, the journal of a sync in progress, and the catalog cache |
+| `.cabecao/logs/` | `sync.log`, the result of `cabecao sync --log` (the scheduled sync) and of `--detach` |
+| `.cabecao/confirm.key` | This machine's secret that signs the confirmation tokens |
+| `.cabecao/embeddings.json` | Whether semantic search was turned off on this machine only (`cabecao embeddings off`) |
+| `.cabecao/backups/obsidian/`, `.cabecao/obsidian-setup.json` | The saved originals and the record of `cabecao obsidian setup` |
+| `.cabecao/template/` | The new template of a file you edited, left by `cabecao upgrade --template` |
 
-Everything there is derived from the notes and from git. If the database has a problem, delete the `.cabecao/` folder and run `cabecao status`: the database is rebuilt from the notes.
+The database is derived from the notes and from git. If it has a problem, run `cabecao reindex --full` (or delete `.cabecao/cabecao.db` and run `cabecao status`): it is rebuilt from the notes. Deleting the whole `.cabecao/` folder also rebuilds the database, but takes along what belongs to this machine only: the logs, the backups and record of `obsidian setup`, and an `embeddings off` done here.
 
 ## What Cabeção writes outside the brain
 
-Only the AI clients' configuration files, when you run `init` or `install-client`, and only the `cabecao` entry inside them. The first change to each file leaves a `.bak` copy next to it. The list of files per client is in [Connect to AI clients](../comecar/conectar-clientes.md).
+- The machine configuration folder (above): `config.json` and, depending on what you use, `llm.json` and its files, `skills.json` (the installed skills), and `schedule.json` (the scheduled sync).
+- The AI clients' configuration files, when you run `init` or `install-client`, and only the `cabecao` entry inside them. The first change to each file leaves a `.bak` copy next to it. The list of files per client is in [Connect to AI clients](../comecar/conectar-clientes.md).
+- The agents' skills folders, with `cabecao install-skills`.
+- The system scheduler task, with `cabecao schedule on`.
+- The cache folder (`~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`): the semantic search runtime and models, and the output of `consolidate --run`.
+
+`cabecao uninstall` removes all of this from the machine, never the brain.
 
 `cabecao consolidate --run` creates a temporary folder (the agent's MCP configuration and its working directory), deleted at the end, and keeps the agent's output in `~/.cache/cabecao/consolidate-runs/<id>.log` (on Windows, `%LOCALAPPDATA%\cabecao\consolidate-runs`). It does not change the clients' configuration.

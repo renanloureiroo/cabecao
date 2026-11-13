@@ -12,7 +12,7 @@ Você abre o Claude Code num projeto e pede:
 
 > Revise o PR de estorno parcial do serviço de pagamentos. Lembre que eu prefiro revisões em tópicos curtos, por gravidade. E guarde que esses testes só passam com `TZ=UTC`.
 
-Um agente que segue as instruções faz as chamadas abaixo. Quantas e quais ele faz depende do modelo e do pedido; as respostas são as reais do servidor (sem o aviso fixo `data_notice`, que acompanha toda leitura):
+Um agente que segue as instruções faz as chamadas abaixo. Quantas e quais ele faz depende do modelo e do pedido; as respostas são as reais do servidor, resumidas (sem o aviso fixo `data_notice`, que acompanha toda leitura, e sem alguns campos):
 
 1. **O agente chama `recall`** com a tarefa. Num cérebro novo, o briefing vem vazio, com um identificador de sessão:
 
@@ -75,7 +75,7 @@ Em outra máquina (depois de um `cabecao sync` na primeira), o mesmo pedido traz
   "handoff": {
     "path": "memory/handoffs/2026-11-13-revisao-do-pr-de-pagamentos.md",
     "title": "Revisão do PR de pagamentos",
-    "content": "Revisei o PR de estorno parcial. Falta conferir o teste de arredondamento. Parei no arquivo `refund.ts`."
+    "content": "# Revisão do PR de pagamentos\n\n## Feito\n\n- Revisei o PR de estorno parcial\n\n## Próximo passo\n\n- Conferir o teste de arredondamento em `refund.ts`"
   },
   "preferences": [
     {
@@ -96,7 +96,7 @@ Em outra máquina (depois de um `cabecao sync` na primeira), o mesmo pedido traz
 }
 ```
 
-(Cada item traz também `id`, `type`, `scope`, `validity`, `trust`, `origin` e `sources`; foram tirados aqui para caber.)
+(Cada item traz também `id`, `type`, `scope`, `validity`, `trust`, `origin`, `edited_by`, `sources` e `content_kind`, e a resposta traz também `session_handle`, `rules`, `memories` e outros campos; foram tirados aqui para caber.)
 
 ## Confira pelo terminal
 
@@ -109,6 +109,8 @@ $ cabecao search "testes pagamento"
 1. Testes de pagamento precisam do fuso fixo  [gotcha · project:pagamentos]  vigente
    memory/gotchas/testes-de-pagamento-precisam-do-fuso-fixo.md
    Os «testes» do serviço de pagamentos falham perto da meia-noite se o fuso não for fixo. Rode com `TZ=UTC npm test`.
+
+Modo: keyword (a busca por significado não está ativada neste cérebro ("cabecao embeddings on" ativa)).
 ```
 
 ```text
@@ -116,6 +118,7 @@ $ cabecao undo --list
 Operações, da mais nova para a mais antiga (desfaça uma com "cabecao undo --op <id>"):
 
 01M79DRR04ANKG57S1NNXWZD25  2026-11-13 00:03  add      claude-code @ notebook  sessão 01M79DRQR6B9HR9GVZZZQ2JBHJ
+    add episode: Sessão: Revisei o PR de estorno parcial
     add handoff: Revisão do PR de pagamentos
 01M79DRQWEN8YYG3GSWM0N6B9H  2026-11-13 00:03  add      claude-code @ notebook  sessão 01M79DRQR6B9HR9GVZZZQ2JBHJ
     add preference: Revisão de PR em tópicos curtos

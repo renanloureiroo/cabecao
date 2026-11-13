@@ -45,9 +45,9 @@ As pastas vazias ficam no git com um `.gitkeep`.
 
 | Pasta | O que guarda | Quem escreve |
 | --- | --- | --- |
-| `raw/` | Fontes como chegaram: atas, artigos, PDFs, imagens. Não seguem o esquema e não mudam depois de criadas. | Você. Um agente só cria arquivos novos ali, nunca altera os que existem. |
+| `raw/` | Fontes como chegaram: atas, artigos, PDFs, imagens. Não seguem o esquema e não mudam depois de criadas. | Você. Um agente cria arquivos novos ali; alterar os que existem, só com o seu pedido explícito. |
 | `wiki/` | O que é verdade sobre o mundo: conceitos, pessoas, projetos, decisões, resumos de fontes, sínteses. | Você e os agentes. |
-| `memory/` | O que um agente precisa para trabalhar do seu jeito: regras, preferências, armadilhas, procedimentos, fatos, episódios, handoffs. | Você e os agentes; regras, só você. |
+| `memory/` | O que um agente precisa para trabalhar do seu jeito: regras, preferências, armadilhas, procedimentos, fatos, episódios, handoffs. | Você e os agentes; regras, um agente só grava com o seu pedido explícito. |
 
 Essas são as pastas de notas padrão (`noteDirs` no [`.cabecao.json`](../referencia/configuracao.md)). Um vault adotado pode ter outras. Fora delas, nada é indexado nem pode ser gravado por um agente.
 
@@ -55,7 +55,7 @@ Cada tipo de nota tem a sua pasta: `decision` vai para `wiki/decisions/`, `gotch
 
 ## Arquivos de controle
 
-- **`AGENTS.md`** diz a qualquer agente como usar o cérebro: chamar `recall` no começo, buscar antes de afirmar, o que lembrar e o que não lembrar, a ordem de autoridade entre as fontes. É seu: edite como quiser. Um agente não pode alterá-lo.
+- **`AGENTS.md`** diz a qualquer agente como usar o cérebro: chamar `recall` no começo, buscar antes de afirmar, o que lembrar e o que não lembrar, a ordem de autoridade entre as fontes. É seu: edite como quiser. Um agente só o altera com o seu pedido explícito.
 - **`CLAUDE.md`** tem uma linha só, `@AGENTS.md`, para o Claude Code ler as mesmas regras quando abre a pasta.
 - **`index.md`** é o catálogo de todas as notas, agrupado por pasta. O Cabeção o regenera; não edite à mão.
 - **`log.md`** recebe uma linha por operação, sempre no fim. O `.gitattributes` liga o merge por união para ele, então duas máquinas que escreveram ao mesmo tempo nunca geram conflito nesse arquivo.
@@ -67,6 +67,7 @@ Um diário depois de uma sessão de agente:
 
 - 2026-11-13 · add gotcha: Testes de pagamento precisam do fuso fixo
 - 2026-11-13 · add preference: Revisão de PR em tópicos curtos
+- 2026-11-13 · add episode: Sessão: Revisei o PR de estorno parcial
 - 2026-11-13 · add handoff: Revisão do PR de pagamentos
 ```
 
@@ -76,4 +77,4 @@ A pasta `.cabecao/` é desta máquina: o banco local (`cabecao.db`, com o índic
 
 ## `memory/_archive/`
 
-Notas que você tirou de circulação. Elas continuam no git, mas a busca e o `recall` não as trazem. Por enquanto, arquivar é mover o arquivo à mão (no Obsidian ou no terminal) e rodar `cabecao sync`.
+Notas que você tirou de circulação. Elas continuam no git, mas a busca e o `recall` não as trazem. Para arquivar, use [`cabecao forget`](../referencia/cli.md#cabecao-forget): ele move a nota para cá, num commit, e `cabecao undo` a traz de volta.

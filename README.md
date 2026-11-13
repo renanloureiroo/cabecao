@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao/beta?label=npm%40beta&color=14121c" alt="Versão no npm (beta)"></a>
+  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao?color=14121c" alt="Versão no npm"></a>
   <a href="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml"><img src="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/renanloureiroo/cabecao?color=14121c" alt="Licença MIT"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao/beta?color=14121c" alt="Node.js"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao?color=14121c" alt="Node.js"></a>
 </p>
 
 <!-- README-I18N:START -->
@@ -23,8 +23,6 @@
 <!-- README-I18N:END -->
 
 Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor. Os agentes de IA (Claude Code, Codex, Cursor e outros) consultam e gravam nelas por MCP, e cada gravação vira um commit que você desfaz com um comando. O nome é uma homenagem ao Cabeção de *Malhação*.
-
-> **Beta.** A versão atual é a `0.1.0-beta.1`. Já funciona no dia a dia, mas comandos e formatos ainda podem mudar antes da 1.0.
 
 ## Como é
 
@@ -84,10 +82,10 @@ $ cabecao search "testes pagamento"
 
 ## Instalação
 
-Requer Node.js 22.16+ (recomendado: 24) e git 2.38+. Crie antes um repositório **vazio e privado**.
+Requer Node.js 22.16+ ou 24+ e git 2.38+. Crie antes um repositório **vazio e privado**.
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao init git@github.com:voce/cerebro.git
 cabecao doctor
 ```

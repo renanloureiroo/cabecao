@@ -15,7 +15,7 @@ Every note is a `.md` file with a YAML frontmatter block at the top. The `type` 
 | `entity` | `wiki/entities/` | A concrete thing: person, project, company, tool |
 | `decision` | `wiki/decisions/` | A decision **and the why**, with the date it took effect |
 | `synthesis` | `wiki/syntheses/` | A text that combines several notes into an overview |
-| `rule` | `memory/rules/` | A rule every agent follows. **Only you create it.** |
+| `rule` | `memory/rules/` | A rule every agent follows. **An agent only creates it with your explicit request.** |
 | `preference` | `memory/preferences/` | How you like things to be done |
 | `gotcha` | `memory/gotchas/` | A gotcha: what went wrong and how to avoid it |
 | `procedure` | `memory/procedures/` | A repeated step-by-step |
@@ -80,7 +80,7 @@ Bruno Tavares lidera o Projeto Atlas desde setembro de 2026.
 
 ## Fields Cabeção takes care of
 
-When the write goes through Cabeção (an agent over MCP), `id`, `created`, `updated`, `origin` and `edited_by` are filled in by it; the agent does not choose these values. The `id` is a [ULID](https://github.com/ulid/spec): 26 uppercase characters that do not change if the note is renamed.
+When the write goes through Cabeção (an agent over MCP or through the CLI), `id`, `created`, `updated`, `origin`, `edited_by`, `approved_by` and `approved_at` are filled in by it; the agent does not choose these values. The `id` is a [ULID](https://github.com/ulid/spec): 26 uppercase characters that do not change if the note is renamed.
 
 In a note you write by hand (in Obsidian, for example), the most important field is `type`: it tells Cabeção what the note is. Without an `id`, the note is still indexed and searchable, identified by its path; `status` counts it among the notes "without an id". A note with neither `id` nor `type` is treated as a loose note, outside the schema, and also shows up in search.
 

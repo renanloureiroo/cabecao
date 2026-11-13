@@ -29,7 +29,7 @@ cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: v20.12.2. Atualize em h
 
 ## Install
 
-Cabeção is in beta and is published on npm with the `beta` tag. Ask for that tag explicitly.
+Cabeção is published on npm under the name `cabecao`.
 
 :::note[The CLI speaks Portuguese]
 The `cabecao` command-line messages are currently in Portuguese, so the terminal outputs on this site are shown exactly as printed, in Portuguese. The MCP tool descriptions that agents read are in English.
@@ -39,12 +39,12 @@ The `cabecao` command-line messages are currently in Portuguese, so the terminal
 <TabItem value="t1" label="Global (recommended)" default>
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao --version
 ```
 
 ```text
-0.1.0-beta.1
+1.0.0
 ```
 
 With a global install, the registration in the AI clients points straight to Node and to the Cabeção file,
@@ -54,10 +54,10 @@ without going through `npx` on every session.
 <TabItem value="t2" label="Without installing (npx)">
 
 ```bash
-npx cabecao@beta init git@github.com:voce/cerebro.git
+npx cabecao init git@github.com:voce/cerebro.git
 ```
 
-It works, but the AI clients get registered as `npx -y cabecao mcp`: every new session goes through `npx`,
+It works, but the AI clients get registered as `npx -y cabecao@<versão> mcp`: every new session goes through `npx`,
 which takes 0.5 to 1.4 s to start. To switch later, install globally and run
 `cabecao install-client --all`.
 

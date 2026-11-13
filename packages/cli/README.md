@@ -8,16 +8,14 @@ Seu segundo cérebro em Markdown e git, para você e seus agentes de IA, servido
 
 Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio ou só a sua máquina). Os agentes de IA (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity, Gemini CLI) consultam e gravam nelas pelo servidor MCP do `cabecao` ou, nos agentes com shell, pelas skills do Cabeção, que usam a própria CLI (`cabecao install-skills`). Cada gravação vira um commit que você desfaz com um comando.
 
-> **Beta:** `0.1.0-beta.1`. Instale com a etiqueta `beta`.
-
 *English: Cabeção is a personal second brain. Your notes are Markdown files in a git repository you own, on any host, and AI agents read and write them through a local MCP server. Every write is a commit you can undo. The CLI prints its messages in Portuguese for now. Documentation in English: <https://renanloureiroo.github.io/cabecao/en/>.*
 
 ## Começar
 
-Requer Node.js 22.16+ (recomendado: 24) e git 2.38+. Crie antes um repositório vazio e **privado**.
+Requer Node.js 22.16+ ou 24+ e git 2.38+. Crie antes um repositório vazio e **privado**.
 
 ```bash
-npm i -g cabecao@beta
+npm i -g cabecao
 cabecao init git@github.com:voce/cerebro.git
 cabecao doctor
 ```
@@ -56,7 +54,7 @@ O `init` não pergunta nada: cria o cérebro num repositório vazio, só baixa u
 | `cabecao export canvas` | Exporta um mapa do grafo (`.canvas`) |
 | `cabecao upgrade` | Aplica as migrações do esquema do cérebro |
 | `cabecao ask "<pergunta>"` | Resposta com citações conferidas, pelo provedor que você ativar (opcional) |
-| `cabecao llm on\|off\|status\|test\|remove` | O provedor das respostas do `ask`: desligado por padrão; nada sai da máquina até você ativar |
+| `cabecao llm on\|off\|status\|test\|remove\|policy` | O provedor das respostas do `ask`: desligado por padrão; nada sai da máquina até você ativar |
 | `cabecao install-client <cliente>` | Registra o servidor MCP num cliente de IA |
 | `cabecao install-skills` | Instala as skills do Cabeção nos agentes (uso pela CLI, sem MCP) |
 | `cabecao uninstall` | Tira o Cabeção desta máquina; nunca o cérebro |
@@ -66,7 +64,7 @@ O `init` não pergunta nada: cria o cérebro num repositório vazio, só baixa u
 
 ## Documentação
 
-<https://renanloureiroo.github.io/cabecao/>: instalação, conceitos, guias, referência da CLI e das 17 tools MCP, segurança e solução de problemas.
+<https://renanloureiroo.github.io/cabecao/>: instalação, conceitos, guias, referência da CLI e das tools MCP, segurança e solução de problemas.
 
 Código e issues: <https://github.com/renanloureiroo/cabecao>
 

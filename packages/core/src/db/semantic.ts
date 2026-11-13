@@ -186,6 +186,18 @@ export function embeddingInputs(index: LocalIndex): EmbeddingInput[] {
     .map((row) => ({ key: String(row.key), text: String(row.text), title: String(row.title ?? '') }));
 }
 
+/** Só as chaves dos trechos que recebem embedding (as mesmas de `embeddingInputs`), sem carregar os textos. */
+export function embeddingKeys(index: LocalIndex): string[] {
+  return connection(index)
+    .prepare(
+      `select distinct c.chunk_key as key
+       from chunks c join notes n on n.id = c.note_id
+       where n.conflict_of is null`,
+    )
+    .all()
+    .map((row) => String(row.key));
+}
+
 /** Todas as chaves de trecho do banco, de qualquer nota: o que a compactação do índice mantém. */
 export function allChunkKeys(index: LocalIndex): Set<string> {
   const rows = connection(index).prepare('select distinct chunk_key as key from chunks').all();

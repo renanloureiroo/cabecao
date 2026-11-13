@@ -66,12 +66,11 @@ cabecao install-client claude-code
 ```
 
 ```text
-Claude Code: registrado
-  ~/.claude.json: registrado
+Claude Code: registrado pelo comando "claude mcp" (escopo user)
 Reinicie o cliente para ele enxergar a mudança.
 ```
 
-Reinicie o Claude Code. O servidor aparece com o nome `cabecao` e as tools descritas na [referência MCP](../referencia/mcp.md).
+Sem o comando `claude` no `PATH`, o Cabeção edita o `~/.claude.json` direto, e a saída mostra o arquivo. Reinicie o Claude Code. O servidor aparece com o nome `cabecao` e as tools descritas na [referência MCP](../referencia/mcp.md).
 
 ## Todos os clientes detectados
 
@@ -82,8 +81,7 @@ cabecao install-client --all
 Rodar de novo não duplica nada:
 
 ```text
-Claude Code: já estava registrado
-  ~/.claude.json: já estava registrado
+Claude Code: já estava registrado pelo comando "claude mcp" (escopo user)
 Cursor: já estava registrado
   ~/.cursor/mcp.json: já estava registrado
 ```
@@ -106,13 +104,13 @@ Os caminhos dependem da sua instalação. O servidor sempre é registrado como `
 ## Tirar o registro
 
 ```text
-$ cabecao install-client --remove claude-code
-Claude Code: registro removido
-  ~/.claude.json: registro removido (original guardado em ~/.claude.json.bak)
+$ cabecao install-client --remove cursor
+Cursor: registro removido
+  ~/.cursor/mcp.json: registro removido
 Reinicie o cliente para ele enxergar a mudança.
 ```
 
-O Cabeção só mexe na entrada `cabecao`. Os outros servidores e chaves do arquivo ficam como estavam, e a primeira alteração guarda uma cópia do arquivo original ao lado, com o sufixo `.bak`.
+O Cabeção só mexe na entrada `cabecao`. Os outros servidores e chaves do arquivo ficam como estavam, e, nos arquivos que o Cabeção edita direto, a primeira alteração guarda uma cópia do arquivo original ao lado, com o sufixo `.bak` (a saída mostra onde).
 
 ## Conferir
 

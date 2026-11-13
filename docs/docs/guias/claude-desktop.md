@@ -11,7 +11,7 @@ O Claude Desktop instala servidores MCP locais por um **pacote `.mcpb`** (MCP Bu
 O pacote não cria o cérebro: ele só conecta o Claude Desktop a um cérebro que já existe. Crie (ou conecte esta máquina) antes:
 
 ```bash
-npx cabecao@beta init git@github.com:voce/meu-cerebro.git
+npx cabecao init git@github.com:voce/meu-cerebro.git
 ```
 
 ## Instalar
@@ -23,12 +23,12 @@ npx cabecao@beta init git@github.com:voce/meu-cerebro.git
 O Claude Desktop passa a ter as 17 tools do Cabeção (`recall`, `search`, `remember`, `sync`...). As regras de uso chegam pelas instruções do servidor; não há hooks como no [plugin do Claude Code](./claude-code.md), então o sync acontece quando o agente chama a tool `sync`, quando você roda `cabecao sync` ou pelo [sync automático](./sync-automatico.md).
 
 :::warning[Não testado no aplicativo]
-O pacote é gerado e validado a cada versão (manifesto conferido pela ferramenta oficial `mcpb validate`, conteúdo conferido e o servidor sobe a partir do pacote extraído, como o aplicativo faria). A **instalação no Claude Desktop de verdade ainda não foi testada**. Se algo der errado, use o caminho abaixo e conte numa [issue](https://github.com/renanloureiroo/cabecao/issues).
+O pacote é gerado a cada versão e conferido pelos testes do projeto (manifesto conforme a especificação MCPB 0.3, conteúdo conferido e o servidor sobe a partir do pacote extraído, como o aplicativo faria); o manifesto também já passou pela ferramenta oficial `mcpb validate`. A **instalação no Claude Desktop de verdade ainda não foi testada**. Se algo der errado, use o caminho abaixo e conte numa [issue](https://github.com/renanloureiroo/cabecao/issues).
 :::
 
 ## O que vem no pacote
 
-Só três coisas, cerca de 380 kB:
+Só três coisas, cerca de 490 kB:
 
 | Arquivo | O que é |
 | --- | --- |
@@ -36,7 +36,7 @@ Só três coisas, cerca de 380 kB:
 | `icon.png` | O ícone |
 | `server/*.mjs` | O mesmo programa publicado no npm, sem dependências |
 
-O servidor roda com o Node.js que o Claude Desktop traz. O Cabeção precisa do Node.js 22.16 ou mais novo (ou 24+): num Node mais antigo, o servidor não sobe e a mensagem diz isso. O git do sistema continua necessário para o sync.
+O servidor roda com o Node.js que o Claude Desktop traz. O Cabeção precisa do Node.js 22.16+ ou 24+: num Node mais antigo, o servidor não sobe e a mensagem diz isso. O git do sistema continua necessário para o sync.
 
 ## Atualizar
 

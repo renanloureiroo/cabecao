@@ -11,15 +11,6 @@
   "home.audience.title": {
     "message": "For people who work with AI agents"
   },
-  "home.beta.body": {
-    "message": "Cabeção is in beta ({version}). It already works for daily use, but the format and the commands may still change before version 1.0. Use a private repository and check the {notes} when you update."
-  },
-  "home.beta.notes": {
-    "message": "release notes"
-  },
-  "home.beta.title": {
-    "message": "Beta version"
-  },
   "home.cards.cli.body": {
     "message": "Every cabecao command, with its options, examples, and exit codes."
   },
@@ -171,7 +162,7 @@
     "message": "memory for AI agents"
   },
   "home.hero.meta": {
-    "message": "Node.js 22.16+ or 24 · git 2.38+ · MIT license · beta 0.1.0-beta.1"
+    "message": "Node.js 22.16+ or 24+ · git 2.38+ · MIT license · version 1.0.0"
   },
   "home.how.body": {
     "message": "Notes live in a regular folder, versioned with git. Agents read and write through an MCP server that runs on your machine, and every write becomes a commit. Sync takes everything to your repository and from there to your other machines."

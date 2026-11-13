@@ -9,11 +9,11 @@ The plugin is the most complete way to use Cabeção in Claude Code. It brings:
 - **the bundled MCP server**: Cabeção's tools start with `node`, from a copy of the program that ships inside the plugin. No `npx` and no network, and the server starts in about 0.05 s;
 - **the briefing at the start of every session**: your rules, the latest handoff, your preferences, the gotchas, and the project's memories enter the agent's context before the first message, together with the brain's usage rules;
 - **the sync at the end of every session**, in the background;
-- **the Cabeção skills** (look up, remember, pass the baton, maintenance on request, and actions with an explicit request), the same as [`cabecao install-skills`](./skills.md). The plugin matches the **published version**: the skills reach it in the next published version; until then, it brings the `cabecao:memory` reference skill.
+- **the Cabeção skills** (look up, remember, pass the baton, maintenance on request, and actions with an explicit request), the same as [`cabecao install-skills`](./skills.md).
 
 ## Before installing
 
-- Node.js 22.16 or newer on the `PATH` (the same Cabeção already requires).
+- Node.js 22.16+ or 24+ on the `PATH` (the same Cabeção already requires).
 - A brain on this machine: run [`npx cabecao init`](../comecar/init.md) first, or have a brain folder at hand.
 
 ## Install
@@ -125,7 +125,7 @@ The plugin follows the published versions of the `cabecao` package: the program 
 
 | Symptom | What to do |
 | --- | --- |
-| `claude mcp list` shows `plugin:cabecao:cabecao ... Failed to connect` | Run `cabecao doctor`. Check that the `node` on the `PATH` is 22.16+ and that `brain_dir` (or the default brain) points to a brain |
+| `claude mcp list` shows `plugin:cabecao:cabecao ... Failed to connect` | Run `cabecao doctor`. Check that the `node` on the `PATH` is 22.16+ or 24+ and that `brain_dir` (or the default brain) points to a brain |
 | The agent does not receive the briefing | Run the hook by hand and read standard error: `echo '{}' \| node <plugin folder>/server/cabecao.mjs recall --hook` |
 | The session-end sync did not happen | Look at `<brain>/.cabecao/logs/sync.log` |
 | The tools show up twice | Remove the old registration: `cabecao install-client --remove claude-code` |

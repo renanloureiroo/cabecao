@@ -11,18 +11,18 @@ Updating has two parts: the **program** (the `cabecao` package, the Claude Code 
 The command depends on how you installed it. `cabecao doctor` shows the one for your installation on its first line:
 
 ```text
-ok     Cabeção                  0.1.0-beta.1 (instalado com npm -g); para atualizar: npm i -g cabecao@beta
+ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ```
 
 | Installed with | To update |
 | --- | --- |
-| `npm i -g` | `npm i -g cabecao@beta` |
-| `pnpm add -g` | `pnpm add -g cabecao@beta` |
-| `npx` | `npx cabecao@beta <command>` (`npx` uses the version you ask for) |
-| Inside a project | `npm i cabecao@beta`, in the project folder |
+| `npm i -g` | `npm i -g cabecao@latest` |
+| `pnpm add -g` | `pnpm add -g cabecao@latest` |
+| `npx` | `npx cabecao@latest <command>` (`npx` uses the version you ask for) |
+| Inside a project | `npm i cabecao@latest`, in the project folder |
 | Claude Code plugin | `/plugin update cabecao@cabecao` |
 
-While Cabeção is in beta, use the `@beta` tag: without it, npm may install an older beta. The CLI messages that tell you to update (a brain from a newer version, the scheduled sync that lost the program) already show the command for your installation, with the tag of the channel in use. The Claude Desktop package updates by installing the new `.mcpb` over the old one ([Claude Desktop](./claude-desktop.md)). None of this touches the brain.
+The CLI messages that tell you to update (a brain from a newer version, the scheduled sync that lost the program) already show the command for your installation. The Claude Desktop package updates by installing the new `.mcpb` over the old one ([Claude Desktop](./claude-desktop.md)). None of this touches the brain.
 
 After updating, run `cabecao install-skills` again if you installed the [skills](./skills.md): it replaces only the ones still as Cabeção wrote them. `doctor` warns when they are from an earlier version. If Node changed (nvm, fnm, Volta), also run `cabecao install-client --all`: the registration in the clients points to the Node path, and `doctor` flags it when that path no longer exists.
 
@@ -64,7 +64,7 @@ $ cabecao sync
 Sync: bloqueado. O cérebro no remoto foi atualizado para o esquema 2 por uma versão mais nova do Cabeção, e este Cabeção só entende até o 1. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina e rode o sync de novo.
 Recebidos: 0 commits · enviados: 0 · criados neste sync: 1
 Próximo passo: Atualize o Cabeção nesta máquina e rode o sync de novo ("cabecao doctor" mostra o comando para a sua instalação); até lá, as mudanças daqui ficam em commits locais e nada é enviado.
-Para atualizar: npm i -g cabecao@beta
+Para atualizar: npm i -g cabecao@latest
 ```
 
 A schema change only ships in a minor or major version of the package, never in a patch.
@@ -79,7 +79,7 @@ A schema change only ships in a minor or major version of the package, never in 
 - a file that does not exist is not recreated;
 - everything goes in one commit, which `cabecao undo --op <id>` undoes.
 
-`cabecao status` tells you when there is a template update. On a brain created by the beta:
+`cabecao status` tells you when there is a template update. On a brain created by one of those betas:
 
 ```text
 $ cabecao upgrade --template --dry-run

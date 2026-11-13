@@ -8,6 +8,7 @@ description: Para onde vão os seus dados, como o scanner de segredos funciona, 
 - As notas ficam numa pasta da sua máquina e num repositório git **seu**.
 - O Cabeção não tem servidor, conta, telemetria nem coleta de uso. Tudo o que sai da máquina passa pelo git, para o remoto que **você** configurou (`fetch`, `push` e, no `init` e no `doctor`, uma consulta para saber se o remoto responde).
 - **A única exceção é opcional e desligada por padrão:** se você ativar as [respostas com um modelo de linguagem](./guias/respostas-com-modelo.md) (`cabecao llm on`), cada pergunta do `ask` manda trechos das notas ao provedor que **você** escolheu. Nada vai até você ativar, num terminal, vendo o que sai e para onde. Veja [abaixo](#respostas-com-um-provedor-opcional).
+- A busca por significado, se você ligar (`cabecao embeddings on`), baixa um runtime (pelo npm) e um modelo (do Hugging Face) para esta máquina; os vetores são calculados aqui e vão, pelo sync, para o seu remoto, numa branch de índice.
 - O servidor MCP roda na sua máquina, por stdio. Ele não abre porta de rede.
 - O que um agente lê do cérebro vai para o modelo de IA que você usa, como qualquer outro texto da conversa. Isso é do cliente de IA, não do Cabeção: escolha o que guarda sabendo disso.
 
@@ -51,7 +52,7 @@ O que ele reconhece:
 | `anthropic-api-key`, `openai-api-key`, `npm-token` | Chaves da Anthropic, da OpenAI e tokens do npm |
 | `jwt` | JSON Web Tokens assinados |
 | `url-credentials` | URL com senha embutida (`esquema://usuario:senha@host`) |
-| `cabecao-confirm-token` | O `confirm_token` do `forget` (`cbc_ct_...`): vale minutos e não deve ficar numa nota |
+| `cabecao-confirm-token` | O `confirm_token` das confirmações (`cbc_ct_...`): vale minutos e não deve ficar numa nota |
 | `generic-assignment` | Um nome sensível (`password`, `senha`, `secret`, `token`, `api_key`...) recebendo um valor com cara de segredo |
 
 O scanner olha tudo o que vai ser commitado, não só as notas: anexos de texto, configuração, valores do frontmatter.
@@ -72,7 +73,7 @@ O marcador só vale em texto **seu** (editado no Obsidian ou num editor e levado
 Pelas tools do MCP e pela CLI (que segue as mesmas regras quando quem roda é um agente), estas ações exigem o seu **pedido explícito, confirmado**: a primeira chamada não faz nada e devolve o resumo exato e um token de confirmação de vida curta; o agente só repete com o token se você disser sim. Num cliente que sabe perguntar (elicitação), o servidor pergunta direto a você.
 
 - criar ou alterar regras (`type: rule`, `memory/rules/`);
-- escrever em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` e outros arquivos que clientes de IA carregam como instrução, em qualquer pasta, e nos arquivos de controle (`log.md`, `README.md`, `.cabecao.json`, `.gitignore`, `.gitattributes`), estes três só se o resultado for válido e nunca mexendo na seção `embedding`;
+- escrever em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` e outros arquivos que clientes de IA carregam como instrução, em qualquer pasta, e nos arquivos de controle (`log.md`, `README.md`, `.cabecao.json`, `.gitignore`, `.gitattributes`), estes três só se o resultado for válido e nunca mexendo nas seções `embedding` e `llm_policy` do `.cabecao.json`;
 - alterar fontes que já existem em `raw/`;
 - gravar `trust: high`;
 - desfazer uma operação sua;

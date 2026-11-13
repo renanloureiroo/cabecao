@@ -52,7 +52,7 @@ Rode no seu terminal. Nenhuma opção, variável ou configuração muda isso (ve
 
 ## What each one can do in the memory commands
 
-As an **agent**, the CLI opens the brain exactly like the MCP server: it writes with `origin: agent:<client>` and `trust: medium`, does not forge provenance, sends everything through the secret scanner, and the **elevated actions** only happen with the user's explicit request (decision 37):
+As an **agent**, the CLI opens the brain exactly like the MCP server: it writes with `origin: agent:<client>` and `trust: medium`, does not forge provenance, sends everything through the secret scanner, and the **elevated actions** only happen with the user's explicit request:
 
 - creating or changing a rule (`type: rule`, `memory/rules/`);
 - writing to the control files (`AGENTS.md`, `CLAUDE.md`, `log.md`, `.cabecao.json`, `.gitignore`...) and to files named like AI-client instruction files, in any folder;

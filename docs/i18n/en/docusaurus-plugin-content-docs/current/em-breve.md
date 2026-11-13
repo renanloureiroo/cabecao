@@ -16,7 +16,6 @@ These experience changes have already been evaluated, but need a decision before
 - **Automatic sync turned on by `init`**. Today it only shows up among the optional steps at the end of `init`, `status` and `doctor` (`cabecao schedule on`).
 - **A `cabecao setup`**: a list of what is on and what is missing (skills, automatic sync, semantic search, Obsidian), with a single question to apply the recommended setup.
 - **CLI messages in English**, chosen by the system language. Today the CLI speaks Portuguese; the site and the READMEs are in both languages.
-- **The newest version from `npm i -g cabecao` without a tag**. Today use `cabecao@beta`; the CLI already suggests the command with the right tag.
 
 ## Planned
 
@@ -25,6 +24,6 @@ These experience changes have already been evaluated, but need a decision before
 - **More agents in `consolidate --run`**: GitHub Copilot CLI and OpenCode have options to restrict tools, but have not been tested yet.
 - **Delete for good** (`cabecao purge`): remove a note from the git history, for the rare case of something that should never have been there. Today `forget` archives, and the archived note stays in git.
 - **Graph explorer inside Claude**, to browse notes and relations in a window of the conversation.
-- **More from the answer provider** ([`ask`](./guias/respostas-com-modelo.md) itself arrives in the next version): topic summaries and consolidation help written by the provider, always under the same restrictions as an agent; a model that runs embedded, with no server; and semantic search with Ollama.
+- **More from the answer provider** ([`ask`](./guias/respostas-com-modelo.md) itself already exists): topic summaries and consolidation help written by the provider, always under the same restrictions as an agent; a model that runs embedded, with no server; and semantic search with Ollama.
 
 Want to follow along or share your opinion? Open an [issue](https://github.com/renanloureiroo/cabecao/issues).

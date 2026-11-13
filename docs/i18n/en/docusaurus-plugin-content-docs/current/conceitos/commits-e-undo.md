@@ -28,6 +28,7 @@ Cabecao-Client: claude-code
 | `Cabecao-Machine` | The machine name, set in `init`. |
 | `Cabecao-Client` | Who wrote: `claude-code`, `codex`, `cursor`... for agents; `cli` for you through the CLI; `manual` for edits made outside Cabeção and committed by sync. |
 | `Cabecao-Reverts` | Only on undo commits: the operation that was reverted. |
+| `Cabecao-Approved` | Only on agent operations done with your explicit, confirmed request. |
 
 The body lines say what changed: `add gotcha: título`, `update entity: título`, `revert concept: título`, `edit: 1 nota alterada fora do Cabeção`, `conflict: 1 nota com conflito preservado`.
 
@@ -64,7 +65,7 @@ Cabecao-Reverts: 01M79D4QHMNXGRV0AW6FZG6V50
 ## What undo can reach
 
 - **You, through the CLI**, can revert any Cabeção operation: the agents' operations and the undos themselves.
-- **An agent, over MCP**, can only revert agent operations, never yours, and needs the full identifier.
+- **An agent** (over MCP or through the CLI) reverts on its own only agent operations, by the full identifier. An operation of yours, or just the start of the identifier, it only reverts with your explicit, confirmed request.
 - **Neither of you** can revert what is not a Cabeção operation: edits you made in Obsidian, sync commits, conflict copies and the `init` commit. For those, use git directly (`git log` and `git revert` in the brain folder).
 
 If the file changed after the operation in a way that prevents a clean revert, undo stops with the `conflict` error and changes nothing.

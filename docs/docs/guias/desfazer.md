@@ -49,7 +49,7 @@ Depois, rode `cabecao sync` para levar o undo às outras máquinas.
 
 ## Pelo agente
 
-Um agente também desfaz, pela tool `undo`: a última operação dele, uma operação pelo identificador completo ou uma sessão inteira. Ele só alcança operações de agentes, nunca as suas. Peça, por exemplo: "desfaça o que você gravou nesta sessão".
+Um agente também desfaz, pela tool `undo`: a última operação dele, uma operação pelo identificador completo ou uma sessão inteira. Sem confirmação, ele só desfaz operações de agentes, pelo identificador completo; desfazer uma operação sua (ou dar só o começo do identificador) exige o seu pedido explícito, confirmado com um token (veja [Quem é humano e quem é agente na CLI](./humano-e-agente.md)). Peça, por exemplo: "desfaça o que você gravou nesta sessão".
 
 ## Esquecer e trazer de volta
 

@@ -4,7 +4,7 @@ description: The 17 tools, the prompts, the resources, and the instructions of t
 sidebar_position: 2
 ---
 
-The server is the `cabecao mcp` command, which the AI client starts and talks to over stdio. It runs on your machine and only reads and writes the brain folder. Register it with [`cabecao install-client`](../comecar/conectar-clientes.md).
+The server is the `cabecao mcp` command, which the AI client starts and talks to over stdio. It runs on your machine and only reads and writes the brain folder (with the `ask` tool, it also calls the answer provider you turned on). Register it with [`cabecao install-client`](../comecar/conectar-clientes.md).
 
 ## Server instructions
 
@@ -25,7 +25,7 @@ Para uma pergunta que pede síntese de várias notas, `ask` devolve uma resposta
 | Tool | Does | Writes? |
 | --- | --- | --- |
 | [`recall`](#recall) | Briefing at the start of the task | No |
-| [`search`](#search) | Keyword search, with validity on a date | No |
+| [`search`](#search) | Keyword search (and search by meaning, when on), with validity on a date | No |
 | [`ask`](#ask) | Answer with checked citations, from the provider you turned on. **Only shows up after `cabecao llm on`** | No |
 | [`read`](#read) | Reads a note, or one section of it, with links and backlinks | No |
 | [`graph`](#graph) | Neighbors of a note in the graph | No |
@@ -49,13 +49,13 @@ Every read response starts with `data_notice`, the notice that the content is da
 
 ## What needs the user's explicit request
 
-Since decision 37, what used to be refused to an agent on grounds of **authority** is allowed **with the user's explicit request, confirmed**. It applies to `remember`, `write_page`, `patch_page`, `relate`, `undo`, and `forget`:
+An agent only does these actions **with the user's explicit request, confirmed**. It applies to `remember`, `write_page`, `patch_page`, `relate`, `undo`, and `forget`:
 
 | Action | Without confirmation |
 | --- | --- |
 | Create or change a rule (`type: rule`, anything in `memory/rules/`), including through `remember` with `resolution` | `confirmation_required` |
 | Write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `log.md`, `README.md` (plain text, no `frontmatter`) or to a file named like an AI-client instruction file in any folder | `confirmation_required` |
-| Change `.cabecao.json`, `.gitignore`, or `.gitattributes` (only if the result is valid; the `embedding` section never) | `confirmation_required` |
+| Change `.cabecao.json`, `.gitignore`, or `.gitattributes` (only if the result is valid; the `embedding` and `llm_policy` sections of `.cabecao.json` never, not even with confirmation) | `confirmation_required` |
 | Change a file that already exists in `raw/` | `confirmation_required` |
 | Save `trust: high` | `confirmation_required` |
 | Undo a user operation, or give only the beginning of the id | `confirmation_required` |
@@ -125,7 +125,7 @@ Briefing at the start of the task: rules, the latest handoff, preferences, gotch
 
 **Output:** `session_handle`, `task`, `scope`, `rules`, `handoff` (or `null`), `handoff_seen` (when the same handoff was already delivered to another session on this machine and nobody saved a new one: the date and the session; otherwise `null`), `preferences`, `gotchas`, `memories`, `priority` (the cut order: rules, handoff, preferences, gotchas, memories), `budget_tokens`, `used_tokens`, `truncated`, `omitted`, and `next_step`.
 
-Only `type: rule` notes in `memory/rules/` with `origin: human` count as rules. Expired items are left out. The handoff is the latest current one; with `scope: project:<name>`, the project's own comes before the global one. When the budget runs out, the rest is cut in `priority` order, and `omitted` says how many. Excerpt from a real response, with the items shortened:
+Only `type: rule` notes in `memory/rules/` with `origin: human`, or written by an agent with the user's confirmation (`approved_by: user`), count as rules. Expired items are left out. The handoff is the latest current one; with `scope: project:<name>`, the project's own comes before the global one. When the budget runs out, the rest is cut in `priority` order, and `omitted` says how many. Excerpt from a real response, with the items shortened:
 
 ```json
 {
@@ -143,7 +143,7 @@ Only `type: rule` notes in `memory/rules/` with `origin: human` count as rules. 
 
 ## search
 
-Keyword search. Each result has its validity on the date and its provenance; a `related` block lists graph neighbors of the top results.
+Searches the brain: hybrid (keyword and meaning) when semantic search is on for this machine, otherwise by keyword. Each result has its validity on the date and its provenance; a `related` block lists graph neighbors of the top results.
 
 **Input**
 
@@ -155,25 +155,30 @@ Keyword search. Each result has its validity on the date and its provenance; a `
 | `limit` | integer, 1 to 100 | Default: 10 |
 | `budget_tokens` | integer | Approximate budget for the response |
 | `as_of` | `AAAA-MM-DD` | Date for validity (default: today) |
+| `mode` | `auto`, `keyword`, `semantic`, or `hybrid` | Default: `auto` (hybrid when semantic search is on for this machine, otherwise keyword). Without semantic search, `semantic` and `hybrid` fall back to keyword, with a notice in `warnings` |
 
-**Output:** `query`, `mode` (`and`, `or`, or `none`), `terms`, `as_of`, `hits` (each with `score` and `heading_path`), `related` (each with `score` and `reasons`), and `truncated`. Real example, with some fields of each result removed:
+**Output:** `query`, `mode` (`and`, `or`, or `none`), `mode_requested`, `mode_used` (`keyword`, `semantic`, or `hybrid`), `mode_reason`, `warnings`, `terms`, `as_of`, `hits` (each with `score` and `heading_path`), `related` (each with `score` and `reasons`), `truncated`, and, sometimes, `next_step`. Real example, without the `data_notice` and some fields of the result:
 
 ```json
 {
-  "query": "deploy blog",
+  "query": "respostas português",
   "mode": "and",
-  "terms": ["deploy", "blog"],
-  "as_of": "2026-11-12",
+  "mode_requested": "auto",
+  "mode_used": "keyword",
+  "mode_reason": "a busca por significado não está ativada neste cérebro (\"cabecao embeddings on\" ativa)",
+  "warnings": [],
+  "terms": ["respostas", "português"],
+  "as_of": "2026-11-13",
   "hits": [
     {
-      "path": "memory/preferences/deploy-do-blog-so-as-sextas.md",
+      "path": "memory/preferences/respostas-em-portugues.md",
       "type": "preference",
-      "title": "Deploy do blog só às sextas",
+      "title": "Respostas em português",
       "validity": "current",
-      "trust": "medium",
+      "trust": "high",
       "origin": "agent:claude-code",
       "content_kind": "snippet",
-      "content": "Prefiro publicar o «blog» às sextas, depois das 18h, para revisar com calma durante a semana."
+      "content": "Responda em «português» do Brasil. Mantenha termos técnicos e identificadores de código no original."
     }
   ],
   "related": [],
@@ -183,7 +188,7 @@ Keyword search. Each result has its validity on the date and its provenance; a `
 
 ## ask
 
-Only exists when an answer provider is turned on on this machine (`cabecao llm on`) and the brain allows it (`llm_policy`); otherwise it does not even show in `tools/list`. Retrieves the passages (like `search`), sends them to the provider the user chose and checks every citation. The agent does not choose or see the provider or the model: the answer always has the same shape. Guide in [Answers with a language model](../guias/respostas-com-modelo.md).
+Only exists when an answer provider is turned on on this machine (`cabecao llm on`) and the brain allows it (`llm_policy`); otherwise it does not even show in `tools/list`. It also does not exist in the server of an unattended consolidation (`cabecao mcp --consolidation`). Retrieves the passages (like `search`), sends them to the provider the user chose and checks every citation. The agent does not choose or see the provider or the model: the answer always has the same shape. Guide in [Answers with a language model](../guias/respostas-com-modelo.md).
 
 **Input**
 
@@ -263,7 +268,7 @@ Neighbors of a note, 1 or 2 hops away: typed relations, wikilinks, facts, versio
 | `depth` | `1` or `2` | Default: 1 |
 | `relation_types` | list | Only these links: typed relations, `supersedes`, `superseded_by`, `wikilink`, `fact`, `mention` |
 | `as_of` | `AAAA-MM-DD` | Date for validity |
-| `limit` | integer | Maximum number of neighbors (default: 50) |
+| `limit` | integer, 1 to 200 | Maximum number of neighbors (default: 50) |
 | `budget_tokens` | integer | Default: 3000 |
 
 **Output:** `node`, `resolved_by` (`id`, `path`, `link`, `title`, or `alias`), `as_of`, `depth`, `relation_types`, `neighbors` (each with `distance` and `links`: `from`, `to`, `type`, `origin`, `direction`, `validity`), `total`, `truncated`, `omitted`, and `next_step`.
@@ -311,7 +316,7 @@ Facts (subject, predicate, object) and whether they are valid on a date, with th
 
 Brain health. No input.
 
-**Output:** `healthy`, `problems`, `root`, `client`, `machine`, `brain_schema_version`, `note_dirs`, `notes` (`total`, `by_type`, `untyped`, `archived`, `unmanaged`), `index` (schema version, chunks, edges, facts, last scan), `broken_links`, `sync` (branch, remote, last sync, `unpushed`, `unpulled`, `pending_changes`, `running`), `conflicts`, and `next_step`.
+**Output:** `healthy`, `problems`, `root`, `client`, `machine`, `brain_schema_version`, `note_dirs`, `notes` (`total`, `by_type`, `untyped`, `archived`, `unmanaged`), `index` (schema version, chunks, edges, facts, last scan), `broken_links`, `sync` (branch, `remote_configured`, remote, last sync, `unpushed`, `unpulled`, `pending_changes`, `running`), `conflicts`, `embeddings` (semantic search: model, whether it is on for this machine, runtime, chunks with and without a vector, index branch generation; `null` when it cannot be determined), and `next_step`.
 
 ## lint
 
@@ -327,6 +332,7 @@ Health report by rules, without an LLM and read-only. Each finding has `rule`, `
 | `unconfirmed_memory` | info | Preferences, gotchas, and procedures without `confirmed` and not updated for 180 days or more |
 | `unlinked_mention` | info | Another note's name mentioned without a `[[link]]` (outside `raw/`) |
 | `orphan_note` | info | Notes with no incoming or outgoing link |
+| `agent_approved` | info | What an agent wrote or changed with the user's confirmation (`approved_by: user` in the note or the `Cabecao-Approved` trailer in the commit), for you to review |
 
 **Input:** `rules` (only these), `scope`, `limit` (default: 200, maximum: 1000).
 
@@ -338,13 +344,14 @@ Saves a durable, non-obvious memory. First it looks for similar memories in the 
 
 | Situation | What happens | `decision` |
 | --- | --- | --- |
-| Same as an existing one (same text, or almost, with no different number or negation) | Nothing is written; `path` points to the existing one | `skipped` |
+| Same as an existing one (same text, or almost, with no different number or negation), or already contained in it | Nothing is written; `path` points to the existing one | `skipped` |
 | The new one has everything the old one has, and more | The old one is updated with the new text | `updated` |
 | Fact with the same `subject` and `predicate` and another `object` | The new one is created and the old one gets `valid_until` and `superseded_by`; nothing is deleted | `superseded` |
 | Nothing similar | Creates | `created` |
 | Similar, but the rule cannot decide | Nothing is written; returns `candidates` and `next_step` | `needs_resolution` |
+| A rule (`type: rule`) from an agent, without `confirm_token` | Nothing is written; returns the summary and the `confirm_token` | `needs_confirmation` |
 
-In the ambiguous case, the agent reads the candidates and calls again with the same content and `resolution`: `create` (it is another memory), `update:<id>` (the note's body becomes the new one), `supersede:<id>` (the old one stops being valid today), or `skip`. Superseding or updating one of your notes records `edited_by` and lowers `trust`, like any agent edit; a rule is never superseded or updated by an agent.
+In the ambiguous case, the agent reads the candidates and calls again with the same content and `resolution`: `create` (it is another memory), `update:<id>` (the note's body becomes the new one), `supersede:<id>` (the old one stops being valid today), or `skip`. Superseding or updating one of your notes records `edited_by` and lowers `trust`, like any agent edit; an agent only creates, supersedes, or updates a rule with the user's explicit request.
 
 The thresholds live in `DEDUP_THRESHOLDS`: text with fewer than 4 terms only counts as the same if identical; Jaccard of 0.9 is "same"; the new one needs all of the old one's terms and 1.25 times as many to "complement"; with 4 or more terms in common, Jaccard of 0.5 (or 80% of the smaller inside the larger) is ambiguous; so is a cosine of 0.9 from semantic search. A number or a negation ("não", "nunca", "sem", "not", "never"...) present on one side only is never "same" nor "complements". In the sample brain, none of the pairs of distinct notes of the same type and scope becomes "same" or "complements", and every note saved again is recognized as the same.
 
@@ -353,7 +360,7 @@ The thresholds live in `DEDUP_THRESHOLDS`: text with fewer than 4 terms only cou
 | Field | Type | |
 | --- | --- | --- |
 | `content` | text (up to 1,000,000) | Required. Body in Markdown |
-| `type` | note type | Required. `preference`, `gotcha`, `decision`, `fact`, `procedure`, `episode`... Never `rule` |
+| `type` | note type | Required. `preference`, `gotcha`, `decision`, `fact`, `procedure`, `episode`... `rule` only with the user's explicit request |
 | `title` | text | Default: the first line of the content |
 | `scope` | text | `global` (default) or `project:<name>` |
 | `tags` | list | |
@@ -364,8 +371,9 @@ The thresholds live in `DEDUP_THRESHOLDS`: text with fewer than 4 terms only cou
 | `sources` | list | Source notes; they become wikilinks |
 | `session_handle` | text | The one from `recall` |
 | `resolution` | text | Answer to `needs_resolution`: `create`, `skip`, `update:<id>`, or `supersede:<id>` |
+| `confirm_token` | text | The token from the first call for a rule, after the user said yes |
 
-**Output:** `decision`, `op` (the operation id, for `undo`; no commit when nothing was written), `path`, `id`, `action` (`add`, `update`, or `null`), `changed`, `commit`, `warnings`, `superseded` (the superseded note), `candidates` (each with `id`, `path`, `title`, `verdict`, `similarity`, `cosine`, `reason`, and the start of the content), `reason`, `next_step`, and the `data_notice`. A real ambiguous case (a number correction), without the `data_notice`:
+**Output:** `decision`, `op` (the operation id, for `undo`; no commit when nothing was written), `path`, `id`, `action` (`add`, `update`, or `null`), `changed`, `commit`, `warnings`, `superseded` (the superseded note), `candidates` (each with `id`, `path`, `title`, `verdict`, `similarity`, `cosine`, `reason`, and the start of the content), `reason`, `next_step`, the `data_notice` and, when the action needs confirmation, the [confirmation](#what-needs-the-users-explicit-request) fields. A real ambiguous case (a number correction), without the `data_notice`:
 
 ```json
 {
@@ -465,7 +473,7 @@ Its own errors: `patch_not_found` (the passage does not appear) and `ambiguous_p
 
 Adds a typed relation from one existing note to another, as a wikilink in the frontmatter, in one commit. Running it again with the same values changes nothing.
 
-**Input:** `from` and `to` (title, path, wikilink, or id; both notes must exist), `type` (`uses`, `part_of`, `depends_on`, `decided_by`, `works_on`, `related_to`, `supersedes`, `superseded_by`, or one from `.cabecao.json`), and `session_handle`.
+**Input:** `from` and `to` (title, path, wikilink, or id; both notes must exist), `type` (`uses`, `part_of`, `depends_on`, `decided_by`, `works_on`, `related_to`, `supersedes`, `superseded_by`, or one from `.cabecao.json`), `session_handle`, and `confirm_token` (starting from a rule or from a `raw/` source, which require the user's explicit request).
 
 **Output:** the same as for writes, plus `relation` (`from`, `type`, `to`, `link`).
 
@@ -548,7 +556,7 @@ Syncs with the remote: commits outside edits, receives, pushes, and updates the 
 
 **Input:** `session_handle` (optional).
 
-**Output:** `status` (`ok`, `busy`, `blocked`, `offline`, or `error`), `message`, `pulled`, `pushed`, `committed`, `conflicts`, `changed_paths`, `secrets` (file, line, column, and rule, never the value), `attempts`, `ms`, `branch`, `remote`, `integration`, `reason`, `remote_error`, `recovered`, `config_problem`, and `next_step`.
+**Output:** `status` (`ok`, `busy`, `blocked`, `offline`, or `error`), `message`, `pulled`, `pushed`, `committed`, `conflicts`, `changed_paths`, `secrets` (file, line, column, and rule, never the value), `attempts`, `ms`, `branch`, `remote`, `integration`, `reason`, `remote_error`, `recovered`, `config_problem`, `index` (the semantic search vectors in the index branch: received, computed, pushed, pending; `null` when it does not take part), and `next_step`.
 
 ## consolidate
 
@@ -588,7 +596,7 @@ When it is `cabecao consolidate --run` that calls the agent, the server starts t
 
 Undoes with `git revert`: the agent's last operation, a specific operation, or a whole session.
 
-**Input:** `op` (the full identifier returned by a write), **or** `session` (the full `session_handle`), or neither for the last agent operation; and `session_handle`.
+**Input:** `op` (the identifier returned by a write; only its start requires confirmation), **or** `session` (the full `session_handle`), or neither for the last agent operation; `session_handle`; and `confirm_token` (to undo a user operation, or by the start of the id).
 
 **Output:** `op` (the undo's own operation, which can also be undone), `commit`, `undone` (each undone operation, with `commit` and `changes`), `changed_paths`, `warnings`, and `next_step`.
 
@@ -629,7 +637,7 @@ Read-only:
 | --- | --- |
 | `cabecao://schema` | The brain's `AGENTS.md`: how it is organized |
 | `cabecao://index` | The `index.md`: the catalog of all notes |
-| `cabecao://page/{path}` | A note as JSON, the same as the `read` output |
+| `cabecao://page/{+path}` | A note as JSON, the same as the `read` output (the path may contain `/`) |
 
 ## Error codes
 
@@ -650,4 +658,6 @@ Read-only:
 | `conflict` | The note changed during the operation, or the undo cannot apply without a conflict. Nothing was changed |
 | `locked` | Another process held the lock for too long. Nothing was changed |
 | `nothing_to_undo` / `already_undone` | Nothing to undo, or the operation was already undone |
+| `human_only` | Only the user, through the CLI at the terminal: changing the embeddings model, compacting the index branch; in the server of an unattended consolidation, also `sync`, `undo`, `handoff_save`, `ingest`, a second `start` and, without `--allow-forget`, `forget` |
 | `git_failed` / `index_failed` | Unexpected git failure, or the local database did not open |
+| `internal_error` | Unexpected server error; check with `status` or `read` whether the operation happened before retrying |

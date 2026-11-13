@@ -15,7 +15,7 @@ Toda nota é um arquivo `.md` com um bloco de frontmatter YAML no topo. O campo 
 | `entity` | `wiki/entities/` | Uma coisa concreta: pessoa, projeto, empresa, ferramenta |
 | `decision` | `wiki/decisions/` | Uma decisão **e o porquê**, com a data em que passou a valer |
 | `synthesis` | `wiki/syntheses/` | Um texto que junta várias notas numa visão geral |
-| `rule` | `memory/rules/` | Uma regra que todo agente segue. **Só você cria.** |
+| `rule` | `memory/rules/` | Uma regra que todo agente segue. **Um agente só cria com o seu pedido explícito.** |
 | `preference` | `memory/preferences/` | Como você gosta que as coisas sejam feitas |
 | `gotcha` | `memory/gotchas/` | Uma armadilha: o que deu errado e como evitar |
 | `procedure` | `memory/procedures/` | Um passo a passo que se repete |
@@ -80,7 +80,7 @@ Bruno Tavares lidera o Projeto Atlas desde setembro de 2026.
 
 ## Campos que o Cabeção cuida
 
-Quando a gravação passa pelo Cabeção (um agente pelo MCP), `id`, `created`, `updated`, `origin` e `edited_by` são preenchidos por ele; o agente não escolhe esses valores. O `id` é um [ULID](https://github.com/ulid/spec): 26 caracteres, em maiúsculas, que não mudam se a nota for renomeada.
+Quando a gravação passa pelo Cabeção (um agente pelo MCP ou pela CLI), `id`, `created`, `updated`, `origin`, `edited_by`, `approved_by` e `approved_at` são preenchidos por ele; o agente não escolhe esses valores. O `id` é um [ULID](https://github.com/ulid/spec): 26 caracteres, em maiúsculas, que não mudam se a nota for renomeada.
 
 Numa nota que você escreve à mão (no Obsidian, por exemplo), o mais importante é o `type`: é ele que diz ao Cabeção o que a nota é. Sem `id`, a nota continua sendo indexada e buscada, identificada pelo caminho; o `status` a conta entre as notas "sem id". Uma nota sem `id` nem `type` é tratada como anotação solta, fora do esquema, e também aparece na busca.
 
