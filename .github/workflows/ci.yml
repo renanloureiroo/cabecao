@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
 
+# O workflow release dispara este workflow (workflow_dispatch) na branch do PR "Version Packages", que não
+# dispararia o CI sozinho por ter sido criada pelo GITHUB_TOKEN.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -87,6 +89,43 @@ jobs:
         env:
           SMOKE_EXPECT: ${{ matrix.expect }}
         run: node scripts/smoke.mjs
+
+  changeset:
+    # PR que mexe em packages/ sem changeset só ganha um aviso: nem toda mudança precisa de versão nova.
+    # Um changeset que cita outro pacote além do cabecao falha: os pacotes privados nunca são consumidos e travam o PR
+    # de versão.
+    name: changeset
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: o PR traz changeset?
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
+          added="$(git diff --name-only --diff-filter=A "$BASE_SHA...$HEAD_SHA")"
+          changesets="$(grep -E '^\.changeset/[^/]+\.md$' <<< "$added" | grep -v '^\.changeset/README\.md$' || true)"
+
+          status=0
+          for file in $changesets; do
+            # Cabeçalho entre as duas primeiras linhas "---": uma linha por pacote; vazio é changeset --empty.
+            header="$(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { exit } inside' "$file")"
+            if grep -Ev "^[\"']?cabecao[\"']?[[:space:]]*:" <<< "$header" | grep -q '[^[:space:]]'; then
+              echo "::error file=$file::o changeset cita outro pacote além do cabecao. Os pacotes @cabecao/* são privados e o Changesets recusa citá-los: use pnpm changeset e marque só o cabecao."
+              status=1
+            fi
+          done
+
+          if grep -q '^packages/' <<< "$changed" && [ -z "$changesets" ]; then
+            echo "::warning::este PR mexe em packages/ e não traz changeset, então não gera versão nova. Se a mudança deve sair no npm, rode pnpm changeset; se não deve, pnpm changeset --empty silencia este aviso."
+          fi
+          exit "$status"
 
   package:
     # Confere o pacote que vai para o npm, sem publicar nada.
