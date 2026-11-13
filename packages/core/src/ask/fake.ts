@@ -33,7 +33,8 @@ export function parseSentPassages(user: string): { label: string; text: string }
   const out: { label: string; text: string }[] = [];
   const marker = /Marca dos delimitadores desta mensagem: ([0-9a-f]+)/.exec(user)?.[1];
   if (marker === undefined) return out;
-  const re = new RegExp(`<<<TRECHO ${marker} (S\\d+)>>>\\n([\\s\\S]*?)\\n<<<FIM ${marker}>>>`, 'g');
+  // o bloco começa pelo cabeçalho (caminho e título) até "---"; o texto do trecho vem depois
+  const re = new RegExp(`<<<TRECHO ${marker} (S\\d+)>>>\\n[\\s\\S]*?\\n---\\n([\\s\\S]*?)\\n<<<FIM ${marker}>>>`, 'g');
   for (const match of user.matchAll(re))
     out.push({ label: match[1] as string, text: (match[2] as string).replace(/\^/g, ' ') });
   return out;

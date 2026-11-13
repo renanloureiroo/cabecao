@@ -94,11 +94,32 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${out}${folder}$`, 'i');
 }
 
-/** A nota tem `private: true` (ou `"true"`, `yes`) no frontmatter. */
+const TRUTHY = new Set(['true', 'yes', 'on', '1', 'sim', 'y', 's']);
+
+function truthy(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === 'string') return TRUTHY.has(value.trim().toLowerCase());
+  if (Array.isArray(value)) return value.some(truthy);
+  return false;
+}
+
+/**
+ * A nota é privada (nunca vai a provedor nenhum). Na dúvida, é: a chave `private` sem diferenciar maiúsculas
+ * (`Private`, `PRIVATE`), com um valor verdadeiro (`true`, `yes`, `on`, `1`, `sim`, em texto ou numa lista), ou a tag
+ * `private` (com ou sem `#`, em `tags`). A nota com frontmatter ilegível é tratada à parte (`frontmatter_error`): também
+ * nunca sai.
+ */
 export function isPrivateNote(frontmatter: Readonly<Record<string, unknown>>): boolean {
-  const value = frontmatter[PRIVATE_FIELD];
-  if (value === true) return true;
-  return typeof value === 'string' && ['true', 'yes', 'sim'].includes(value.trim().toLowerCase());
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (key.trim().toLowerCase() === PRIVATE_FIELD && truthy(value)) return true;
+    if (key.trim().toLowerCase() === 'tags') {
+      const tags = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\s,]+/) : [];
+      if (tags.some((tag) => typeof tag === 'string' && tag.trim().replace(/^#/, '').toLowerCase() === PRIVATE_FIELD)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** Arquivo de controle do cérebro: nunca é enviado, mesmo que a busca o devolva (vault adotado com `noteDirs: ["."]`). */
@@ -106,7 +127,7 @@ export function isControlPath(path: string, config: Pick<BrainConfig, 'indexMd'>
   return isBrainControlFile(path, config) || isClientInstructionFile(path) || isConflictCopyPath(path);
 }
 
-export type ExclusionReason = 'private' | 'policy' | 'secret' | 'control';
+export type ExclusionReason = 'private' | 'policy' | 'secret' | 'control' | 'unreadable';
 
 /** Por que esta nota não pode sair (antes de olhar o texto), ou `null`. */
 export function noteExclusion(

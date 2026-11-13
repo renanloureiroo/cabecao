@@ -71,6 +71,23 @@ export function sanitizeText(text: string): string {
   return text.replace(ANSI_STRING, '').replace(ANSI_CSI, '').replace(ANSI_SINGLE, '').replace(CONTROL, '');
 }
 
+/**
+ * Neutraliza no texto do MODELO o que um cliente que renderiza Markdown ou HTML transformaria em pedido de rede (uma
+ * imagem que carrega sozinha leva dados na URL): imagens e links Markdown viram só o texto, tags HTML somem e
+ * endereços viram "[link removido]". A fonte de cada afirmação é indicada pelas citações numeradas, nunca por link.
+ */
+export function neutralizeMarkup(text: string): string {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]*\)?/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)?/g, '$1')
+    .replace(/^\s*\[[^\]]+\]:\s*\S+.*$/gm, '')
+    .replace(/<\/?[a-zA-Z!][^>]*>?/g, '')
+    .replace(/\b(?:https?|ftp|file|data|javascript|vbscript|mailto):\S*/gi, '[link removido]')
+    .replace(/\bwww\.\S+/gi, '[link removido]')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
@@ -90,7 +107,7 @@ function readClaim(value: unknown, index: number, errors: string[]): RawClaim | 
   }
   if (typeof quote !== 'string') errors.push(`claims[${index}].quote deveria ser texto`);
   if (typeof text !== 'string' || !Array.isArray(sources) || typeof quote !== 'string') return null;
-  const clean = sanitizeText(text).replace(/\s+/g, ' ').trim();
+  const clean = neutralizeMarkup(sanitizeText(text)).replace(/\s+/g, ' ').trim();
   if (clean === '') return null;
   return {
     text: clip(clean, MAX_CLAIM_CHARS),
@@ -121,7 +138,7 @@ export function validateAnswer(value: unknown): AnswerValidation {
     value: {
       status: status as 'answered' | 'not_found',
       claims,
-      missing: clip(sanitizeText(typeof missing === 'string' ? missing : '').trim(), MAX_MISSING_CHARS),
+      missing: clip(neutralizeMarkup(sanitizeText(typeof missing === 'string' ? missing : '')), MAX_MISSING_CHARS),
       droppedClaims: Math.max(0, list.length - MAX_CLAIMS),
     },
   };
