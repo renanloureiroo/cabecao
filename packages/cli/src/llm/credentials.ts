@@ -118,6 +118,19 @@ function minimalEnv(env: Env): Env {
   return out;
 }
 
+/**
+ * O ambiente do PowerShell no Windows: o do usuário inteiro (o `PSModulePath` e as pastas do perfil fazem falta para
+ * carregar o módulo de segurança e a DPAPI), menos as variáveis de chave dos provedores, que ele não precisa ver.
+ */
+function windowsEnv(env: Env): Env {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) {
+    if (value === undefined || /(?:API_KEY|_TOKEN|SECRET)$/i.test(name)) continue;
+    out[name] = value;
+  }
+  return out;
+}
+
 function powershell(env: Env): string {
   const root = env.SystemRoot ?? env.SYSTEMROOT ?? 'C:\\Windows';
   return `${root}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
@@ -190,12 +203,21 @@ async function keychainWrite(io: CredentialIo, id: string, key: string): Promise
   if (io.platform === 'win32') {
     const result = await run(powershell(io.env), ['-NoProfile', '-NonInteractive', '-Command', PS_ENCRYPT], {
       stdin: '',
-      env: { ...env, [DPAPI_INPUT]: key },
+      env: { ...windowsEnv(io.env), [DPAPI_INPUT]: key },
       timeoutMs: RUN_TIMEOUT_MS * 2,
     });
     const encrypted = result.stdout.trim();
     if (result.code !== 0 || !/^[0-9a-f]+$/i.test(encrypted)) {
-      throw new Error(`o PowerShell não conseguiu cifrar a chave com a DPAPI (código ${result.code ?? 'nenhum'})`);
+      const detail = result.stderr
+        .replaceAll(key, '[chave omitida]')
+        .trim()
+        .split('\n')
+        .slice(-2)
+        .join(' ')
+        .slice(0, 300);
+      throw new Error(
+        `o PowerShell não conseguiu cifrar a chave com a DPAPI (código ${result.code ?? 'nenhum'}${detail === '' ? '' : `: ${detail}`})`,
+      );
     }
     const path = join(io.configDir, DPAPI_FILE);
     const store = await readStore(path);
@@ -233,7 +255,7 @@ async function keychainRead(io: CredentialIo, id: string): Promise<string | null
     if (encrypted === undefined) return null;
     const result = await run(powershell(io.env), ['-NoProfile', '-NonInteractive', '-Command', PS_DECRYPT], {
       stdin: '',
-      env: { ...env, [DPAPI_INPUT]: encrypted },
+      env: { ...windowsEnv(io.env), [DPAPI_INPUT]: encrypted },
       timeoutMs: RUN_TIMEOUT_MS * 2,
     });
     const key = result.stdout.trim();
