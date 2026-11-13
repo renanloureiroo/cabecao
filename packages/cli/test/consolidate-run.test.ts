@@ -142,6 +142,9 @@ describe('consolidate --run com um agente falso', { timeout: TEST_TIMEOUT_MS }, 
     expect(report.promptHasMaterial).toBe(true);
     expect(existsSync(report.cwd)).toBe(false);
     expect(data.temp_dir_removed).toBe(true);
+    // a saída completa do agente fica guardada, só para o dono
+    expect(readFileSync(data.log, 'utf8')).toContain('Consolidei: um fato novo.');
+    expect(result.text).toContain(data.log);
     // ambiente mínimo: o que não é do sistema, do git ou do login do agente não chega
     expect(report.envNames).not.toContain('SEGREDO_QUALQUER');
     expect(report.envNames).toContain('ENABLE_TOOL_SEARCH');
@@ -149,6 +152,15 @@ describe('consolidate --run com um agente falso', { timeout: TEST_TIMEOUT_MS }, 
     const message = await git(brain, ['log', '-1', '--format=%B']);
     expect(message).toContain(`Cabecao-Session: ${data.consolidation_id}`);
     expect(await git(brain, ['rev-list', '--count', `${data.restore_point.commit}..HEAD`])).toBe('1');
+  });
+
+  it('o agente não acha nada a fazer: sai com 0, sem commit e sem undo', async () => {
+    const { result, brain } = await runFake('nothing');
+    expect(result.code).toBe(0);
+    const data = dataOf(result);
+    expect(data.outcome).toBe('unchanged');
+    expect(result.text).toContain('o agente terminou sem gravar nada');
+    expect(await git(brain, ['rev-list', '--count', `${data.restore_point.commit}..HEAD`])).toBe('0');
   });
 
   it('o agente sai sem finish: o que ele gravou é desfeito, código 1', async () => {

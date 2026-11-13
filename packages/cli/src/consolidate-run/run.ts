@@ -14,8 +14,8 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { ConsolidateOutput, ConsolidationState, UndoOutput } from '@cabecao/core';
-import { consolidateRunRoutine } from '@cabecao/core';
-import { readMachine, resolveBrain, withBrain } from '../brain.ts';
+import { cacheDir, consolidateRunRoutine } from '@cabecao/core';
+import { dirContext, readMachine, resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { findExecutable } from '../install-client/files.ts';
 import type { CommandContext, CommandResult, Env } from '../types.ts';
@@ -364,6 +364,37 @@ async function removeDir(dir: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Guarda a saída completa do agente em `<cache>/consolidate-runs/<id>.log` (só para o dono), para conferir depois o
+ * que ele fez sem ninguém olhando. Devolve o caminho, ou `null` se não deu para gravar.
+ */
+async function saveLog(
+  ctx: Pick<CommandContext, 'env' | 'platform' | 'homedir' | 'stderr'>,
+  id: string,
+  adapter: AgentAdapter,
+  file: string,
+  result: AgentProcessResult,
+): Promise<string | null> {
+  try {
+    const dir = join(cacheDir(dirContext(ctx)), 'consolidate-runs');
+    await mkdir(dir, { recursive: true });
+    const path = join(dir, `${id}.log`);
+    const text = [
+      `# ${adapter.label} (${file}), código ${result.code ?? result.signal ?? 'nenhum'}, ${result.durationMs} ms${result.timedOut ? ', tempo limite' : ''}${result.interrupted ? ', interrompido' : ''}`,
+      '## stdout',
+      result.stdout,
+      '## stderr',
+      result.stderr,
+      '',
+    ].join('\n');
+    await writeFile(path, text, { mode: 0o600 });
+    return path;
+  } catch (error) {
+    ctx.stderr.write(`cabecao: aviso: não consegui guardar a saída do agente: ${String(error)}\n`);
+    return null;
+  }
+}
+
 /** Por que a consolidação não foi fechada, em português. */
 function failureReason(result: AgentProcessResult, report: AgentReport, timeoutMs: number): string {
   if (result.spawnError !== null) return `o agente não pôde ser iniciado (${result.spawnError})`;
@@ -433,6 +464,7 @@ export async function runConsolidation(
     cleaned = await removeDir(workDir);
   }
   if (!cleaned) ctx.stderr.write(`cabecao: aviso: não consegui apagar a pasta temporária ${workDir}\n`);
+  const logPath = await saveLog(ctx, id, adapter, file, result);
 
   // 3. conferir no git
   const state: ConsolidationState = await withBrain(ctx, brain, (b) => b.consolidationState(id));
@@ -450,6 +482,35 @@ export async function runConsolidation(
   const head = [
     `Agente: ${adapter.label} (${SOURCE_TEXT[chosen.source]}), ${minutes(result.durationMs)}${report.turns === null ? '' : `, ${report.turns} turno(s)`}${report.costUsd === null ? '' : `, US$ ${report.costUsd.toFixed(4)}`}.`,
   ];
+  const tail = logPath === null ? [] : [`Saída completa do agente: ${logPath}`];
+  const base = {
+    action: 'run',
+    agent: adapter.id,
+    agent_source: chosen.source,
+    consolidation_id: id,
+    restore_point: started.restore_point,
+    agent_run: agentData,
+    log: logPath,
+    temp_dir_removed: cleaned,
+  };
+
+  // o agente terminou bem e não gravou nada: o `finish` sem mudanças não faz commit, e não há o que desfazer
+  const clean = result.code === 0 && !result.timedOut && !result.interrupted && report.error === null;
+  if (state.finish_commit === null && state.session_commits === 0 && clean) {
+    const lines = [
+      ...head,
+      `Consolidação ${id}: o agente terminou sem gravar nada; o cérebro está como antes.`,
+      ...(report.summary === null ? [] : ['', 'Última mensagem do agente:', report.summary]),
+      '',
+      `Ponto de restauração: ${tag}.`,
+      ...tail,
+    ];
+    return {
+      code: 0,
+      data: { ...base, outcome: 'unchanged', finish_commit: null, changes: [], undo: null },
+      text: lines.join('\n'),
+    };
+  }
 
   if (state.finish_commit !== null) {
     const lines = [
@@ -459,23 +520,12 @@ export async function runConsolidation(
       '',
       `Para desfazer: cabecao undo --session ${id}`,
       `Ponto de restauração: ${tag} (git reset --hard ${tag} volta a ele, descartando o que veio depois).`,
+      ...tail,
     ];
     if (report.error !== null) lines.push(`Aviso: o agente relatou um erro depois de fechar: ${report.error}`);
     return {
       code: 0,
-      data: {
-        action: 'run',
-        outcome: 'finished',
-        agent: adapter.id,
-        agent_source: chosen.source,
-        consolidation_id: id,
-        restore_point: started.restore_point,
-        finish_commit: state.finish_commit,
-        changes: state.changes,
-        undo: null,
-        agent_run: agentData,
-        temp_dir_removed: cleaned,
-      },
+      data: { ...base, outcome: 'finished', finish_commit: state.finish_commit, changes: state.changes, undo: null },
       text: lines.join('\n'),
     };
   }
@@ -507,27 +557,18 @@ export async function runConsolidation(
       `Desfaça com: cabecao undo --session ${id}`,
     );
   }
-  lines.push(`Ponto de restauração: ${tag}.`);
+  lines.push(`Ponto de restauração: ${tag}.`, ...tail);
   if (report.summary !== null) lines.push('', 'Última mensagem do agente:', report.summary);
-  if (report.error !== null && result.stderr.trim() !== '' && ctx.env.CABECAO_DEBUG === '1') {
-    lines.push('', 'stderr do agente:', result.stderr.trim().slice(-4000));
-  }
   return {
     code: 1,
     data: {
-      action: 'run',
+      ...base,
       outcome: 'incomplete',
       reason,
-      agent: adapter.id,
-      agent_source: chosen.source,
-      consolidation_id: id,
-      restore_point: started.restore_point,
       finish_commit: null,
       changes: state.changes,
       undo: undo === null ? null : { op: undo.op, commit: undo.commit },
       undo_error: undoError,
-      agent_run: agentData,
-      temp_dir_removed: cleaned,
     },
     text: lines.join('\n'),
   };
