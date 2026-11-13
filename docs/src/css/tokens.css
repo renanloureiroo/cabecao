@@ -1,0 +1,99 @@
+/*
+ * Tokens do design system "Renan Loureiro" (tokens.json), em variáveis CSS.
+ * Primitivos só existem para os semânticos apontarem; o resto do CSS do site usa os semânticos.
+ * O ponto do nome do token vira hífen: color.text.muted -> --color-text-muted.
+ */
+
+:root {
+  /* Primitivos. */
+  --preto: #14121c;
+  --breu: #0d0b12;
+  --noite: #1e1b28;
+  --noite-clara: #2a2634;
+  --carvao: #3b3445;
+  --ardosia: #5c5466;
+  --fumaca: #9a90a3;
+  --nevoa: #b3a9b8;
+  --areia: #e8d6c8;
+  --areia-clara: #f6e4d8;
+  --creme: #fff1e8;
+  --papel: #fffaf6;
+  --branco: #ffffff;
+  --vinho: #8e1b2a;
+  --vermelho: #d1202f;
+  --vermelho-luz: #f25a4a;
+  --vermelho-claro: #ff7a6b;
+  --pessego: #f0a98f;
+
+  /* Cor, tema claro. */
+  --color-bg: var(--creme);
+  --color-surface: var(--papel);
+  --color-container: var(--areia-clara);
+  --color-border: var(--areia);
+  --color-border-strong: var(--ardosia);
+  --color-text-default: var(--preto);
+  --color-text-muted: var(--ardosia);
+  --color-primary: var(--vermelho);
+  --color-primary-pressed: var(--vinho);
+  --color-on-primary: var(--branco);
+  --color-focus: var(--vermelho);
+
+  /* Peças de marca: iguais nos dois temas. */
+  --color-brand-ground: var(--preto);
+  --color-brand-ink: var(--creme);
+  --color-brand-muted: var(--nevoa);
+  --color-brand-cursor: var(--vermelho);
+
+  /* Código: sempre escuro. */
+  --code-bg: var(--preto);
+  --code-text: var(--creme);
+  --code-keyword: var(--vermelho-luz);
+  --code-string: var(--pessego);
+  --code-comment: var(--fumaca);
+  /* Divisória dentro do bloco de código (a do CodeBlock do design system). */
+  --code-rule: var(--carvao);
+  /* Linha realçada dentro do bloco de código. */
+  --code-highlight: var(--noite-clara);
+
+  /* Tipografia. */
+  --font-sans: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* Espaço. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Forma. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-tile: 22%;
+  --radius-full: 9999px;
+  --border-default: 1px;
+  --border-strong: 2px;
+  --shadow-hard: 4px 4px 0 0 var(--preto);
+}
+
+/* Tema escuro. */
+:root[data-theme="dark"],
+.tema-escuro {
+  --color-bg: var(--preto);
+  --color-surface: var(--noite);
+  --color-container: var(--noite-clara);
+  --color-border: var(--carvao);
+  --color-border-strong: var(--nevoa);
+  --color-text-default: var(--creme);
+  --color-text-muted: var(--nevoa);
+  --color-primary: var(--vermelho-luz);
+  --color-primary-pressed: var(--vermelho-claro);
+  --color-on-primary: var(--preto);
+  --color-focus: var(--vermelho-luz);
+  --code-bg: var(--breu);
+  --shadow-hard: 4px 4px 0 0 var(--carvao);
+}
