@@ -22,6 +22,8 @@ const COMMANDS = [
   'compact',
   'eval',
   'reindex',
+  'recall',
+  'schedule',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];

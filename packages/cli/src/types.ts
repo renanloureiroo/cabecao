@@ -42,6 +42,22 @@ export interface CliIo {
    * existe quando a entrada e a saída são um terminal; nos testes, é injetada.
    */
   prompt?: ((question: string) => Promise<string | null>) | undefined;
+  /**
+   * Lê a entrada padrão até o fim, com teto de tamanho e de tempo (`stdin.ts`). Devolve `null` quando a entrada é um
+   * terminal, passa do teto ou não termina no prazo. Só os modos de hook usam (o Claude Code manda um JSON por ali);
+   * nos testes, é injetada.
+   */
+  readStdin?: ((limits: StdinLimits) => Promise<string | null>) | undefined;
+  /**
+   * Encerra o processo com este código depois de esvaziar a saída. Só o modo de hook usa, para não deixar o Claude Code
+   * esperando quando o prazo acaba com uma operação ainda pendurada; nos testes, não existe (ou é um falso).
+   */
+  exit?: ((code: number) => void) | undefined;
+}
+
+export interface StdinLimits {
+  maxBytes: number;
+  timeoutMs: number;
 }
 
 /** Opção de linha de comando: a configuração do `parseArgs` mais o texto que aparece na ajuda. */
