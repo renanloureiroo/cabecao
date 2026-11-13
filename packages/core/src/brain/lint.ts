@@ -174,7 +174,8 @@ export async function lint(ctx: BrainContext, input: LintInput = {}): Promise<Li
     if (rules.has('broken_link')) {
       for (const link of brokenLinks(ctx.index)) {
         const note = byId.get(link.noteId);
-        if (note === undefined) continue;
+        // fontes de raw/ são imutáveis: link quebrado ou menção nelas não é pendência
+        if (note === undefined || note.path.startsWith(RAW_PREFIX)) continue;
         out.push({
           rule: 'broken_link',
           severity: 'warning',
@@ -230,7 +231,7 @@ export async function lint(ctx: BrainContext, input: LintInput = {}): Promise<Li
         .prepare(
           `select s.path, s.scope, e.target, e.line, d.path as dst_path
            from edges e join notes s on s.id = e.src_note join notes d on d.id = e.dst_note
-           where e.origin = 'mention' and s.archived = 0 and s.conflict_of is null
+           where e.origin = 'mention' and s.archived = 0 and s.conflict_of is null and s.path not like 'raw/%'
            order by s.path, e.line`,
         )
         .all();
@@ -238,13 +239,16 @@ export async function lint(ctx: BrainContext, input: LintInput = {}): Promise<Li
         const scope = row.scope === null ? null : String(row.scope);
         if (!inScope({ scope })) continue;
         const line = row.line === null ? null : Number(row.line);
+        const name = String(row.target);
+        const stem = String(row.dst_path).replace(/\.md$/i, '').split('/').at(-1) ?? '';
+        const link = stem.toLowerCase() === name.toLowerCase() ? `[[${stem}]]` : `[[${stem}|${name}]]`;
         out.push({
           rule: 'unlinked_mention',
           severity: 'info',
           path: String(row.path),
           line,
-          message: `"${String(row.target)}" é citado sem link`,
-          fix: `Troque o nome por um link para a nota (patch_page: "${String(row.target)}" → "[[${String(row.dst_path).replace(/\.md$/i, '').split('/').at(-1)}|${String(row.target)}]]"), se for mesmo ela.`,
+          message: `"${name}" é citado sem link`,
+          fix: `Troque o nome por um link para a nota (patch_page: "${name}" → "${link}"), se for mesmo ela.`,
           related: [String(row.dst_path)],
         });
       }

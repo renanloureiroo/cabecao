@@ -258,7 +258,7 @@ export async function ingest(
   }
 
   // a fonte já está em raw/: nada a gravar, só o plano
-  const alreadyRaw = fromPath !== null && fromPath.toLowerCase().startsWith(`${RAW_DIR}/`);
+  const alreadyRaw = fromPath?.toLowerCase().startsWith(`${RAW_DIR}/`) === true;
   let op = '';
   let commit: string | null = null;
   let rawPath: string;
