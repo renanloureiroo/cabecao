@@ -31,7 +31,7 @@ Antigravity: registrado
 Reinicie o cliente para ele enxergar a mudança.
 ```
 
-O `agy mcp list` mostra o servidor `cabecao` em seguida. O IDE e o App do Antigravity leem o mesmo arquivo. Na atualização para a versão 2.0, o caminho antigo (`~/.gemini/antigravity/mcp_config.json`) virou um link para o novo; o Cabeção grava pelo link, sem trocá-lo por um arquivo.
+O `agy mcp list` mostra o servidor `cabecao` em seguida. O IDE e o App do Antigravity leem o mesmo arquivo. Usar o Cabeção numa sessão do Antigravity é o uso normal do produto; o que o Cabeção não faz é chamar o Antigravity sozinho, pelo `consolidate --run`, porque os termos do plano pessoal não permitem (veja [Consolidar com um agente](../guias/consolidar-com-agente.md#agentes)). Na atualização para a versão 2.0, o caminho antigo (`~/.gemini/antigravity/mcp_config.json`) virou um link para o novo; o Cabeção grava pelo link, sem trocá-lo por um arquivo.
 
 Se você ainda usa o Gemini CLI, `gemini` continua funcionando, com um aviso:
 

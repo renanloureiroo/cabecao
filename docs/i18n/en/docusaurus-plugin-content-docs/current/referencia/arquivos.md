@@ -19,7 +19,7 @@ sidebar_position: 5
 | --- | --- |
 | `machine` | The name of this machine: lowercase letters, digits, and hyphens, up to 32 characters. It appears in commits (`Cabecao-Machine`) and in conflict copies |
 | `defaultBrain` | The brain used when none is given (`--brain` or `CABECAO_BRAIN`) |
-| `agent` | Optional. The agent `cabecao consolidate --run` uses without `--agent`: `claude-code`, `codex` or `antigravity`. You write it by hand; `init` keeps it |
+| `agent` | Optional. The agent `cabecao consolidate --run` uses without `--agent`: `claude-code` or `codex`. You write it by hand; `init` keeps it |
 
 Where the folder lives:
 

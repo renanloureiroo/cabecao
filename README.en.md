@@ -73,7 +73,7 @@ $ cabecao search "testes pagamento"
 - **Memory across sessions and machines.** What you teach in one conversation comes back in the next, in any MCP client.
 - **Everything is reversible.** Every write is an identified commit; `cabecao undo` reverts one operation or a whole agent session.
 - **Agents with limits.** They cannot create rules, edit instruction files or store secrets, and they leave a trace when they change one of your notes.
-- **Maintenance with nobody watching.** `cabecao consolidate --run` calls Claude Code, Codex, or Antigravity to consolidate the memory, with only Cabeção's tools, and undoes whatever is left half done.
+- **Maintenance with nobody watching.** `cabecao consolidate --run` calls Claude Code or Codex to consolidate the memory, with only Cabeção's tools, and undoes whatever is left half done.
 
 ## Install
 
