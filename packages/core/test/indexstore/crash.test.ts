@@ -144,7 +144,20 @@ describe('indexstore: morte súbita', { timeout: TEST_TIMEOUT_MS * 3 }, () => {
     for (let i = 0; i < 8; i++) {
       const child = spawnChild([dir, 'loop', `r${i}`, '1000']);
       const wait = waitChild(child);
-      await sleep(250 + ((i * 137) % 400));
+      // espera a primeira rodada antes de sortear o instante da morte: com a máquina carregada (a suíte inteira em
+      // paralelo), só subir o processo filho pode levar mais que um prazo fixo, e aí nenhuma rodada concluía
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 30_000);
+        const done = (): void => {
+          clearTimeout(timer);
+          resolve();
+        };
+        child.stdout?.on('data', (chunk: string) => {
+          if (chunk.includes('rodada')) done();
+        });
+        child.once('close', done);
+      });
+      await sleep((i * 137) % 400);
       child.kill('SIGKILL');
       const result = await wait;
       if (result.signal === 'SIGKILL' || result.code !== 0) kills++;
