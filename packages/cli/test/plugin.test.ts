@@ -157,7 +157,8 @@ describe('bundle embutido no plugin', () => {
         .digest('hex');
       expect(hash, `${name} mudou desde o build.json`).toBe(build.files[name]);
     }
-    expect(readFileSync(join(SERVER, 'main.mjs'), 'utf8')).toContain(declared);
+    // a versão vai embutida em algum pedaço do bundle (o `--version` do teste abaixo confere que é a que ele mostra)
+    expect(listed.some((name) => readFileSync(join(SERVER, name), 'utf8').includes(declared))).toBe(true);
     // as skills copiadas no passo de versão (a partir de então, o build.json traz o hash de cada arquivo)
     for (const [rel, hash] of Object.entries((build.skills ?? {}) as Record<string, string>)) {
       const file = join(PLUGIN, 'skills', ...rel.split('/'));
