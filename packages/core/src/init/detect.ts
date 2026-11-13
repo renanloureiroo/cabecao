@@ -1,6 +1,5 @@
 /**
- * O que há num repositório: vazio, cérebro, vault de notas ou outra coisa (docs/04-sincronizacao.md, tabela da
- * instalação só com a URL).
+ * O que há num repositório: vazio, cérebro, vault de notas ou outra coisa.
  *
  * A decisão é tomada só pela lista de arquivos versionados (e pelo `.cabecao.json`, quando existe), sem ler o
  * conteúdo das notas. Os limiares estão em {@link DETECTION_RULES} e são os documentados abaixo.

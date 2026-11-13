@@ -1,4 +1,4 @@
-// Os 34 casos de correção do spike 14 (spikes/14-platform/scale/bench-parsers.mjs), portados um a um.
+// Os 34 casos de correção do spike 14 (a prova de conceito de plataforma), portados um a um.
 // A comparação é a mesma de lá: conjunto de links, lista de títulos, dados do frontmatter e presença de erro.
 import { describe, expect, it } from 'vitest';
 import { parseNote } from '../../src/markdown/index.ts';

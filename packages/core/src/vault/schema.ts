@@ -1,4 +1,4 @@
-// Esquema das notas (docs/03-modelo-de-dados.md): tipos, pastas, campos e relações tipadas.
+// Esquema das notas: tipos, pastas, campos e relações tipadas.
 import type { FrontmatterError } from '../markdown/index.ts';
 import { isUlid, normalizeNfc, toPosixPath } from '../util/index.ts';
 

@@ -1,6 +1,5 @@
 /**
- * `cabecao init [url]`: instala ou conecta uma máquina só com a URL do repositório (docs/04-sincronizacao.md,
- * "Instalação só com a URL"; docs/08-instalacao-e-operacao.md, "Instalar").
+ * `cabecao init [url]`: instala ou conecta uma máquina só com a URL do repositório.
  *
  * Escopo do marco 1: só a branch principal. Montar o índice local, registrar clientes MCP e rodar o `doctor` são
  * trabalho de quem chama; para isso há os ganchos e o resultado diz o que foi feito.

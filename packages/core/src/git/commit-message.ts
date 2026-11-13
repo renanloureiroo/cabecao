@@ -1,5 +1,5 @@
 /**
- * Padrão de commits do cérebro (docs/12-commits.md): assunto no estilo do Obsidian Git, uma linha por mudança
+ * Padrão de commits do cérebro: assunto no estilo do Obsidian Git, uma linha por mudança
  * no corpo e rodapés que identificam operação, sessão, máquina e cliente.
  *
  * Nada aqui acrescenta linha de coautoria nem de atribuição a IA: o autor é a identidade do git do usuário.
