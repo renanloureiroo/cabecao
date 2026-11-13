@@ -5,13 +5,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # O workflow release dispara este workflow na branch do PR "Version Packages", que não dispararia o CI
+  # sozinho por ter sido criada pelo GITHUB_TOKEN.
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# O workflow release dispara este workflow (workflow_dispatch) na branch do PR "Version Packages", que não
-# dispararia o CI sozinho por ter sido criada pelo GITHUB_TOKEN.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
