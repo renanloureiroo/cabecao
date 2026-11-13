@@ -44,14 +44,16 @@ O código está na branch `feat/m1-nucleo` e ainda não foi publicado no npm. Os
 - [ ] `cabecao eval`
 - [ ] **Medir a busca com vetores calculados em máquinas diferentes**
 
-## M3 · Wiki com grafo e validade no tempo (`0.3`)
-- [ ] Datas de validade e `as_of` na busca, com marcação de vigente ou vencido
-- [ ] Relações tipadas: uma propriedade por relação
-- [ ] Notas de fato e tool `facts`
-- [ ] Arestas no SQLite, tool `graph` e `relate`
-- [ ] Bloco `related` na busca
-- [ ] Menções sem link, por dicionário de títulos
-- [ ] Grafo exportado na branch de índice
+## M3 · Wiki com grafo e validade no tempo (`0.3`) 🚧 implementado na branch `feat/m3-grafo`, em revisão
+- [x] Datas de validade e `as_of` na busca, com marcação de vigente, vencido ou ainda não vigente (rebaixados, nunca escondidos). A substituição pelo encadeamento `supersedes`/`superseded_by` também vence a nota antiga, mesmo sem `valid_until`
+- [x] Relações tipadas: uma propriedade por relação (`remember`, `write_page`, `relate`), indexadas com `valid_from`/`valid_until`
+- [x] Notas de fato e tool `facts`, com a cadeia de versões nos dois sentidos
+- [x] Arestas no SQLite, tool `graph` (CTE recursiva de 1 ou 2 saltos, com teto e orçamento) e `relate` (pelo fluxo de escrita, com as restrições de agente)
+- [x] Bloco `related` na busca: até 5 vizinhos dos melhores resultados, separado do ranking e sem menções
+- [x] Menções sem link, por dicionário de títulos e `aliases` (campo opcional novo). Precisão e cobertura de 0,93 num conjunto de 15 menções montado sobre o cérebro de exemplo
+- [x] CLI: `graph`, `facts` e `search --as-of`
+- [ ] Grafo exportado na branch de índice: a função que gera `nodes.jsonl` e `edges.jsonl` (determinística) existe e tem teste; a gravação na branch depende da branch de índice do M2
+- [ ] **Medir o `related` e as menções num cérebro real** (os números acima são do cérebro de exemplo e do spike 12)
 
 ## M4 · Ciclo de vida e plugin do Claude Code (`0.4`)
 - [ ] Plugin: servidor embutido, hook de início, hook de fim, skill

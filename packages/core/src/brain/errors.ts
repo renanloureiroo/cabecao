@@ -83,6 +83,8 @@ export interface BrainErrorDetails {
   readonly headings?: readonly string[];
   /** Operações envolvidas (`undo`). */
   readonly ops?: readonly string[];
+  /** Referência ambígua (`graph`, `facts`, `relate`): os caminhos das notas que atendem. */
+  readonly candidates?: readonly string[];
 }
 
 /** Forma JSON de um erro, para o `structuredContent` do MCP e para `--json` da CLI. */

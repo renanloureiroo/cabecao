@@ -1,4 +1,4 @@
-// As nove tools do marco 1. Cada uma é uma casca fina sobre a camada de operações do núcleo (`Brain`): valida a
+// As tools dos marcos 1 e 3 (as do marco 3 moram em `tools-graph.ts`). Cada uma é uma casca fina sobre a camada de operações do núcleo (`Brain`): valida a
 // forma da entrada (Zod), chama a operação e devolve a saída como veio. Nenhuma regra é reimplementada aqui.
 import type { Brain, ReadInput, SyncOutput } from '@cabecao/core';
 import type { McpServer, ServerContext, ToolAnnotations } from '@modelcontextprotocol/server';
@@ -24,6 +24,7 @@ import {
   writeOutput,
   writePageInput,
 } from './schemas.ts';
+import { registerGraphReadTools, registerRelateTool } from './tools-graph.ts';
 
 /** Roda o sync em outro processo (a CLI faz isso); recebe o `session_handle` do agente, se houver. */
 export type SyncRunner = (input: { session_handle?: string }) => Promise<SyncOutput>;
@@ -44,10 +45,13 @@ export const TOOL_NAMES = [
   'recall',
   'search',
   'read',
+  'graph',
+  'facts',
   'status',
   'remember',
   'write_page',
   'patch_page',
+  'relate',
   'sync',
   'undo',
 ] as const;
@@ -98,7 +102,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Search',
       description:
-        "Keyword search over the user's second brain. Each hit has validity (current or expired) and provenance. Search before stating anything about the user's history.",
+        "Keyword search over the user's second brain. Each hit has validity on as_of (current, expired or not_yet_valid; default today) and provenance; a separate related block lists graph neighbors of the top hits. Search before stating anything about the user's history.",
       inputSchema: searchInput,
       outputSchema: searchOutput,
       annotations: READ_ONLY,
@@ -119,6 +123,8 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     // "path ou id, só um dos dois" é conferido pelo núcleo
     (args, ctx) => run(ctx, async (brain) => (await brain()).read(args as unknown as ReadInput)),
   );
+
+  registerGraphReadTools(server, run, READ_ONLY);
 
   server.registerTool(
     'status',
@@ -170,6 +176,8 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     },
     (args, ctx) => run(ctx, async (brain) => (await brain()).patchPage(args)),
   );
+
+  registerRelateTool(server, run);
 
   server.registerTool(
     'sync',

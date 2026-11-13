@@ -13,6 +13,8 @@ import { today, withFreshIndex } from './context.ts';
 import type { ContentKind, DataEnvelope, DataItem } from './envelope.ts';
 import { DATA_NOTICE, dataItem } from './envelope.ts';
 import { BrainError, toBrainError } from './errors.ts';
+import type { RelatedOutput } from './graph.ts';
+import { parseAsOf, relatedBlock } from './graph.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Validação de argumentos comuns
@@ -250,6 +252,8 @@ export interface SearchInput {
   /** Máximo de resultados (notas). Padrão 10, máximo 100. */
   readonly limit?: number;
   readonly budget_tokens?: number;
+  /** Data da consulta (`AAAA-MM-DD`; padrão hoje): a validade de cada resultado é calculada nela. */
+  readonly as_of?: string;
 }
 
 export interface SearchHit extends DataItem {
@@ -264,8 +268,15 @@ export interface SearchOutput extends DataEnvelope {
   /** `and`: todos os termos casaram; `or`: recuo para qualquer termo; `none`: pergunta vazia depois da limpeza. */
   readonly mode: 'and' | 'or' | 'none';
   readonly terms: readonly string[];
-  /** Do melhor para o pior. Vencidos vêm rebaixados, nunca escondidos. */
+  /** Data em que a validade foi calculada. */
+  readonly as_of: string;
+  /** Do melhor para o pior. Vencidos e ainda não vigentes na data vêm rebaixados, nunca escondidos. */
   readonly hits: readonly SearchHit[];
+  /**
+   * Bloco separado: até 5 vizinhos no grafo dos melhores resultados, com o motivo de cada um. Não mexe na ordem de
+   * `hits` (o grafo misturado ao ranking piorou a busca por termo exato na medição).
+   */
+  readonly related: readonly RelatedOutput[];
   /** Algum resultado ficou de fora pelo orçamento de tokens. */
   readonly truncated: boolean;
   readonly next_step?: string;
@@ -278,10 +289,12 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
   const limit = positiveInt(input.limit, 'limit');
   const budget = positiveInt(input.budget_tokens, 'budget_tokens');
   const now = ctx.now();
-  const { result, notes } = await withFreshIndex(ctx, () => {
+  const asOf = parseAsOf(ctx, input.as_of);
+  const { result, notes, related } = await withFreshIndex(ctx, () => {
     const found = searchKeyword(ctx.index, {
       query,
       now,
+      asOf,
       ...(scopes === undefined ? {} : { scope: scopes }),
       ...(types === undefined ? {} : { types }),
       ...(limit === undefined ? {} : { limit }),
@@ -292,7 +305,12 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
       const note = getNote(ctx.index, { id: hit.noteId });
       if (note !== null) byId.set(hit.noteId, note);
     }
-    return { result: found, notes: byId };
+    const neighbors = relatedBlock(
+      ctx,
+      found.hits.map((hit) => ({ id: hit.noteId, path: hit.path })),
+      asOf,
+    );
+    return { result: found, notes: byId, related: neighbors };
   });
   const hits = result.hits.map((hit: KeywordHit): SearchHit => {
     const note = notes.get(hit.noteId);
@@ -313,12 +331,23 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
     );
     return { ...base, score: hit.score, heading_path: [...hit.headingPath] };
   });
+  // o bloco `related` cabe no que sobrou do orçamento, se houver um
+  let room = budget === undefined ? Number.POSITIVE_INFINITY : budget - estimateTokens(JSON.stringify(hits));
+  const relatedShown: RelatedOutput[] = [];
+  for (const item of related) {
+    const cost = estimateTokens(JSON.stringify(item));
+    if (cost > room) break;
+    room -= cost;
+    relatedShown.push(item);
+  }
   return {
     data_notice: DATA_NOTICE,
     query,
     mode: result.mode,
     terms: result.terms,
+    as_of: asOf,
     hits,
+    related: relatedShown,
     truncated: result.truncated,
     ...(hits.length > 0
       ? {}

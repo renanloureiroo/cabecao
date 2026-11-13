@@ -47,7 +47,10 @@ describe('serializeNote: ida e volta', () => {
 describe('serializeFrontmatter: formato', () => {
   it('segue a ordem canônica, e os campos desconhecidos vêm depois, na ordem recebida', async () => {
     const { note } = await readNote(FIXTURE_VAULT, 'wiki/decisions/usar-sqs-para-filas.md');
-    const keys = serializeFrontmatter({ cor: 'azul', ...note.frontmatter, aliases: ['SQS'] }, { relations: [] })
+    const keys = serializeFrontmatter(
+      { cor: 'azul', ...note.frontmatter, cssclasses: ['largo'], aliases: ['Amazon SQS'] },
+      { relations: [] },
+    )
       .split('\n')
       .filter((line) => line !== '')
       .map((line) => line.slice(0, line.indexOf(':')));
@@ -55,6 +58,7 @@ describe('serializeFrontmatter: formato', () => {
       'id',
       'type',
       'title',
+      'aliases',
       'scope',
       'tags',
       'sources',
@@ -73,7 +77,7 @@ describe('serializeFrontmatter: formato', () => {
       'depends_on',
       'decided_by',
       'cor',
-      'aliases',
+      'cssclasses',
     ]);
   });
 
