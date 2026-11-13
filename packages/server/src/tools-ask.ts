@@ -66,6 +66,7 @@ export const askOutput = z.object({
     secret: z.number(),
     control: z.number(),
     budget: z.number(),
+    unreadable: z.number(),
   }),
   as_of: z.string(),
   unavailable_reason: z.enum(UNAVAILABLE_REASONS).exactOptional(),

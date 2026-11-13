@@ -8,9 +8,10 @@ import type { Brain } from '../brain/brain.ts';
 import type { ReadOutput, SearchInput, SearchOutput } from '../brain/read.ts';
 import type { Validity } from '../db/search.ts';
 import { DEFAULT_CHUNK_TOKENS, HEADING_PATH_SEPARATOR } from '../markdown/chunks.ts';
+import { scanSecrets } from '../security/scan.ts';
 
 /** O que o `ask` usa do cérebro aberto. */
-export type AskBrain = Pick<Brain, 'search' | 'read' | 'config'>;
+export type AskBrain = Pick<Brain, 'search' | 'read' | 'config' | 'privateNotes'>;
 
 export interface AskInput {
   readonly question: string;
@@ -58,6 +59,10 @@ export interface Passage {
   readonly content: string;
   /** Frontmatter da nota (para o filtro de `private`); não vai para a saída. */
   readonly frontmatter: Readonly<Record<string, unknown>>;
+  /** O frontmatter da nota não pôde ser lido: na dúvida, o trecho não sai. */
+  readonly unreadable: boolean;
+  /** O trecho cruza um segredo achado na NOTA INTEIRA (por exemplo, o meio de uma chave PEM que passa da janela). */
+  readonly tainted: boolean;
 }
 
 export interface Retrieval {
@@ -164,10 +169,51 @@ async function readSection(brain: AskBrain, ref: NoteRef): Promise<ReadOutput | 
   }
 }
 
+const PEM_BLOCK =
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|$)/g;
+
+/**
+ * As linhas da nota inteira que fazem parte de um segredo: as que o scanner acusa e, num bloco de chave privada PEM,
+ * todas do `BEGIN` ao `END` (o scanner só reconhece o cabeçalho, e o material do meio cairia numa janela sem ele).
+ */
+export function secretLines(body: string): Set<string> {
+  const lines = body.split(/\r?\n/);
+  const out = new Set<string>();
+  for (const finding of scanSecrets(body, { honorAllowMarker: false })) {
+    const line = lines[finding.line - 1]?.trim();
+    if (line !== undefined && line !== '') out.add(line);
+  }
+  for (const match of body.matchAll(PEM_BLOCK)) {
+    for (const line of match[0].split(/\r?\n/)) if (line.trim() !== '') out.add(line.trim());
+  }
+  return out;
+}
+
+function touchesSecret(window: string, secret: ReadonlySet<string>): boolean {
+  if (secret.size === 0) return false;
+  return window.split(/\r?\n/).some((line) => {
+    const trimmed = line.trim();
+    if (trimmed === '') return false;
+    if (secret.has(trimmed)) return true;
+    // uma janela cortada no meio de uma linha: um pedaço longo de uma linha secreta também conta
+    return trimmed.length >= 16 && [...secret].some((s) => s.includes(trimmed) || trimmed.includes(s));
+  });
+}
+
 async function passagesFor(brain: AskBrain, ref: NoteRef, terms: readonly string[], max: number): Promise<Passage[]> {
   const read = await readSection(brain, ref);
   if (read === null) return [];
   const note = read.note;
+  // o segredo é procurado na nota inteira, não só na seção ou na janela
+  let body = note.content;
+  if (read.section !== null) {
+    try {
+      body = (await brain.read({ id: note.id })).note.content;
+    } catch {
+      // sem a nota inteira, fica a seção
+    }
+  }
+  const secret = secretLines(body);
   const windows = textWindows(note.content)
     .map((text, index) => ({ text, index, score: windowScore(text, terms) }))
     .sort((a, b) => b.score - a.score || a.index - b.index);
@@ -195,6 +241,8 @@ async function passagesFor(brain: AskBrain, ref: NoteRef, terms: readonly string
       score: ref.score,
       content: window.text,
       frontmatter: fm,
+      unreadable: read.frontmatter_error !== null,
+      tainted: touchesSecret(window.text, secret),
     }),
   );
 }

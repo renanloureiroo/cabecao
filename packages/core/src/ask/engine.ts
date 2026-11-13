@@ -16,7 +16,7 @@ import { DEFAULT_ASK_LIMIT, MAX_ASK_LIMIT, MAX_QUESTION_CHARS, retrievePassages 
 import type { LlmPolicy } from './policy.ts';
 import { readLlmPolicy } from './policy.ts';
 import type { BuiltPrompt, Omitted, Outbound, SentPassage } from './prompt.ts';
-import { buildPrompt, DEFAULT_CONTEXT_TOKENS, MAX_CONTEXT_TOKENS, selectOutbound } from './prompt.ts';
+import { buildPrompt, DEFAULT_CONTEXT_TOKENS, MAX_CONTEXT_TOKENS, privateNamesOf, selectOutbound } from './prompt.ts';
 import type { RawAnswer } from './schema.ts';
 import { ANSWER_SCHEMA, completedClaims, validateAnswer } from './schema.ts';
 import type { GenerationProvider, ProviderErrorKind } from './types.ts';
@@ -27,7 +27,12 @@ import { verifyClaim } from './verify.ts';
 export const ASK_STATUSES = ['answered', 'not_found', 'low_confidence', 'unavailable'] as const;
 export type AskStatus = (typeof ASK_STATUSES)[number];
 
-export const UNAVAILABLE_REASONS = ['not_configured', 'disabled_for_brain', 'provider_failed'] as const;
+export const UNAVAILABLE_REASONS = [
+  'not_configured',
+  'disabled_for_brain',
+  'provider_failed',
+  'limit_reached',
+] as const;
 /**
  * Por que não houve resposta gerada, sem nada do provedor: nenhum ativado nesta máquina; o cérebro não deixa
  * (`llm_policy`); ou o provedor falhou (fora do ar, sem login, tempo limite, saída fora do formato, recusa).
@@ -171,6 +176,8 @@ export interface AskOptions {
   readonly onClaim?: (claim: StreamedClaim) => void;
   /** Relógio (testes): duração medida. */
   readonly now?: () => number;
+  /** O teto de perguntas ao provedor foi atingido (quem conta é a CLI): `unavailable` com os trechos, sem chamar nada. */
+  readonly limitReached?: boolean;
 }
 
 /** O que seria enviado, sem enviar (`--show-context`) — e a base da chamada de verdade. */
@@ -214,11 +221,14 @@ export async function prepareAsk(
   const retrieval = await retrievePassages(brain, input, input.limit);
   // a busca relê o .cabecao.json: a política que vale é a de agora
   const policy = readLlmPolicy(brain.config);
+  // o nome de uma nota privada não sai nem citado dentro de outra nota
+  const names = privateNamesOf(await brain.privateNotes());
   const outbound = selectOutbound(
     retrieval.passages,
     policy,
     brain.config,
     clampContext(options.limits?.contextTokens),
+    names,
   );
   const prompt = buildPrompt(input.question, retrieval.search.as_of, outbound.passages, options.random);
   return { question: input.question, retrieval, policy, outbound, prompt, asOf: retrieval.search.as_of };
@@ -267,6 +277,8 @@ const NEXT_STEP = {
     'Este cérebro não permite enviar trechos a um provedor de respostas (llm_policy no .cabecao.json). Responda você mesmo a partir de passages, ou use search e read.',
   provider_failed:
     'O provedor de respostas não respondeu agora. Responda você mesmo a partir de passages, ou use search e read.',
+  limit_reached:
+    'O limite de perguntas ao provedor de respostas foi atingido por agora. Responda você mesmo a partir de passages, ou use search e read.',
 } as const;
 
 function sectionOf(passage: Passage): string | null {
@@ -408,6 +420,7 @@ export async function ask(brain: AskBrain, input: AskInput, options: AskOptions)
   const providers = options.providers.filter((provider) => policy.allow === 'any' || provider.kind !== 'http');
   if (options.providers.length === 0) return unavailable('not_configured');
   if (providers.length === 0) return unavailable('disabled_for_brain');
+  if (options.limitReached === true) return unavailable('limit_reached');
 
   // pré-checagem sem modelo: nada para mandar, ou a melhor fusão fraca demais
   const top = retrieval.search.hits[0];
