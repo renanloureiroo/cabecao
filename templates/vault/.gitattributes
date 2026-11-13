@@ -1,0 +1,2 @@
+# Cabeção: o diário só recebe linhas no fim; o merge por união junta as linhas de duas máquinas sem conflito.
+log.md merge=union

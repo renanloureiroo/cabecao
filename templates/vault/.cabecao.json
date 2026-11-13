@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "noteDirs": [
+    "wiki",
+    "memory",
+    "raw"
+  ],
+  "indexMd": "index.md"
+}

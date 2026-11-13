@@ -7,7 +7,7 @@
   <a href="README.en.md">English</a> · <strong>Português</strong>
 </p>
 
-> **Status: 🚧 fundação pronta, funcionalidades em construção.** O monorepo, o CI e a CLI mínima (`cabecao --version`) existem; os comandos chegam no marco 1. Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano. Veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
+> **Status: 🚧 marco 1 implementado e em revisão; nada publicado no npm ainda.** A CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), o sync por git, a busca por palavra-chave e o servidor MCP com 9 tools existem na branch `feat/m1-nucleo` e têm 1.181 testes, mais um teste de ponta a ponta com duas máquinas. **Ainda não foram validados** provedores git reais (GitHub, GitLab, Bitbucket, Gitea), SSH e gerenciadores de credencial, commits assinados nem clientes MCP reais (Claude Code, Claude Desktop, Codex, Cursor). Busca por significado, grafo e plugin são dos marcos 2 a 4. Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano; veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
 
 ---
 
@@ -19,16 +19,18 @@ Um **segundo cérebro pessoal** que vive num **repositório git seu**, em qualqu
 
 - 📝 **Markdown é a fonte da verdade.** Você lê e edita no Obsidian ou em qualquer editor.
 - 🔗 **Qualquer remoto git.** Sem depender de API de provedor, Pull Request ou CI.
-- 🔄 **Sincroniza tudo.** Uma máquina nunca recalcula o embedding que outra já calculou.
-- 🔎 **Busca híbrida** por palavra-chave e por significado, com um modelo local que você escolhe (nada sai da sua máquina).
-- 🕸️ **Wiki com grafo:** wikilinks, relações tipadas e fatos com validade no tempo, que o agente navega.
+- 🔄 **Sincroniza tudo o que o git não ignora.** Hoje: notas, anexos e configuração. Planejado (marco 2): embeddings e grafo, para que uma máquina nunca recalcule o que outra já calculou.
+- 🔎 **Busca** por palavra-chave (hoje) e, no marco 2, também por significado, com um modelo local que você escolhe (nada sai da sua máquina).
+- 🕸️ **Wiki com grafo** (marco 3): wikilinks, relações tipadas e fatos com validade no tempo, que o agente navega.
 - 🧠 **Memória de agente:** o que você ensinou numa sessão está disponível na próxima, em qualquer cliente.
 - ↩️ **Tudo reversível:** cada operação é um commit, com comando para desfazer.
-- 🪶 **Leve:** um pacote de ~160 KB, sem dependência nativa. O modelo de embeddings é baixado só quando você ativa a busca semântica.
+- 🪶 **Leve:** um pacote de 241 kB compactado (cerca de 840 kB instalado), sem dependências de runtime nem nativas; `cabecao --version` leva cerca de 26 ms. O modelo de embeddings (marco 2) será baixado só quando você ativar a busca semântica.
 
-## Instalação (planejada)
+## Instalação
 
-Você informa só a URL do repositório:
+> **Ainda não é possível instalar pelo npm.** O pacote `cabecao` não foi publicado, então `npx cabecao` só vai funcionar depois da publicação. Até lá, rode a partir do repositório: `pnpm install && pnpm build` e `node packages/cli/dist/cabecao.mjs init <url>`.
+
+Depois de publicado, você informa só a URL do repositório:
 
 ```bash
 npx cabecao init git@gitlab.com:voce/meu-cerebro.git
@@ -39,11 +41,11 @@ O Cabeção descobre o resto:
 | O repositório... | O que acontece |
 |---|---|
 | está vazio | cria a estrutura, o primeiro commit e envia |
-| já tem um cérebro Cabeção | baixa tudo e monta o índice sem recalcular nada |
+| já tem um cérebro Cabeção | baixa e monta o índice local (a partir do marco 2, sem recalcular embeddings) |
 | tem um vault de Obsidian ou Markdown comum | adota, sem mover nenhum arquivo |
 | tem outra coisa (código, por exemplo) | recusa e explica |
 
-Depois ele registra o servidor MCP nos clientes que encontrar (Claude Code, Claude Desktop, Codex, Cursor) e, se você quiser, configura o Obsidian.
+Sem URL, ele cria um cérebro só local. Depois ele registra o servidor MCP nos clientes que encontrar (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI). A configuração do Obsidian é do marco 5.
 
 Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
 
@@ -56,14 +58,16 @@ Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
              │ MCP (stdio)                                   │
              ▼                                               ▼
  ┌──────────────────────── cabecao ────────────────────────────┐
- │ recall · search · read · graph · facts · remember · ingest  │
- │ handoff · forget · sync · lint · consolidate · undo         │
+ │ no marco 1: recall · search · read · status · remember ·    │
+ │ write_page · patch_page · sync · undo                       │
+ │ planejadas: graph · facts · relate · ingest · handoff_save ·│
+ │ forget · lint · consolidate                                 │
  └──────────┬──────────────────────────────────┬───────────────┘
             ▼                                  ▼
   Repositório git do cérebro            Índice local (fora do git)
   ├─ branch principal: suas notas       SQLite com busca por texto
-  └─ branch cabecao/index:              + vetores em memória
-     embeddings e grafo                 + grafo
+  └─ branch cabecao/index (marco 2):    + vetores em memória (marco 2)
+     embeddings e grafo                 + grafo (marco 3)
             │
             ▼  cabecao sync
    Qualquer remoto git
