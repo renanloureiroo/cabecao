@@ -46,6 +46,11 @@ export interface OptionalFacts {
   obsidian: boolean;
 }
 
+/** `A`, `A e B`, `A, B e C`. */
+function listText(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} e ${items.at(-1)}`;
+}
+
 /** Até `max` opcionais pendentes, na ordem de utilidade. */
 export function optionalSteps(facts: OptionalFacts, max = 3): OptionalStep[] {
   const steps: OptionalStep[] = [];
@@ -53,7 +58,7 @@ export function optionalSteps(facts: OptionalFacts, max = 3): OptionalStep[] {
     steps.push({
       id: 'skills',
       command: 'cabecao install-skills',
-      why: `ensina ${facts.skillClients.map((id) => CLIENTS[id].label).join(', ')} a usar o cérebro pela linha de comando (skills)`,
+      why: `ensina ${listText(facts.skillClients.map((id) => CLIENTS[id].label))} a usar o cérebro pela linha de comando (skills)`,
     });
   }
   if (facts.hasRemote && !facts.scheduleOn) {

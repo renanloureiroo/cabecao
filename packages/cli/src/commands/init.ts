@@ -240,7 +240,7 @@ function successText(data: Required<InitData>, home: string): string {
   if ('error' in doctor) paragraphs.push(`Diagnóstico: não rodou (${doctor.error}). Rode "cabecao doctor".`);
   else {
     const { ok, warn, fail } = doctor.summary;
-    const pending = doctor.checks.filter((check) => check.status !== 'ok' && check.id !== 'clients');
+    const pending = doctor.checks.filter((check) => check.status !== 'ok');
     const head = `Diagnóstico: ${ok} ok, ${plural(warn, 'aviso', 'avisos')}, ${plural(fail, 'falha', 'falhas')}. Detalhes: cabecao doctor`;
     paragraphs.push(
       pending.length === 0 ? head : `${head}\n${renderReport({ ...doctor, checks: pending }, '  ').split('\n\n')[0]}`,
