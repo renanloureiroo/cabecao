@@ -24,6 +24,7 @@ export {
   DEFAULT_GENERATE_TIMEOUT_MS,
   DEFAULT_MAX_OUTPUT_TOKENS,
   DEFAULT_TOTAL_TIMEOUT_MS,
+  MAX_REQUESTS_PER_QUESTION,
   MIN_FUSION_SCORE,
   normalizeAskInput,
   prepareAsk,
@@ -38,9 +39,12 @@ export { DEFAULT_ASK_LIMIT, MAX_ASK_LIMIT, MAX_QUESTION_CHARS, normalizeForMatch
 export type { ExclusionReason, LlmPolicy, LlmPolicyAllow } from './policy.ts';
 export {
   globToRegExp,
+  hasPrivateBodyTag,
   isPrivateNote,
   LLM_POLICY_ALLOW,
+  LLM_POLICY_FIELDS,
   LLM_POLICY_KEY,
+  llmPolicyLookalikes,
   PRIVATE_FIELD,
   readLlmPolicy,
 } from './policy.ts';
@@ -65,6 +69,7 @@ export type {
   JsonSchema,
   ProviderErrorKind,
   ProviderKind,
+  RequestBudget,
 } from './types.ts';
-export { PROVIDER_ERROR_KINDS, ProviderError } from './types.ts';
+export { PROVIDER_ERROR_KINDS, ProviderError, spendRequest } from './types.ts';
 export { MIN_QUOTE_CHARS, normalizeLabel, quoteMatches } from './verify.ts';

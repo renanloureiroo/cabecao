@@ -62,16 +62,107 @@ function exclusion(passage: Passage, policy: LlmPolicy, config: Pick<BrainConfig
 export const PRIVATE_NAME_PLACEHOLDER = '[nota privada]';
 
 /**
- * Troca, sem diferenciar maiúsculas, cada nome de nota privada (título, apelido, nome do arquivo) pelo
- * placeholder. O nome de uma nota privada não sai nem quando outra nota a cita.
+ * Abaixo deste tamanho (em letras e números), o nome de uma nota privada é curto ou comum demais para ser trocado com
+ * segurança dentro do texto ("Ana" em "semana", ou em "Ana Maria"): o trecho que o cita como palavra inteira não sai.
+ */
+export const MIN_REDACTABLE_NAME_CHARS = 6;
+
+/**
+ * Forma comparável para nomes: sem acentos, minúsculas, `%20` como espaço e qualquer coisa que não seja letra ou
+ * número como separador (um só espaço). `map[i]` é a posição no original do caractere `i` da forma comparável.
+ */
+function nameShape(text: string): { norm: string; map: number[]; ends: number[] } {
+  let norm = '';
+  const map: number[] = [];
+  const ends: number[] = [];
+  let space = true;
+  for (let i = 0; i < text.length; ) {
+    if (text.startsWith('%20', i)) {
+      if (!space) {
+        norm += ' ';
+        map.push(i);
+        ends.push(i + 3);
+        space = true;
+      }
+      i += 3;
+      continue;
+    }
+    const char = String.fromCodePoint(text.codePointAt(i) as number);
+    const plain = char.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+    if (/^[\p{L}\p{N}]+$/u.test(plain)) {
+      for (const out of plain) {
+        norm += out;
+        map.push(i);
+        ends.push(i + char.length);
+      }
+      space = false;
+    } else if (!space) {
+      norm += ' ';
+      map.push(i);
+      ends.push(i + char.length);
+      space = true;
+    }
+    i += char.length;
+  }
+  return { norm, map, ends };
+}
+
+function shapeOf(name: string): string {
+  return nameShape(name).norm.trim();
+}
+
+/** As ocorrências de `names` como PALAVRAS INTEIRAS em `text` (sem caixa e sem acentos), como intervalos no original. */
+function nameSpans(text: string, names: readonly string[]): [number, number][] {
+  const { norm, map, ends } = nameShape(text);
+  const spans: [number, number][] = [];
+  for (const name of names) {
+    const shape = shapeOf(name);
+    if (shape === '') continue;
+    let from = 0;
+    for (;;) {
+      const at = norm.indexOf(shape, from);
+      if (at === -1) break;
+      const last = at + shape.length - 1;
+      const before = at === 0 || norm[at - 1] === ' ';
+      const after = last + 1 >= norm.length || norm[last + 1] === ' ';
+      if (before && after) spans.push([map[at] as number, ends[last] as number]);
+      from = at + 1;
+    }
+  }
+  // junta os sobrepostos, do começo para o fim
+  spans.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  const merged: [number, number][] = [];
+  for (const span of spans) {
+    const prev = merged.at(-1);
+    if (prev !== undefined && span[0] < prev[1]) prev[1] = Math.max(prev[1], span[1]);
+    else merged.push([span[0], span[1]]);
+  }
+  return merged;
+}
+
+/** O nome é curto demais para trocar dentro do texto (veja `MIN_REDACTABLE_NAME_CHARS`). */
+export function isShortName(name: string): boolean {
+  return shapeOf(name).replace(/ /g, '').length < MIN_REDACTABLE_NAME_CHARS;
+}
+
+/**
+ * Troca cada nome de nota privada (título, apelido, caminho, nome do arquivo) citado como palavra inteira, sem
+ * diferenciar maiúsculas nem acentos (e com `%20` como espaço), pelo placeholder. O nome de uma nota privada não sai
+ * nem quando outra nota a cita.
  */
 export function redactNames(text: string, names: readonly string[]): string {
+  const spans = nameSpans(text, names);
   let out = text;
-  for (const name of names) {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(escaped, 'giu'), PRIVATE_NAME_PLACEHOLDER);
+  for (let i = spans.length - 1; i >= 0; i--) {
+    const [start, end] = spans[i] as [number, number];
+    out = `${out.slice(0, start)}${PRIVATE_NAME_PLACEHOLDER}${out.slice(end)}`;
   }
   return out;
+}
+
+/** O texto cita algum dos nomes como palavra inteira. */
+export function mentionsName(text: string, names: readonly string[]): boolean {
+  return nameSpans(text, names).length > 0;
 }
 
 /** Os nomes pelos quais uma nota privada pode ser citada: título, apelidos, caminho e nome do arquivo (3+ letras). */
@@ -83,7 +174,7 @@ export function privateNamesOf(
     const file = note.path.split('/').pop()?.replace(/\.md$/i, '') ?? '';
     for (const name of [note.title ?? '', ...note.aliases, note.path, note.path.replace(/\.md$/i, ''), file]) {
       const clean = name.trim();
-      if (clean.replace(/[^\p{L}\p{N}]/gu, '').length >= 3) names.add(clean);
+      if (clean.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) names.add(clean);
     }
   }
   // os mais longos primeiro: "Projeto Secreto Alfa" antes de "Alfa"
@@ -125,28 +216,38 @@ export function selectOutbound(
   const omitted = { ...EMPTY_OMITTED };
   const out: SentPassage[] = [];
   let spent = 0;
+  const shortNames = privateNames.filter(isShortName);
+  const longNames = privateNames.filter((name) => !isShortName(name));
   for (const original of passages) {
     const reason = exclusion(original, policy, config);
     if (reason !== null) {
       omitted[reason] += 1;
       continue;
     }
+    // nome curto de nota privada citado: o trecho não sai (trocar "Ana" dentro do texto estragaria e revelaria)
+    const fields = [original.content, original.title ?? '', original.path, ...original.heading_path];
+    if (shortNames.length > 0 && fields.some((field) => mentionsName(field, shortNames))) {
+      omitted.private += 1;
+      continue;
+    }
     const passage: Passage =
-      privateNames.length === 0
+      longNames.length === 0
         ? original
         : {
             ...original,
-            title: original.title === null ? null : redactNames(original.title, privateNames),
-            heading_path: original.heading_path.map((h) => redactNames(h, privateNames)),
-            content: redactNames(original.content, privateNames),
+            title: original.title === null ? null : redactNames(original.title, longNames),
+            heading_path: original.heading_path.map((h) => redactNames(h, longNames)),
+            content: redactNames(original.content, longNames),
           };
+    // o caminho também, no cabeçalho (a citação devolvida ao agente guarda o caminho real)
+    const shownPath = longNames.length === 0 ? passage.path : redactNames(passage.path, longNames);
     const marked = needsDatamarking(passage);
     const mark = (text: string): string => {
       const clean = neutralizeDelimiters(text);
       return marked ? datamark(clean) : clean;
     };
     const sentText = mark(passage.content);
-    const sentHeader = mark(headerText(passage));
+    const sentHeader = mark(headerText(passage, shownPath));
     const label = `S${out.length + 1}`;
     const cost =
       estimateTokens(labelLine({ label, passage, sentText, sentHeader, marked })) +
@@ -164,11 +265,11 @@ export function selectOutbound(
 }
 
 /** Caminho e "Título › Seção" da nota: vêm DA NOTA, então vão dentro do bloco delimitado. */
-function headerText(p: Passage): string {
-  const where = [p.title ?? p.path, ...p.heading_path.filter((h, i) => !(i === 0 && h === p.title))].join(
+function headerText(p: Passage, path: string = p.path): string {
+  const where = [p.title ?? path, ...p.heading_path.filter((h, i) => !(i === 0 && h === p.title))].join(
     HEADING_PATH_SEPARATOR,
   );
-  return `caminho: ${p.path.replace(/\s+/g, ' ')}\ntítulo: ${where.replace(/\s+/g, ' ')}`;
+  return `caminho: ${path.replace(/\s+/g, ' ')}\ntítulo: ${where.replace(/\s+/g, ' ')}`;
 }
 
 const VALIDITY_TEXT = {

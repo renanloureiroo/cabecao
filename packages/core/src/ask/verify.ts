@@ -30,6 +30,8 @@ export interface VerifiedClaim {
   readonly text: string;
   /** Rótulos (`S1`...) que conferiram, na ordem citada. */
   readonly labels: readonly string[];
+  /** Cada rótulo conferido com o texto real que a citação casou NAQUELE trecho. */
+  readonly sources: readonly { readonly label: string; readonly quote: string }[];
   /** A citação como está no trecho (o texto real casado), ou `''` quando não conferiu. */
   readonly quote: string;
   readonly supported: boolean;
@@ -148,6 +150,7 @@ export function normalizeLabel(label: string): string {
 
 export function verifyClaim(claim: RawClaim, sent: ReadonlyMap<string, SentPassage>): VerifiedClaim {
   const labels: string[] = [];
+  const sources: { label: string; quote: string }[] = [];
   const rejected: VerifiedClaim['rejected'][number][] = [];
   let quote = '';
   for (const raw of claim.sources) {
@@ -162,8 +165,9 @@ export function verifyClaim(claim: RawClaim, sent: ReadonlyMap<string, SentPassa
     if (real === null) rejected.push({ label, reason: 'quote_mismatch' });
     else {
       labels.push(label);
+      sources.push({ label, quote: real });
       if (quote === '') quote = real;
     }
   }
-  return { text: claim.text, labels, quote, supported: labels.length > 0, rejected };
+  return { text: claim.text, labels, sources, quote, supported: labels.length > 0, rejected };
 }

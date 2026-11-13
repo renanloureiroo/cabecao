@@ -21,6 +21,17 @@ export interface GenerateRequest {
   readonly signal?: AbortSignal;
   /** Texto bruto conforme chega, quando o provedor transmite aos poucos (streaming). */
   readonly onText?: (delta: string) => void;
+  /**
+   * Os pedidos ao provedor que ainda cabem nesta pergunta (compartilhado entre as novas tentativas, o segundo pedido
+   * de formato e o recuo para outro provedor). Cada pedido de rede, ou execução do agente, gasta um (`spendRequest`).
+   */
+  readonly budget?: RequestBudget;
+}
+
+/** O teto de pedidos de uma pergunta: o custo real é por pedido, não por pergunta. */
+export interface RequestBudget {
+  remaining: number;
+  used: number;
 }
 
 export interface GenerateResult {
@@ -93,4 +104,16 @@ export interface GenerationProvider {
   check(): Promise<Availability>;
   /** Lança `ProviderError` em qualquer falha. */
   generate(request: GenerateRequest): Promise<GenerateResult>;
+}
+
+/** Gasta um pedido do teto da pergunta; sem teto, não faz nada. Esgotado, falha sem tentar de novo. */
+export function spendRequest(budget: RequestBudget | undefined): void {
+  if (budget === undefined) return;
+  if (budget.remaining <= 0) {
+    throw new ProviderError('rate_limited', 'o limite de pedidos ao provedor desta pergunta foi atingido', {
+      retryable: false,
+    });
+  }
+  budget.remaining -= 1;
+  budget.used += 1;
 }

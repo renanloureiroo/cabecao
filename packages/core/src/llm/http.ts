@@ -6,8 +6,8 @@
 // - leitura de Server-Sent Events (streaming);
 // - redação da credencial em QUALQUER mensagem montada a partir da resposta do provedor.
 
-import type { ProviderErrorKind } from '../ask/types.ts';
-import { ProviderError } from '../ask/types.ts';
+import type { ProviderErrorKind, RequestBudget } from '../ask/types.ts';
+import { ProviderError, spendRequest } from '../ask/types.ts';
 
 /** Maior resposta aceita de um provedor. O `ask` pede ~2 mil tokens; 2 MiB é folga de sobra. */
 export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -33,6 +33,8 @@ export interface HttpCall {
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   /** Nome do provedor nas mensagens ("a API da Anthropic"). */
   readonly label: string;
+  /** O teto de pedidos da pergunta: cada tentativa (inclusive as novas) gasta um. */
+  readonly budget?: RequestBudget;
 }
 
 /** Tira a credencial (e o que parece credencial) de um texto vindo de fora. */
@@ -181,6 +183,7 @@ export async function postWithRetry(call: HttpCall): Promise<Response> {
   let networkFailures = 0;
 
   const once = async (): Promise<Outcome> => {
+    spendRequest(call.budget);
     let response: Response;
     try {
       response = await doFetch(call.url, {
@@ -341,6 +344,11 @@ export function validateBaseUrl(value: string): string {
     throw new Error('o endereço não pode ter usuário ou senha; a chave vai separada');
   }
   if (url.search !== '' || url.hash !== '') throw new Error('o endereço base não pode ter "?" nem "#"');
+  // o host só com letras, números, ponto e hífen (ou um IPv6 entre colchetes): o endereço vira também o nome da conta
+  // da chave no cofre do sistema, e um caractere como aspas ou espaço ali não tem uso legítimo
+  if (!/^(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])$/i.test(url.hostname)) {
+    throw new Error('o endereço tem caracteres inválidos no nome do servidor');
+  }
   const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
   // endereço não roteável ou de metadados de nuvem (169.254.x, fe80::, 0.0.0.0): nunca é um provedor
   if (/^(?:169\.254\.|0\.0\.0\.0$|\[?fe80:|\[?::\]?$)/i.test(url.hostname)) {

@@ -1,7 +1,7 @@
 // Provedor FALSO, determinístico, para os testes e para o `eval --answers` sem rede. Não chama nada: responde com uma
 // função (ou um objeto fixo), grava o que recebeu, simula atraso, tempo limite, erros em sequência e streaming.
 import type { GenerateRequest, GenerateResult, GenerationProvider, ProviderErrorKind, ProviderKind } from './types.ts';
-import { ProviderError } from './types.ts';
+import { ProviderError, spendRequest } from './types.ts';
 
 export type FakeResponder = (request: GenerateRequest, call: number) => unknown;
 
@@ -112,6 +112,7 @@ export function createFakeProvider(options: FakeProviderOptions = {}): FakeProvi
         : { ok: false, kind: 'not_installed', reason: options.unavailable };
     },
     async generate(request) {
+      spendRequest(request.budget);
       calls.push(request);
       const started = performance.now();
       const delay = options.delayMs ?? 0;
