@@ -1,8 +1,42 @@
 // Esquemas Zod das tools do ciclo de vida da memória (marco 4): a saída do `remember` (com duplicatas e
 // contradições) e as tools `handoff_save`, `ingest`, `forget`, `lint` e `consolidate`. Mesmas regras de `schemas.ts`:
 // aqui só a forma; a validação de verdade é do núcleo. A saída espelha a do núcleo e é conferida em `checks.ts`.
+import { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS } from '@cabecao/core';
 import * as z from 'zod';
-import { dataNotice, issue } from './schemas.ts';
+import { dataNotice, issue, shortText, text } from './schemas.ts';
+
+// ---------------------------------------------------------------------------------------------------------------
+// handoff_save
+
+const handoffItems = (what: string) =>
+  z
+    .array(text(HANDOFF_ITEM_MAX_CHARS))
+    .max(HANDOFF_MAX_ITEMS, { error: `lista grande demais: o limite é ${HANDOFF_MAX_ITEMS} itens` })
+    .describe(`${what}; one item per line.`)
+    .exactOptional();
+
+export const handoffSaveInput = z.object({
+  session_handle: shortText().min(1).describe('session_handle returned by recall (required).'),
+  done: handoffItems('What was done'),
+  next: handoffItems('What is left, in order'),
+  decisions: handoffItems('Decisions and why'),
+  gotchas: handoffItems('Gotchas found'),
+  scope: shortText().describe('"global" (default) or "project:<slug>".').exactOptional(),
+  title: shortText().exactOptional(),
+});
+
+export const noteRef = z.object({ id: z.string().nullable(), path: z.string() });
+
+export const handoffSaveOutput = z.object({
+  op: z.string(),
+  commit: z.string().nullable(),
+  handoff: noteRef,
+  episode: noteRef.nullable(),
+  supersedes: noteRef.nullable(),
+  expires_at: z.string(),
+  warnings: z.array(issue),
+  next_step: z.string(),
+});
 
 // ---------------------------------------------------------------------------------------------------------------
 // remember

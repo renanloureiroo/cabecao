@@ -62,7 +62,7 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
   );
 
   it(
-    'lista as nove tools com esquemas de entrada e saída válidos e anotações coerentes',
+    'lista as tools com esquemas de entrada e saída válidos e anotações coerentes',
     async () => {
       const server = startInMemory(createPlainDir(), { generation });
       await server.client.open();
@@ -100,8 +100,9 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       expect(byName.get('write_page')?.inputSchema.required?.sort()).toEqual(['content', 'mode', 'path']);
       expect(byName.get('patch_page')?.inputSchema.required?.sort()).toEqual(['new', 'old', 'path']);
       expect(Object.keys(byName.get('remember')?.inputSchema.properties ?? {})).toContain('session_handle');
-      // a lista inteira ocupa contexto do agente: fica de olho no tamanho
-      expect(JSON.stringify(tools).length).toBeLessThan(40_000);
+      // a lista inteira ocupa contexto do agente: fica de olho no tamanho (cerca de 37 mil caracteres com as 12 tools
+      // dos marcos 1 a 3; as do marco 4 entram com descrições curtas)
+      expect(JSON.stringify(tools).length).toBeLessThan(55_000);
       await server.stop();
     },
     TEST_TIMEOUT_MS,

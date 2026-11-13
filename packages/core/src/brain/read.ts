@@ -18,6 +18,7 @@ import { DATA_NOTICE, dataItem } from './envelope.ts';
 import { BrainError, toBrainError } from './errors.ts';
 import type { RelatedOutput } from './graph.ts';
 import { parseAsOf, relatedBlock } from './graph.ts';
+import { markHandoffDelivered } from './local-state.ts';
 import type { SearchMode, SearchModeUsed } from './semantic.ts';
 import { fusedSearch, SEARCH_MODES } from './semantic.ts';
 
@@ -97,6 +98,11 @@ export interface RecallOutput extends DataEnvelope {
   readonly scope: string | null;
   readonly rules: readonly DataItem[];
   readonly handoff: DataItem | null;
+  /**
+   * Quando o handoff entregue já tinha sido entregue antes a OUTRA sessão (nesta máquina) sem que ninguém gravasse
+   * uma passagem nova: quando e para qual sessão. `null` na primeira entrega ou sem handoff.
+   */
+  readonly handoff_seen: { readonly at: string; readonly session: string } | null;
   readonly preferences: readonly DataItem[];
   readonly gotchas: readonly DataItem[];
   readonly memories: readonly DataItem[];
@@ -150,7 +156,9 @@ export async function recall(ctx: BrainContext, input: RecallInput): Promise<Rec
     const rules = listNotes(ctx.index, { types: ['rule'], ...scopeFilter, orderBy: 'path' }).filter(
       (note) => current(note) && isUserRule(note),
     );
-    const handoff = listNotes(ctx.index, { types: ['handoff'], ...scopeFilter, limit: 20 }).find(current);
+    // o último handoff vigente; com escopo de projeto, o do próprio projeto vem antes do global
+    const handoffs = listNotes(ctx.index, { types: ['handoff'], ...scopeFilter, limit: 20 }).filter(current);
+    const handoff = handoffs.find((note) => note.scope === input.scope) ?? handoffs[0];
     const preferences = listNotes(ctx.index, { types: ['preference'], ...scopeFilter }).filter(current);
     const gotchas = listNotes(ctx.index, { types: ['gotcha'], ...scopeFilter }).filter(current);
     const relevantGotchas = searchKeyword(ctx.index, { query: task, ...scopeFilter, types: ['gotcha'], limit: 100 });
@@ -199,6 +207,7 @@ export async function recall(ctx: BrainContext, input: RecallInput): Promise<Rec
     used_tokens: budget,
     truncated: false,
     omitted: candidates.length,
+    handoff_seen: { at: '0000-00-00T00:00:00.000Z', session: sessionHandle },
     next_step: NEXT_STEP_RECALL,
   });
   let included = 0;
@@ -223,13 +232,16 @@ export async function recall(ctx: BrainContext, input: RecallInput): Promise<Rec
     included++;
   }
   const omitted = candidates.length - included;
+  const handoff = sections.handoff[0] ?? null;
+  const seen = handoff === null ? null : await markHandoffDelivered(ctx.root, handoff.id, sessionHandle, ctx.now());
   return {
     data_notice: DATA_NOTICE,
     session_handle: sessionHandle,
     task,
     scope: input.scope ?? null,
     rules: sections.rules,
-    handoff: sections.handoff[0] ?? null,
+    handoff,
+    handoff_seen: seen,
     preferences: sections.preferences,
     gotchas: sections.gotchas,
     memories: sections.memories,
@@ -238,13 +250,17 @@ export async function recall(ctx: BrainContext, input: RecallInput): Promise<Rec
     used_tokens: used,
     truncated: omitted > 0,
     omitted,
-    next_step: NEXT_STEP_RECALL,
+    next_step:
+      seen === null
+        ? NEXT_STEP_RECALL
+        : `${NEXT_STEP_RECALL} O handoff já tinha sido entregue a outra sessão em ${seen.at.slice(0, 10)} e ninguém gravou um novo: confira se ainda vale.`,
   };
 }
 
 const NEXT_STEP_RECALL =
   'Siga as regras. Use search antes de afirmar algo sobre o histórico do usuário e read para ver uma nota inteira. ' +
-  'Grave com remember o que for durável e não óbvio, passando o session_handle.';
+  'Grave com remember o que for durável e não óbvio, passando o session_handle. Antes de encerrar, grave a passagem ' +
+  'de bastão com handoff_save.';
 
 // ---------------------------------------------------------------------------------------------------------------
 // search

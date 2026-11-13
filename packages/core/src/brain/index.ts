@@ -39,6 +39,8 @@ export {
   MAX_GRAPH_LIMIT,
   RELATED_LIMIT,
 } from './graph.ts';
+export type { HandoffSaveInput, HandoffSaveOutput, NoteRefOutput } from './handoff.ts';
+export { HANDOFF_ITEM_MAX_CHARS, HANDOFF_MAX_ITEMS, HANDOFF_TTL_DAYS } from './handoff.ts';
 export type {
   BacklinkOutput,
   ConflictOutput,
