@@ -405,6 +405,27 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/consolidate.ts'),
   },
   {
+    name: 'obsidian',
+    summary: 'Configura o cérebro para o Obsidian: grafo, propriedades, painéis e Web Clipper',
+    usage: ['obsidian setup [--dry-run] [--force]', 'obsidian setup --remove [--dry-run]', 'obsidian clipper'],
+    options: {
+      'dry-run': { type: 'boolean', description: 'Mostra o que mudaria, com a diferença de cada arquivo; não grava' },
+      force: { type: 'boolean', description: 'Grava mesmo com o Obsidian aberto neste cérebro' },
+      remove: { type: 'boolean', description: 'Tira só o que o setup acrescentou (e não foi mudado depois)' },
+    },
+    details: [
+      'setup: em .obsidian/, MESCLA app.json (links, anexos em raw/assets, memory/_archive fora da busca), graph.json',
+      '(uma cor por tipo de nota e por pasta) e types.json (datas como data, relações como lista). Só acrescenta o',
+      'que falta: nunca troca uma escolha sua, nunca tira nem reordena o que já existe e não reformata o arquivo. Na',
+      'primeira alteração, guarda o original em .cabecao/backups/obsidian/. Rodar de novo não muda nada.',
+      'workspace.json e os plugins nunca são tocados. Também grava em dashboards/ os painéis (.base) e o modelo do',
+      'Web Clipper, sem substituir um painel que você editou. Feche o Obsidian antes: aberto, ele regrava a configuração.',
+      'setup --remove: tira o que o setup desta máquina acrescentou, menos o que você mudou depois.',
+      'clipper: mostra o modelo do Web Clipper (JSON), para salvar num arquivo e importar na extensão.',
+    ].join('\n'),
+    load: () => import('./commands/obsidian.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],

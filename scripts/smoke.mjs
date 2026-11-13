@@ -32,6 +32,7 @@ const COMMAND_NAMES = [
   'ingest',
   'forget',
   'consolidate',
+  'obsidian',
 ];
 
 function cabecao(args, env = process.env) {
