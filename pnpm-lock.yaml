@@ -35,6 +35,9 @@ importers:
       '@cabecao/core':
         specifier: workspace:*
         version: link:../core
+      '@cabecao/embeddings':
+        specifier: workspace:*
+        version: link:../embeddings
       '@cabecao/server':
         specifier: workspace:*
         version: link:../server

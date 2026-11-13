@@ -55,6 +55,15 @@ export function statusText(status: StatusOutput): string {
       lines.push(`  ${conflict.copy} → ${original}`);
     }
   }
+  const embeddings = status.embeddings;
+  if (embeddings !== null) {
+    if (!embeddings.configured) lines.push('Busca por significado: desativada ("cabecao embeddings on" ativa)');
+    else {
+      lines.push(
+        `Busca por significado: ${embeddings.model} · ${embeddings.enabled_here ? `runtime ${embeddings.runtime}` : 'desligada nesta máquina'} · embeddings na fila: ${embeddings.pending ?? '?'} de ${embeddings.chunks} trechos`,
+      );
+    }
+  }
   if (status.problems.length > 0) {
     lines.push('Problemas:');
     for (const problem of status.problems) lines.push(`  - ${problem}`);
