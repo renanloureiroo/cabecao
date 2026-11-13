@@ -162,6 +162,14 @@ if (expectUnsupported) {
     { recallClosure, mcpChunks },
   );
 
+  const consolidateChunk = files.find((name) => name.startsWith('consolidate-'));
+  const consolidateClosure = consolidateChunk === undefined ? [] : [...staticClosure(consolidateChunk)];
+  check(
+    'consolidate (e o --run) não importa o servidor MCP',
+    consolidateChunk !== undefined && consolidateClosure.every((name) => !mcpChunks.includes(name)),
+    { consolidateClosure, mcpChunks },
+  );
+
   const home = mkdtempSync(join(tmpdir(), 'cabecao-smoke-'));
   try {
     const env = isolatedEnv(home);
@@ -224,6 +232,15 @@ if (expectUnsupported) {
       'mcp com erro não escreve nada no stdout, nem com --json',
       mcpJson.code === 1 && mcpJson.stdout === '',
       mcpJson,
+    );
+    const dry = cabecao(['consolidate', '--run', '--agent', 'claude-code', '--dry-run', '--brain', brain], env);
+    check(
+      'consolidate --run --dry-run mostra o comando do agente sem executar nada',
+      dry.code === 0 &&
+        dry.stdout.includes('--strict-mcp-config') &&
+        dry.stdout.includes('--consolidation') &&
+        !existsSync(brain),
+      dry,
     );
   } finally {
     rmSync(home, { recursive: true, force: true });
