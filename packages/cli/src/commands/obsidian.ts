@@ -28,6 +28,7 @@ import { CliError, UsageError } from '../errors.ts';
 import { obsidianPresence } from '../obsidian/detect.ts';
 import type { Added } from '../obsidian/merge.ts';
 import { addedNothing, mergeAdded, mergeSettingsFile, removeAdded } from '../obsidian/merge.ts';
+import { didYouMean } from '../suggest.ts';
 import { indent } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -368,7 +369,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
     throw new UsageError(
       sub === undefined
         ? 'falta o que fazer: "cabecao obsidian setup" ou "cabecao obsidian clipper"'
-        : `subcomando desconhecido: ${sub} (use setup ou clipper)`,
+        : `subcomando desconhecido: ${sub} (use setup ou clipper).${didYouMean(sub, ['setup', 'clipper'], 'obsidian ')}`,
     );
   }
   const root = await resolveBrain(ctx);

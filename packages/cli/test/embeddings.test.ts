@@ -99,7 +99,7 @@ describe('cabecao embeddings', { timeout: TEST_TIMEOUT_MS * 2 }, () => {
     expect(bad.code).toBe(2);
 
     const brainStatus = await m.run(['status', '--brain', dir]);
-    expect(brainStatus.stdout).toMatch(/embeddings na fila: 0 de \d+ trechos/);
+    expect(brainStatus.stdout).toMatch(/trechos sem vetor: 0 de \d+/);
   });
 
   it('licença que não é de código aberto: pergunta no terminal (sem resposta, cancela); --yes aceita', async () => {
@@ -249,7 +249,7 @@ describe('verificações do doctor (puras)', () => {
     }
   });
 
-  it('sem runtime, sem modelo, sem revisão e com fila: avisos com a correção', () => {
+  it('segunda máquina sem runtime, sem modelo, sem revisão e com fila: UM aviso, com tudo nos itens e a correção', () => {
     const facts = {
       ...base,
       embeddings: {
@@ -260,12 +260,26 @@ describe('verificações do doctor (puras)', () => {
         pending: 3,
       },
     };
-    expect(checkEmbeddings(facts)).toMatchObject({ status: 'warn', message: expect.stringMatching(/sem revisão/) });
-    expect(checkEmbeddingsRuntime(facts)).toMatchObject({
+    expect(checkEmbeddings(facts)).toMatchObject({
       status: 'warn',
+      message: expect.stringMatching(/ligada no cérebro, mas falta nesta máquina/),
       fix: expect.stringMatching(/embeddings on/),
+      items: [
+        'runtime não instalado (sem manifesto)',
+        expect.stringMatching(/modelo .* não baixado/),
+        '3 de 10 trechos sem vetor',
+        expect.stringMatching(/sem revisão/),
+      ],
     });
-    expect(checkEmbeddingsModel(facts)?.status).toBe('warn');
+    // a mesma causa não vira quatro avisos
+    expect(checkEmbeddingsRuntime(facts)).toBeNull();
+    expect(checkEmbeddingsModel(facts)).toBeNull();
+    expect(checkEmbeddingsPending(facts)).toBeNull();
+  });
+
+  it('com o runtime e o modelo nesta máquina: revisão e fila continuam como avisos próprios', () => {
+    const facts = { ...base, embeddings: { ...configured, revision: null, pending: 3 } };
+    expect(checkEmbeddings(facts)).toMatchObject({ status: 'warn', message: expect.stringMatching(/sem revisão/) });
     expect(checkEmbeddingsPending(facts)?.message).toMatch(/^3 de 10 trechos sem embedding/);
   });
 

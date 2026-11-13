@@ -22,7 +22,7 @@
 
 <!-- README-I18N:END -->
 
-Your notes are Markdown files in a git repository you own, on any host. AI agents (Claude Code, Codex, Cursor and others) read and write them over MCP, and every write becomes a commit you can undo with one command. The name is a nod to Cabeção ("big head") from the Brazilian TV show *Malhação*.
+Your notes are Markdown files in a git repository you own, on any host. AI agents (Claude Code, Codex, Cursor and others) read and write them over MCP, and every write becomes a commit you can undo with one command. The name is a tribute to Cabeção from *Malhação*.
 
 > **Beta.** The current version is `0.1.0-beta.1`. It works day to day, but commands and formats may still change before 1.0. The CLI prints its messages in Portuguese for now; the MCP tools that agents use are described in English.
 
@@ -30,18 +30,25 @@ Your notes are Markdown files in a git repository you own, on any host. AI agent
 
 ```text
 $ cabecao init git@github.com:voce/cerebro.git
-Pasta do cérebro: ~/cabecao (máquina notebook)
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook) e em git@github.com:voce/cerebro.git.
 
-Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
-
+Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
 Índice local: 0 notas indexadas em 2 ms.
 
-Clientes de IA:
-  Claude Code: registrado
-    ~/.claude.json: registrado
-  Reinicie o cliente para ele enxergar a mudança.
-...
-  14 ok, 0 avisos, 0 falhas.
+Agentes:
+  Codex   servidor MCP registrado em ~/.codex/config.toml
+  Cursor  servidor MCP registrado em ~/.cursor/mcp.json
+  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
+
+Teste agora:
+  1. No Codex, peça: "guarde que eu prefiro respostas curtas, em tópicos"
+  2. Numa conversa nova, pergunte: "como eu prefiro as respostas?"
+  3. Ou confira aqui: cabecao search "respostas curtas"
+
+Opcional (rode quando quiser):
+  cabecao install-skills  ensina Codex e Cursor a usar o cérebro pela linha de
+                          comando (skills)
+  ...
 ```
 
 In a Claude Code session you say "remember that the payment tests only pass with `TZ=UTC`", and the agent calls the `remember` tool:
@@ -72,7 +79,7 @@ $ cabecao search "testes pagamento"
 - **Any host.** GitHub, GitLab, Bitbucket, Gitea, your own server, or just your machine. Only git, no provider API.
 - **Memory across sessions and machines.** What you teach in one conversation comes back in the next, in any MCP client.
 - **Everything is reversible.** Every write is an identified commit; `cabecao undo` reverts one operation or a whole agent session.
-- **Agents with limits.** They cannot create rules, edit instruction files or store secrets, and they leave a trace when they change one of your notes.
+- **Agents with limits.** Rules and instruction files only change with your explicit, confirmed request; secrets never get in; and every agent commit carries its mark.
 - **Maintenance with nobody watching.** `cabecao consolidate --run` calls Claude Code or Codex to consolidate the memory, with only Cabeção's tools, and undoes whatever is left half done.
 
 ## Install
@@ -85,28 +92,32 @@ cabecao init git@github.com:voce/cerebro.git
 cabecao doctor
 ```
 
-`init` also adopts an existing Obsidian vault without moving files, and without a URL it creates a local-only brain.
+`init` ends with what to ask the agent to test and the optional next steps it detected. It also adopts an Obsidian vault that is in a git repository (cloned into a new folder, without moving or renaming notes), and without a URL it creates a local-only brain.
 
-## Connect to Claude Code
+## Connect the agents
 
-`init` already registers the MCP server in the clients it finds. To register later:
+`init` already registers the MCP server in the clients it finds: Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity and Gemini CLI. To register later, `cabecao install-client --all`.
+
+In agents with a shell, the Cabeção **skills** teach the agent to use the brain through the command line, without the MCP server and under the same rules:
 
 ```bash
-cabecao install-client claude-code
+cabecao install-skills
 ```
 
-Restart Claude Code. It also works with Claude Desktop, Codex, Cursor, VS Code, Antigravity and Gemini CLI (`cabecao install-client --all`).
+In Claude Code, the plugin brings everything together (bundled server, briefing at session start, sync at the end, and the skills): `/plugin marketplace add renanloureiroo/cabecao` and `/plugin install cabecao@cabecao`.
 
 ## Features
 
-| Today (`0.1.0-beta.1`) | Coming soon |
-| --- | --- |
-| `init` on any git remote, adopting Obsidian vaults | Search by meaning, with a local model |
-| `sync` that never loses data: a conflict copy instead of an overwrite | Claude Code plugin with hooks |
-| Keyword search with validity over time (`--as-of`) | Review, consolidation and "forget" for memories |
-| Graph: wikilinks, typed relations, facts and unlinked mentions | Obsidian integration |
-| MCP server with 12 tools and agent restrictions | Claude Desktop package |
-| `undo` per operation or session; secret scanner | |
+- `init` on any git remote, adopting Obsidian vaults, with an ending that leads to the first test
+- `sync` that never loses data: a conflict copy instead of an overwrite; automatic sync with `schedule`
+- Keyword search and, optionally, search by meaning with a local model; validity over time (`--as-of`)
+- Graph: wikilinks, typed relations, facts and unlinked mentions
+- MCP server with 17 tools, Claude Code plugin, Claude Desktop `.mcpb` package and skills for agents with a shell
+- Memory with a lifecycle: handoff, resolved duplicates, `lint`, `consolidate` (also with an agent on its own), `forget`
+- `undo` per operation or session; secret scanner; rules only with your explicit request
+- Obsidian with one command (`obsidian setup`); `upgrade` and `uninstall`
+
+What comes next is in [Coming soon](https://renanloureiroo.github.io/cabecao/en/em-breve).
 
 ## Documentation
 

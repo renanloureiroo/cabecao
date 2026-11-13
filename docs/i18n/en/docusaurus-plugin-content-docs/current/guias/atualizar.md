@@ -1,18 +1,30 @@
 ---
-title: Updating Cabeção
-description: Update the program, apply the brain's schema migrations with cabecao upgrade and, if you want, the new AGENTS.md template.
+title: Update and uninstall
+description: Update the program (the way you installed it), apply the brain's migrations with cabecao upgrade, and remove Cabeção from the machine with cabecao uninstall without touching the brain.
 sidebar_position: 12
 ---
 
-Updating has two parts: the **program** (the `cabecao` package, the Claude Code plugin, the Claude Desktop package) and, once in a while, the **brain**, when a new version changes its format.
+Updating has two parts: the **program** (the `cabecao` package, the Claude Code plugin, the Claude Desktop package) and, once in a while, the **brain**, when a new version changes its format. How to [uninstall](#uninstall) is at the end of this page.
 
 ## The program
 
-```bash
-npm i -g cabecao@beta     # or: npx cabecao@beta <command>
+The command depends on how you installed it. `cabecao doctor` shows the one for your installation on its first line:
+
+```text
+ok     Cabeção                  0.1.0-beta.1 (instalado com npm -g); para atualizar: npm i -g cabecao@beta
 ```
 
-The Claude Code plugin updates through the marketplace, and the Claude Desktop package by installing the new `.mcpb` over the old one ([Claude Desktop](./claude-desktop.md)). None of them touches the brain.
+| Installed with | To update |
+| --- | --- |
+| `npm i -g` | `npm i -g cabecao@beta` |
+| `pnpm add -g` | `pnpm add -g cabecao@beta` |
+| `npx` | `npx cabecao@beta <command>` (`npx` uses the version you ask for) |
+| Inside a project | `npm i cabecao@beta`, in the project folder |
+| Claude Code plugin | `/plugin update cabecao@cabecao` |
+
+While Cabeção is in beta, use the `@beta` tag: without it, npm may install an older beta. The CLI messages that tell you to update (a brain from a newer version, the scheduled sync that lost the program) already show the command for your installation, with the tag of the channel in use. The Claude Desktop package updates by installing the new `.mcpb` over the old one ([Claude Desktop](./claude-desktop.md)). None of this touches the brain.
+
+After updating, run `cabecao install-skills` again if you installed the [skills](./skills.md): it replaces only the ones still as Cabeção wrote them. `doctor` warns when they are from an earlier version. If Node changed (nvm, fnm, Volta), also run `cabecao install-client --all`: the registration in the clients points to the Node path, and `doctor` flags it when that path no longer exists.
 
 Update every machine that uses the same brain. See below what happens to a machine that falls behind.
 
@@ -49,9 +61,10 @@ The compatibility rule is this:
 
 ```text
 $ cabecao sync
-Sync: bloqueado. O cérebro no remoto foi atualizado para o esquema 2 por uma versão mais nova do Cabeção, e este Cabeção só entende até o 1. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina ("npm i -g cabecao@latest" ou "npx cabecao@latest") e rode o sync de novo.
+Sync: bloqueado. O cérebro no remoto foi atualizado para o esquema 2 por uma versão mais nova do Cabeção, e este Cabeção só entende até o 1. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina e rode o sync de novo.
 Recebidos: 0 commits · enviados: 0 · criados neste sync: 1
-Próximo passo: Atualize o Cabeção nesta máquina e rode sync de novo; até lá, as mudanças daqui ficam em commits locais e nada é enviado.
+Próximo passo: Atualize o Cabeção nesta máquina e rode o sync de novo ("cabecao doctor" mostra o comando para a sua instalação); até lá, as mudanças daqui ficam em commits locais e nada é enviado.
+Para atualizar: npm i -g cabecao@beta
 ```
 
 A schema change only ships in a minor or major version of the package, never in a patch.
@@ -106,3 +119,47 @@ Commit 6e2b2ec7ce; "cabecao undo --op 01M7AKW4EGWA9XY09SJ7V2DQDT" desfaz. Rode "
 ```
 
 The Obsidian dashboards in `dashboards/` follow the same rule through `cabecao obsidian setup`: a dashboard you edited is never replaced ([Obsidian](./obsidian.md)).
+
+## Uninstall
+
+npm runs nothing when it uninstalls a package. That is why, before removing the program, you run `cabecao uninstall`: it removes from this machine everything Cabeção put **outside the brain**:
+
+- the MCP server registration in every AI client (like `cabecao install-client --remove`);
+- the skills it installed (the ones you edited stay);
+- the scheduled sync (like `cabecao schedule off`);
+- the machine configuration (`~/.config/cabecao`, or the `CABECAO_CONFIG_DIR` folder);
+- the cache: the semantic search runtime and models and the consolidation logs (`--keep-cache` keeps it).
+
+The **brain is never touched**: it is yours, and it is in git and on the remote. The `.bak` copy that `install-client` saved of each client's original file also stays.
+
+See first what would be removed; anyone, even an agent, can run `--dry-run`:
+
+```text
+$ cabecao uninstall --dry-run
+O que "cabecao uninstall" tiraria desta máquina (nada foi feito):
+  registro do servidor MCP no Codex: ~/.codex/config.toml
+  registro do servidor MCP no Cursor: ~/.cursor/mcp.json
+  skills do Cabeção em ~/.agents/skills (codex, cursor; só as que você não alterou)
+  configuração da máquina: ~/.config/cabecao
+
+Fica: o cérebro em ~/cabecao (é seu, está no git e no remoto). Apague a pasta à mão se quiser.
+Para tirar o programa depois: npm uninstall -g cabecao
+```
+
+To remove, run it without `--dry-run`, in your terminal. It shows the same list and asks:
+
+```text
+$ cabecao uninstall
+Vai sair desta máquina:
+  ...
+Remover? [s/N] s
+Pronto:
+  registro removido do Codex
+  registro removido do Cursor
+  skills removidas de ~/.agents/skills
+  apagado ~/.config/cabecao
+O cérebro continua em ~/cabecao.
+Para tirar o programa: npm uninstall -g cabecao
+```
+
+Only you confirm: without a terminal (an agent, a script), the command refuses with exit code 4. Then remove the program with the command it showed (`npm uninstall -g cabecao`, `pnpm remove -g cabecao` or `/plugin uninstall cabecao@cabecao`). To also remove the brain from this machine, delete its folder; the remote still has everything.

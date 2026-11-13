@@ -6,6 +6,16 @@ sidebar_position: 3
 
 O `init` já registra o servidor MCP em todo cliente de IA que encontrar nesta máquina. Use `cabecao install-client` quando instalar um cliente depois, quando quiser ver a configuração antes de gravar, ou para tirar o registro.
 
+Há três jeitos de um agente usar o seu cérebro, e eles se combinam:
+
+| Jeito | Para quem | Como |
+| --- | --- | --- |
+| **Servidor MCP** | Qualquer cliente MCP, inclusive os sem terminal (Claude Desktop) | `cabecao install-client` (esta página) |
+| **Skills** | Agentes com shell que leem skills: Claude Code, Codex, Cursor, VS Code, Antigravity, Gemini CLI | `cabecao install-skills` ([Usar o Cabeção com skills](../guias/skills.md)) |
+| **Plugin** | Só o Claude Code: servidor embutido, briefing no início, sync no fim e as skills | `/plugin install cabecao@cabecao` ([Plugin do Claude Code](../guias/claude-code.md)) |
+
+As skills não precisam do servidor: o agente roda `cabecao` no shell, sob as mesmas regras. Com o servidor também registrado, as skills mandam o agente preferir as tools.
+
 ## Clientes aceitos
 
 | Cliente | Identificador | Onde o registro fica |
@@ -47,8 +57,8 @@ Quem já tinha registrado o `gemini` não perde nada: o registro fica onde estav
 
 ## Conectar ao Claude Code
 
-:::tip[Prefira o plugin]
-No Claude Code, o [plugin do Cabeção](../guias/claude-code.md) faz mais do que o registro abaixo: traz o servidor embutido, põe o briefing do cérebro no início de cada sessão e sincroniza no fim. Use um ou outro, não os dois (as tools apareceriam em dobro).
+:::tip[Plugin ou registro direto: um ou outro]
+No Claude Code, o [plugin do Cabeção](../guias/claude-code.md) faz mais do que o registro abaixo: traz o servidor embutido, põe o briefing do cérebro no início de cada sessão e sincroniza no fim. Use um ou outro, não os dois: as tools apareceriam em dobro. O `init` registra o servidor direto mesmo com o plugin instalado, e então avisa; o `cabecao doctor` também avisa e diz como tirar o registro direto (`cabecao install-client --remove claude-code`).
 :::
 
 ```bash
@@ -91,7 +101,7 @@ command = "/caminho/do/node"
 args = ["/caminho/do/cabecao/dist/cabecao.mjs", "mcp", "--brain", "~/cabecao"]
 ```
 
-Os caminhos dependem da sua instalação. O servidor sempre é registrado como `cabecao mcp --brain <pasta>`. Com uma instalação global, o registro aponta direto para o Node e para o arquivo do Cabeção, o que evita de 0,5 a 1,4 s de `npx` a cada sessão. Com `--npx` (ou quando você rodou o Cabeção por `npx`), o registro usa `npx -y cabecao mcp`.
+Os caminhos dependem da sua instalação. O servidor sempre é registrado como `cabecao mcp --brain <pasta>`. Com uma instalação global, o registro aponta direto para o Node e para o arquivo do Cabeção, o que evita de 0,5 a 1,4 s de `npx` a cada sessão. Com `--npx` (ou quando você rodou o Cabeção por `npx`), o registro usa `npx -y cabecao@<versão> mcp`, com a versão fixada: sem ela, o `npx` poderia baixar outra versão a cada sessão.
 
 ## Tirar o registro
 
@@ -109,8 +119,11 @@ O Cabeção só mexe na entrada `cabecao`. Os outros servidores e chaves do arqu
 O `doctor` lê os arquivos dos clientes (sem executar nada) e diz quais têm o registro deste cérebro:
 
 ```text
-ok     Clientes MCP             1 cliente(s) registrado(s)
-                                - Claude Code: ~/.claude.json: registrado para este cérebro
+ok     Clientes MCP             2 clientes registrados
+                                - Codex: ~/.codex/config.toml: registrado para este cérebro
+                                - Cursor: ~/.cursor/mcp.json: registrado para este cérebro
 ```
+
+Ele também acusa, como falha, um registro que aponta para um Node (ou um arquivo do Cabeção) que não existe mais, por exemplo depois de remover uma versão do Node com o nvm, o fnm ou o Volta: rode `cabecao install-client --all` de novo. E avisa quando o plugin do Claude Code e o registro direto estão ativos juntos.
 
 Todas as opções estão na [referência da CLI](../referencia/cli.md#cabecao-install-client).

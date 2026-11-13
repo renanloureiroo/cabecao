@@ -239,7 +239,7 @@ async function commitEdits(
   ctx: SyncContext,
   state: SyncState,
   files: readonly PendingFile[],
-): Promise<{ sha: string } | null | { retry: string }> {
+): Promise<{ sha: string } | null | { retry: string } | { denied: string }> {
   return withLock(
     ctx.layout.worktreeLock,
     async () => {
@@ -270,6 +270,7 @@ async function commitEdits(
           return { retry: 'outro programa git segurava o índice do repositório' };
         }
         const detail = error.stderr.trim().split('\n')[0] ?? '';
+        if (permissionProblem(error.stderr)) return { denied: detail };
         return { retry: `o git recusou o commit das edições${detail === '' ? '' : ` (${detail})`}` };
       }
     },
@@ -421,6 +422,15 @@ function listPaths(paths: readonly string[]): string {
 interface RetryCause {
   readonly cause: string;
   readonly action: string;
+  /** As edições de fora NÃO entraram em commit (o commit delas é que falhou). */
+  readonly uncommitted?: boolean;
+}
+
+/** O git recusou o commit por falta de permissão ou disco só de leitura: repetir não adianta. */
+function permissionProblem(detail: string): boolean {
+  return /permission denied|read-only file system|insufficient permission|operation not permitted|unable to create .*\.lock|EACCES|EROFS/i.test(
+    detail,
+  );
 }
 
 function editedDuringApply(paths: readonly string[]): RetryCause {
@@ -703,11 +713,19 @@ async function runSync(
         });
       }
       const edit = await commitEdits(ctx, state, pending);
+      if (edit !== null && 'denied' in edit) {
+        stop({
+          status: 'error',
+          reason: 'permission',
+          message: `O git não conseguiu gravar o commit das edições feitas fora do Cabeção: falta permissão de escrita na pasta .git do cérebro, ou o disco está só para leitura${edit.denied === '' ? '' : ` (${edit.denied})`}. As edições continuam nos arquivos, mas ainda NÃO estão em nenhum commit, e nada foi enviado. Libere a escrita na pasta do cérebro (no macOS e no Linux: chmod -R u+w "${root}/.git"; confira o dono com ls -ld "${root}/.git") e rode o sync de novo.`,
+        });
+      }
       if (edit !== null && 'retry' in edit) {
         lastRetry = {
           cause: `${edit.retry}, a cada tentativa`,
           action:
             'Se algum programa está gravando no cérebro sem parar (sincronizador de nuvem, editor com salvamento contínuo, outro cliente git), espere ele terminar ou feche-o e rode o sync de novo.',
+          uncommitted: true,
         };
         continue;
       }
@@ -776,7 +794,7 @@ async function runSync(
         stop({
           status: 'blocked',
           reason: 'schema-too-new',
-          message: `O cérebro no remoto foi atualizado para o esquema ${newer} por uma versão mais nova do Cabeção, e este Cabeção só entende até o ${SUPPORTED_SCHEMA_VERSION}. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina ("npm i -g cabecao@latest" ou "npx cabecao@latest") e rode o sync de novo.`,
+          message: `O cérebro no remoto foi atualizado para o esquema ${newer} por uma versão mais nova do Cabeção, e este Cabeção só entende até o ${SUPPORTED_SCHEMA_VERSION}. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina e rode o sync de novo.`,
         });
       }
       // um `.cabecao.json` inválido vindo do remoto não entra: fica o daqui, e o do remoto vira cópia de conflito
@@ -961,6 +979,10 @@ async function runSync(
   };
   stop({
     status: 'error',
-    message: `Desisti depois de ${plural(maxAttempts, 'tentativa', 'tentativas')}: ${last.cause}. Nada se perdeu: as edições daqui estão em commits locais. ${last.action}`,
+    message: `Desisti depois de ${plural(maxAttempts, 'tentativa', 'tentativas')}: ${last.cause}. ${
+      last.uncommitted === true
+        ? 'Nada se perdeu: as edições continuam nos arquivos, ainda sem commit, e nada foi enviado.'
+        : 'Nada se perdeu: as edições daqui estão em commits locais.'
+    } ${last.action}`,
   });
 }

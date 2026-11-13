@@ -26,12 +26,21 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
     const dir = join(a.home, 'meu cérebro');
     const result = await a.cabecao(['init', remote, '--dir', dir, '--machine', 'maquina-a', '--no-clients']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain(`Pasta do cérebro: ${dir} (máquina maquina-a)`);
-    expect(result.stdout).toContain('Repositório: Repositório vazio');
+    // o fim leva ao primeiro sucesso: "Pronto", onde ficou, o teste, os opcionais detectados e o diagnóstico curto
+    expect(result.stdout).toMatch(/^Pronto\. Seu cérebro está em ~[\\/]meu cérebro \(máquina maquina-a\) e em /);
+    expect(result.stdout).toContain('Repositório vazio');
     expect(result.stdout).toMatch(/Índice local: \d+ notas? indexadas?/);
-    expect(result.stdout).toContain('Clientes de IA: pulado (--no-clients)');
-    expect(result.stdout).toContain('Diagnóstico (cabecao doctor');
+    expect(result.stdout).toContain('Agentes: pulados (--no-clients)');
+    expect(result.stdout).toContain('Teste agora:\n');
+    expect(result.stdout).toContain('peça a ele: "guarde que eu prefiro respostas curtas, em tópicos"');
+    expect(result.stdout).toContain('cabecao search "respostas curtas"');
+    expect(result.stdout).toMatch(/Opcional \(rode quando quiser\):\n {2}cabecao schedule on/);
+    expect(result.stdout).toContain('cabecao embeddings on');
+    expect(result.stdout).toMatch(/Diagnóstico: \d+ ok, /);
     expect(result.stdout).toContain(`Em outra máquina, rode cabecao init ${remote}`);
+    const json = parseJson(await machine('c').cabecao(['init', remote, '--no-clients', '--json']));
+    expect(json.data.test).toHaveLength(3);
+    expect(json.data.optional.map((step: { id: string }) => step.id)).toEqual(['schedule', 'embeddings']);
     // progresso no stderr, nada de stack
     expect(result.stderr).toContain('cabecao: consultando o remoto...');
     expect(result.stderr).not.toMatch(/\n\s+at /);
@@ -164,7 +173,8 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
     await writeNote(dir, 'meu.txt', 'meu arquivo');
     const result = await a.cabecao(['init', '--dir', dir, '--no-clients']);
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain('escolha outra pasta com --dir');
+    expect(result.stderr).toContain('O que fazer: Escolha com --dir uma pasta que ainda não existe');
+    expect(result.stderr).not.toContain('esvazie');
     expect(await readNote(dir, 'meu.txt')).toBe('meu arquivo');
   });
 
@@ -174,10 +184,13 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
     await mkdir(join(a.home, '.gemini', 'antigravity-cli'), { recursive: true });
     const result = await a.cabecao(['init'], { binPath: join(a.home, 'bin-que-nao-existe.mjs') });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Clientes de IA:');
-    expect(result.stdout).toContain('Cursor: registrado');
-    expect(result.stdout).toContain('Antigravity: registrado');
+    expect(result.stdout).toContain('Agentes:');
+    expect(result.stdout).toMatch(/Cursor +servidor MCP registrado em ~[\\/]\.cursor[\\/]mcp\.json/);
+    expect(result.stdout).toMatch(/Antigravity +servidor MCP registrado/);
     expect(result.stdout).not.toContain('Gemini CLI');
+    expect(result.stdout).toContain('1. No Cursor, peça:');
+    // os dois leem skills: o opcional aparece, com o comando
+    expect(result.stdout).toMatch(/cabecao install-skills +ensina Cursor e Antigravity a usar o cérebro/);
     const cursor = JSON.parse(await readFile(join(a.home, '.cursor', 'mcp.json'), 'utf8'));
     expect(cursor.mcpServers.cabecao.args.slice(-3)).toEqual(['mcp', '--brain', join(a.home, 'cabecao')]);
     expect(a.calls).toEqual([]);

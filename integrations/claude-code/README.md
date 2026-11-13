@@ -5,13 +5,13 @@ O plugin liga o Cabeção ao Claude Code sem configuração manual. Ele traz qua
 - **o servidor MCP do Cabeção, embutido**: as 17 tools (`recall`, `search`, `remember`, `handoff_save`...) sobem com `node`, a partir do bundle que vem dentro do plugin, sem `npx` e sem rede (0,05 s por início, contra 1,4 s do `npx`);
 - **o hook de início de sessão**: roda `cabecao recall --hook` e põe no contexto do agente as regras de uso e o briefing do cérebro (suas regras, o último handoff, preferências, armadilhas e memórias do projeto), marcado como dado e abaixo de 10 mil caracteres;
 - **o hook de fim de sessão**: roda `cabecao sync --hook`, que dispara o sync num processo em segundo plano e volta na hora (o Claude Code dá só 1,5 s a esse hook);
-- **a skill `cabecao:memory`**: referência curta de quando consultar, o que lembrar e o que não lembrar.
+- **as skills do Cabeção** (fonte: [`integrations/skills/`](../skills/)), copiadas para `skills/` no passo de versão: o plugin corresponde à versão publicada, então as skills novas chegam a ele na próxima versão (até lá, fica a skill `cabecao:memory`).
 
 Nenhum hook lê, copia ou grava a conversa. O que entra no cérebro é só o que o agente grava pelas tools, como sem o plugin.
 
 ## Instalar
 
-Antes: Node.js 22.16 ou mais novo no `PATH` e um cérebro nesta máquina (`npx cabecao init <url>`, ou uma pasta de cérebro que você vai informar).
+Antes: Node.js 22.16 ou mais novo no `PATH` e um cérebro nesta máquina (`npx cabecao@beta init <url>`, ou uma pasta de cérebro que você vai informar).
 
 Dentro do Claude Code:
 

@@ -17,6 +17,7 @@
       "!fixtures",
       "!templates",
       "!integrations/claude-code/server",
+      "!packages/cli/src/skills/content.ts",
       "!.claude"
     ]
   },

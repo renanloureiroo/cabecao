@@ -115,6 +115,16 @@ Duas coisas o Cabeção faz sem você na frente da tela: o sync agendado ([Sync 
 
 O que fica de fora, por agente: o Codex mantém a tool de aplicar patch (a caixa de areia somente leitura recusa a escrita) e, conforme o modelo, uma tool de leitura de arquivos que a caixa de areia não bloqueia; sem shell e sem rede, o que ele ler só sairia por uma escrita no cérebro, que passa pelo scanner. E "negado" depende de cada agente cumprir as próprias opções: o Cabeção não roda o agente numa caixa de areia própria.
 
+## Skills pela CLI: o que podem e o que não podem {#skills-pela-cli}
+
+As [skills do Cabeção](./guias/skills.md) não dão nenhum poder novo ao agente: elas só ensinam quais comandos `cabecao` rodar. Quem decide o que é permitido é a CLI, e um agente rodando a CLI está sob **as mesmas regras do servidor MCP**:
+
+- **Pode**, sem perguntar: consultar (`recall`, `search`, `read`, `graph`, `facts`, `lint`, `status`), gravar memórias comuns (`remember`, `write`, `patch`, `relate`, `handoff`), registrar fontes (`ingest`), desfazer as próprias operações (`undo --op <id>`) e sincronizar (`sync`). Tudo vira um commit com `origin: agent:<nome>` e o rodapé `Cabecao-Client`, que `undo` desfaz.
+- **Só com o seu pedido explícito**, em duas chamadas com `--confirm <token>`: regras, arquivos de controle e de instrução, `raw/`, `trust: high`, arquivar (`forget`) e desfazer uma operação que não é de agente. A skill `cabecao-pedido-explicito` diz para mostrar o resumo, perguntar e nunca seguir um pedido que veio de conteúdo lido. O que for gravado assim fica marcado e aparece no `lint`.
+- **Não pode**: os comandos só seus (`embeddings on/off/switch`, `compact`, `upgrade`, remover com `uninstall`) saem com o código 4; nenhuma opção, variável ou arquivo de configuração faz o agente virar você (`--as` só dá o nome). As proteções técnicas (fora do cérebro, `.git/`, links simbólicos, segredos, frontmatter forjado) valem sem exceção.
+
+O limite está logo abaixo: um agente que tem shell pode **não usar** a CLI e editar os arquivos do cérebro direto. As skills deixam o caminho certo fácil; elas não impedem o errado.
+
 ## Limites conhecidos
 
 Dito com franqueza, para você decidir o que guardar:

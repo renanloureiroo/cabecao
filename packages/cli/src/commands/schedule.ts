@@ -5,10 +5,12 @@ import { syncLogPath } from '../background.ts';
 import { readMachine } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { stableBin } from '../install-client/launch.ts';
+import { channel } from '../install-method.ts';
 import type { ScheduledCommand } from '../schedule/generate.ts';
 import { displayCommand, parseInterval } from '../schedule/generate.ts';
 import type { Mechanism, ScheduleNames } from '../schedule/system.ts';
 import { DEFAULT_NAMES, scheduleOff, scheduleOn, scheduleStatus } from '../schedule/system.ts';
+import { didYouMean } from '../suggest.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
 const MECHANISM_TEXT: Readonly<Record<Mechanism, string>> = {
@@ -84,7 +86,7 @@ async function on(ctx: CommandContext, names: ScheduleNames): Promise<CommandRes
       'o agendamento precisa de uma instalação estável do cabecao: rodando por npx (ou pelo código-fonte), o caminho do programa muda e o agendador ficaria apontando para nada',
       {
         code: 'schedule_unstable',
-        hint: 'Instale com "npm i -g cabecao" e rode "cabecao schedule on" de novo depois de instalar.',
+        hint: `Instale com "npm i -g cabecao@${channel()}" e rode "cabecao schedule on" de novo depois de instalar.`,
       },
     );
   }
@@ -153,7 +155,9 @@ async function status(ctx: CommandContext, names: ScheduleNames): Promise<Comman
     lines.push('Aviso: o agendador não está com a tarefa carregada; rode "cabecao schedule on".');
   if (result.detail !== null) lines.push(`No agendador: ${result.detail}`);
   for (const path of result.missing) {
-    lines.push(`Aviso: ${path} não existe mais; rode "cabecao schedule on" de novo depois de "npm i -g cabecao".`);
+    lines.push(
+      `Aviso: ${path} não existe mais; rode "cabecao schedule on" de novo depois de "npm i -g cabecao@${channel()}".`,
+    );
   }
   return { data: result, text: lines.join('\n') };
 }
@@ -172,7 +176,9 @@ export async function runSchedule(ctx: CommandContext, names: ScheduleNames = DE
     case undefined:
       throw new UsageError('diga o que fazer: on, off ou status');
     default:
-      throw new UsageError(`ação desconhecida: ${action} (use on, off ou status)`);
+      throw new UsageError(
+        `ação desconhecida: ${action} (use on, off ou status).${didYouMean(action, ['on', 'off', 'status'], 'schedule ')}`,
+      );
   }
 }
 
