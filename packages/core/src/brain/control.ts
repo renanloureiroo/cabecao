@@ -138,7 +138,7 @@ async function writeControlText(
   sessionHandle: unknown,
   token: string | undefined,
   options: ConfirmOptions,
-  compute: (before: string | null) => { text: string; describe: string },
+  compute: (before: string | null) => { text: string; describe: string; shown: string },
   mode: 'create' | 'overwrite' | 'append' | 'patch',
 ): Promise<WriteOutput> {
   let target = asked;
@@ -166,11 +166,11 @@ async function writeControlText(
           nextStep: 'Use mode "create" para criá-lo.',
         });
       }
-      const { text, describe } = compute(before);
+      const { text, describe, shown } = compute(before);
       validateControl(target.kind, target.path, text, before);
       const elevation: Elevation = {
         reasons: [KIND_REASON[target.kind]],
-        summary: `${describe} ${target.path} (${KIND_REASON[target.kind]}). Conteúdo final: ${text.length.toLocaleString('pt-BR')} caracteres${before === null ? '' : `, antes ${before.length.toLocaleString('pt-BR')}`}. Começo do texto novo: "${preview(text)}"`,
+        summary: `${describe} ${target.path} (${KIND_REASON[target.kind]}). Conteúdo final: ${text.length.toLocaleString('pt-BR')} caracteres${before === null ? '' : `, antes ${before.length.toLocaleString('pt-BR')}`}. Texto ${mode === 'patch' ? 'que entra' : mode === 'append' ? 'acrescentado' : 'novo'}: "${preview(shown)}"`,
         parts: [mode, target.path, digestOf(text), digestOf(before ?? '\u0000none')],
         path: target.path,
       };
@@ -229,9 +229,13 @@ export async function writeControl(
         const base = before ?? '';
         const eol = base.includes('\r\n') ? '\r\n' : '\n';
         const sep = base === '' || base.endsWith('\n') ? '' : eol;
-        return { text: `${base}${sep}${content}`, describe: 'Acrescentar ao fim de' };
+        return { text: `${base}${sep}${content}`, describe: 'Acrescentar ao fim de', shown: content };
       }
-      return { text: content, describe: input.mode === 'create' ? 'Criar' : 'Substituir o conteúdo inteiro de' };
+      return {
+        text: content,
+        describe: input.mode === 'create' ? 'Criar' : 'Substituir o conteúdo inteiro de',
+        shown: content,
+      };
     },
     input.mode,
   );
@@ -272,6 +276,7 @@ export async function patchControl(
       return {
         text: text.slice(0, at) + input.new + text.slice(at + input.old.length),
         describe: `Substituir um trecho (${input.old.length} → ${input.new.length} caracteres) em`,
+        shown: input.new,
       };
     },
     'patch',
