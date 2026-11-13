@@ -201,6 +201,16 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       expect((ingested.source as { trust: string }).trust).toBe('low');
       expect((ingested.plan as { steps: string[] }).steps.length).toBeGreaterThan(0);
 
+      const forgotten = check(
+        'forget',
+        await server.client.call('forget', {
+          id: 'wiki/concepts/Servidor MCP.md',
+          reason: 'nota de teste',
+          session_handle: session,
+        }),
+      );
+      expect(forgotten.status).toBe('confirmation_required');
+
       const undone = check('undo', await server.client.call('undo', { session: session, session_handle: session }));
       expect((undone.undone as unknown[]).length).toBe(7);
 

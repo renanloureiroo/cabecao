@@ -251,6 +251,18 @@ export function buildPositives(): PositiveCase[] {
     // JWT
     positive('JWT em cabeçalho HTTP', 'jwt', jwt, (s) => `Authorization: Bearer ${s}`),
     positive('JWT solto na prosa', 'jwt', jwt, (s) => `O serviço devolveu ${s} e depois caiu.`),
+    positive(
+      'confirm_token do forget copiado para uma nota',
+      'cabecao-confirm-token',
+      `${'cbc'}${'_ct_'}t3k9q2_${fake(BASE64URL, 43, 76)}`,
+      (s) => `Próximo passo: chamar forget com confirm_token ${s} amanhã.`,
+    ),
+    positive(
+      'confirm_token como atribuição',
+      'cabecao-confirm-token',
+      `${'cbc'}${'_ct_'}t3k9q3_${fake(BASE64URL, 43, 77)}`,
+      (s) => `confirm_token: ${s}`,
+    ),
 
     // URL com credencial: o achado é a senha.
     positive(

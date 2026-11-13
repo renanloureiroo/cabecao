@@ -22,6 +22,7 @@ export const SECRET_RULE_IDS = [
   'npm-token',
   'jwt',
   'url-credentials',
+  'cabecao-confirm-token',
   'generic-assignment',
 ] as const;
 
@@ -240,6 +241,13 @@ export const SECRET_RULES: readonly SecretRule[] = [
       'URL com senha embutida (esquema://usuario:senha@host). Senhas de exemplo, triviais (senha, password, postgres...) ou com menos de 4 caracteres são ignoradas.',
     pattern: /:\/\/([^\s/:@"'`<>]{0,128}):([^\s/@"'`<>]{4,256})@(?=[A-Za-z0-9[])/dg,
     locate: locateUrlPassword,
+  },
+  {
+    id: 'cabecao-confirm-token',
+    description:
+      'Token de confirmação do forget do Cabeção (cbc_ct_...): vale poucos minutos e não deve ser gravado numa nota.',
+    pattern: /(?<![A-Za-z0-9_])cbc_ct_[0-9a-z]{1,12}_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/dg,
+    locate: wholeMatch,
   },
   {
     id: 'generic-assignment',

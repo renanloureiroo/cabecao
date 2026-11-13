@@ -32,6 +32,8 @@ import {
   switchEmbeddings,
 } from './embeddings.ts';
 import { BrainError, toBrainError } from './errors.ts';
+import type { ForgetInput, ForgetOptions, ForgetOutput } from './forget.ts';
+import { forget } from './forget.ts';
 import type { FactsInput, FactsOutput, GraphInput, GraphOutput } from './graph.ts';
 import { facts, graph } from './graph.ts';
 import type { HandoffSaveInput, HandoffSaveOutput } from './handoff.ts';
@@ -141,6 +143,11 @@ export interface Brain {
    * dentro do cérebro; `options` é só para a CLI (um arquivo que o usuário indicou).
    */
   ingest(input: IngestInput, options?: IngestOptions): Promise<IngestOutput>;
+  /**
+   * Arquiva uma nota em `memory/_archive/` (nunca apaga). Sem `confirm_token`, devolve o resumo e o token; com ele (ou
+   * com `options.userConfirmed`, que só o servidor MCP passa depois de perguntar ao usuário), executa.
+   */
+  forget(input: ForgetInput, options?: ForgetOptions): Promise<ForgetOutput>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -289,6 +296,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     relate: (input) => relate(ctx, input),
     handoffSave: (input) => handoffSave(ctx, input),
     ingest: (input, options) => ingest(ctx, input, options),
+    forget: (input, options) => forget(ctx, input, options),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {

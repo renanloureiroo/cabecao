@@ -303,6 +303,21 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/ingest.ts'),
   },
   {
+    name: 'forget',
+    summary: 'Arquiva uma nota em memory/_archive/ (nunca apaga)',
+    usage: ['forget <id ou caminho> [--reason <texto>] [--yes]'],
+    options: {
+      reason: { type: 'string', valueName: 'texto', description: 'Por que esquecer (fica na nota arquivada)' },
+      yes: { type: 'boolean', description: 'Arquiva sem perguntar (sem terminal, é obrigatório)' },
+    },
+    details: [
+      'Mostra o que será arquivado e pergunta. A nota vai para memory/_archive/, sai da busca e do recall e continua no',
+      'git, num commit; "cabecao undo" a traz de volta. Pela CLI você arquiva qualquer nota, inclusive regras; um agente',
+      'não arquiva regras e precisa de confirmação em duas chamadas. Apagar de vez (reescrevendo o histórico) não existe.',
+    ].join('\n'),
+    load: () => import('./commands/forget.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],

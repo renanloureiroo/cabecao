@@ -99,3 +99,40 @@ describe('lint', { timeout: TEST_TIMEOUT_MS }, () => {
     expect((await m.cabecao(['lint', '--limit', '0', '--brain', brain])).code).toBe(2);
   });
 });
+
+describe('forget', { timeout: TEST_TIMEOUT_MS }, () => {
+  const gotcha = 'memory/gotchas/testes-de-integracao-sem-limpar-o-banco.md';
+
+  it('pergunta no terminal; "n" não arquiva, "s" arquiva; sem terminal exige --yes', async () => {
+    const asked: string[] = [];
+    const no = await m.cabecao(['forget', gotcha, '--brain', brain], {
+      prompt: async (question) => {
+        asked.push(question);
+        return 'n';
+      },
+    });
+    expect(no.code).toBe(0);
+    expect(no.stdout).toContain('Nada foi arquivado.');
+    expect(asked[0]).toContain(`Arquivar gotcha`);
+    expect(await readNote(brain, gotcha)).toContain('type: gotcha');
+
+    const headless = await m.cabecao(['forget', gotcha, '--brain', brain]);
+    expect(headless.code).toBe(1);
+    expect(headless.stderr).toContain('--yes');
+
+    const yes = await m.cabecao(['forget', gotcha, '--reason', 'resolvido no CI', '--brain', brain], {
+      prompt: async () => 's',
+    });
+    expect(yes.code).toBe(0);
+    expect(yes.stdout).toContain('Arquivada: memory/gotchas/testes-de-integracao-sem-limpar-o-banco.md');
+    expect(await readNote(brain, 'memory/_archive/testes-de-integracao-sem-limpar-o-banco.md')).toContain(
+      'forget_reason: resolvido no CI',
+    );
+    // pela CLI o usuário arquiva até regra
+    const rule = parseJson(
+      await m.cabecao(['forget', 'memory/rules/nunca-commitar-segredos.md', '--yes', '--brain', brain, '--json']),
+    );
+    expect(rule.data.status).toBe('archived');
+    expect((await m.cabecao(['forget', '--brain', brain])).code).toBe(2);
+  });
+});
