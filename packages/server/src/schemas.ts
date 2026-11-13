@@ -356,6 +356,19 @@ export const syncOutput = z.object({
   remote_error: z.object({ category: z.string(), detail: z.string() }).nullable(),
   recovered: z.array(z.string()),
   config_problem: z.string().nullable(),
+  index: z
+    .object({
+      participating: z.boolean(),
+      generation: z.number().nullable(),
+      received: z.number(),
+      computed: z.number(),
+      pushed: z.number(),
+      pending: z.number().nullable(),
+      graph_written: z.boolean(),
+      skipped: z.string().nullable(),
+      error: z.string().nullable(),
+    })
+    .nullable(),
   next_step: z.string().exactOptional(),
 });
 

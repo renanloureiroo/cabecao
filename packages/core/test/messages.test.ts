@@ -1,4 +1,4 @@
-// Mensagens, descrições e textos que vão ao usuário ou ao agente só citam comandos e tools que existem no marco 1
+// Mensagens, descrições e textos que vão ao usuário ou ao agente só citam comandos e tools que existem
 // (revisão adversária, M8): um "rode cabecao reindex" ou um "use handoff_save" manda o agente atrás do que não há.
 // Confere os textos entre aspas (fora de comentários) do código-fonte dos três pacotes.
 import { readdirSync, readFileSync } from 'node:fs';
@@ -7,10 +7,25 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
-const COMMANDS = ['init', 'status', 'doctor', 'sync', 'search', 'graph', 'facts', 'undo', 'mcp', 'install-client'];
+const COMMANDS = [
+  'init',
+  'status',
+  'doctor',
+  'sync',
+  'search',
+  'graph',
+  'facts',
+  'undo',
+  'mcp',
+  'install-client',
+  'embeddings',
+  'compact',
+  'eval',
+  'reindex',
+];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];
-/** Tools e comandos que NÃO existem no marco 1 e já apareceram em mensagens. */
+/** Tools e comandos que NÃO existem e já apareceram em mensagens. */
 const MISSING_TOOLS = /\b(?:handoff_save|forget|listOperations)\b/;
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
