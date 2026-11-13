@@ -1,0 +1,20 @@
+{
+  "name": "cabecao-website",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Site de documentação do Cabeção (Astro Starlight). Não faz parte do pacote publicado.",
+  "scripts": {
+    "docs:dev": "astro dev",
+    "docs:build": "astro build",
+    "docs:preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.11",
+    "@fontsource-variable/atkinson-hyperlegible-mono": "5.3.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
+    "astro": "7.4.11",
+    "sharp": "0.35.5",
+    "starlight-links-validator": "0.27.0"
+  }
+}

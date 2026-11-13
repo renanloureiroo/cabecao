@@ -14,6 +14,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "e2e": "node scripts/e2e.mjs",
+    "docs:dev": "pnpm --filter cabecao-website docs:dev",
+    "docs:build": "pnpm --filter cabecao-website docs:build",
+    "docs:preview": "pnpm --filter cabecao-website docs:preview",
     "changeset": "changeset",
     "version-packages": "changeset version"
   },
