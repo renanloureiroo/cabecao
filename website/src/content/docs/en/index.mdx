@@ -1,0 +1,61 @@
+---
+title: Cabeção
+description: Your second brain in Markdown and git, for you and your AI agents, served over MCP.
+template: splash
+hero:
+  title: A second brain your agents can read too
+  tagline: Your notes stay in Markdown, in a git repository you own. AI agents read and write them over MCP, and everything they do becomes a commit you can undo with one command.
+  image:
+    dark: ../../../assets/logo-dark.svg
+    light: ../../../assets/logo-light.svg
+    alt: ''
+  actions:
+    - text: Get started
+      link: /cabecao/en/comecar/instalacao/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/renanloureiroo/cabecao
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+:::caution[Beta version]
+Cabeção is in beta (`0.1.0-beta.1`). It already works for daily use, but the format and the commands may still change before version 1.0. Use a private repository and check the [release notes](/cabecao/en/novidades/) when you update.
+:::
+
+## Who it is for
+
+For people who work with AI agents (Claude Code, Codex, Cursor and others) and are tired of repeating the same preferences, decisions and gotchas in every new session. What you teach in one conversation is saved and comes back in the next one, in any client and on any machine.
+
+## What sets it apart
+
+<CardGrid>
+  <Card title="Your Markdown and git" icon="document">
+    Notes are `.md` files in a regular folder. You read and edit them in Obsidian or any editor. There is no
+    database that only Cabeção understands.
+  </Card>
+  <Card title="Any provider" icon="seti:git">
+    GitHub, GitLab, Bitbucket, Gitea, your own server or just your machine. Cabeção uses the git and the credentials
+    you already have; it does not depend on any provider's API.
+  </Card>
+  <Card title="Agents over MCP" icon="puzzle">
+    A local MCP server gives agents search, a graph, facts with time validity and tools to save memories, with
+    rules they cannot get around.
+  </Card>
+  <Card title="Everything is reversible" icon="random">
+    Every write is an identified commit. `cabecao undo` reverts one operation or an agent's whole session, without
+    rewriting history.
+  </Card>
+</CardGrid>
+
+## In three commands
+
+```bash
+npm i -g cabecao@beta
+cabecao init git@github.com:voce/cerebro.git
+cabecao doctor
+```
+
+`init` clones the repository, creates the structure (or adopts what is already there), builds the local index and registers the MCP server in the AI clients it finds. The step-by-step guide is in [Installation](/cabecao/en/comecar/instalacao/).
