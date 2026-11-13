@@ -6,7 +6,7 @@
 // verdadeiro; `cabecao llm off` desliga sem apagar nada.
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmod, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { writeFileAtomic } from '../util/atomic.ts';
 import { isErrno } from '../util/errors.ts';
 import { validateBaseUrl } from './http.ts';
@@ -41,6 +41,11 @@ export interface AgentProviderEntry {
   readonly agent: AgentProviderId;
   /** `null`: o mais barato que o agente deixa escolher. */
   readonly model: string | null;
+  /**
+   * O caminho REAL do executável, resolvido na ativação (`llm on`) e coberto pela confirmação assinada: o `ask` usa
+   * este, nunca o primeiro `claude` do PATH de quem chama.
+   */
+  readonly binary?: string;
   readonly consented_at: string | null;
   readonly consent?: string;
 }
@@ -141,10 +146,16 @@ function readEntry(id: string, value: unknown, problems: string[]): ProviderEntr
       problems.push(`"${id}.model" deveria ser texto ou null`);
       return null;
     }
+    const binary = value.binary;
+    if (binary !== undefined && (typeof binary !== 'string' || !isAbsolute(binary) || /[\0\n]/.test(binary))) {
+      problems.push(`"${id}.binary" deveria ser o caminho absoluto do executável`);
+      return null;
+    }
     return {
       kind: 'agent',
       agent: value.agent as AgentProviderId,
       model: model as string | null,
+      ...(binary === undefined ? {} : { binary: binary as string }),
       consented_at: consented,
       ...(consent === undefined ? {} : { consent }),
     };
@@ -292,6 +303,7 @@ function consentPayload(id: string, entry: ProviderEntry): string {
     entry.model,
     entry.kind === 'agent' ? null : entry.key,
     entry.consented_at,
+    entry.kind === 'agent' ? (entry.binary ?? null) : null,
   ]);
 }
 

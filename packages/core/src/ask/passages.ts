@@ -9,6 +9,7 @@ import type { ReadOutput, SearchInput, SearchOutput } from '../brain/read.ts';
 import type { Validity } from '../db/search.ts';
 import { DEFAULT_CHUNK_TOKENS, HEADING_PATH_SEPARATOR } from '../markdown/chunks.ts';
 import { scanSecrets } from '../security/scan.ts';
+import { hasPrivateBodyTag } from './policy.ts';
 
 /** O que o `ask` usa do cérebro aberto. */
 export type AskBrain = Pick<Brain, 'search' | 'read' | 'config' | 'privateNotes'>;
@@ -61,6 +62,8 @@ export interface Passage {
   readonly frontmatter: Readonly<Record<string, unknown>>;
   /** O frontmatter da nota não pôde ser lido: na dúvida, o trecho não sai. */
   readonly unreadable: boolean;
+  /** A nota tem a tag `#private` (ou `#private/...`) no corpo: é privada, como pelo frontmatter. */
+  readonly bodyPrivate: boolean;
   /** O trecho cruza um segredo achado na NOTA INTEIRA (por exemplo, o meio de uma chave PEM que passa da janela). */
   readonly tainted: boolean;
 }
@@ -85,7 +88,11 @@ export function normalizeForMatch(text: string): string {
 }
 
 /** Corta um texto em janelas de até `max` caracteres, nos parágrafos (ou, num parágrafo longo, no fim de frase). */
-export function textWindows(text: string, max: number = PASSAGE_CHARS): string[] {
+export function textWindows(
+  text: string,
+  max: number = PASSAGE_CHARS,
+  avoid: ReadonlySet<string> = new Set(),
+): string[] {
   const paragraphs = text
     .replace(/\r\n/g, '\n')
     .split(/\n\s*\n/)
@@ -97,7 +104,12 @@ export function textWindows(text: string, max: number = PASSAGE_CHARS): string[]
     while (rest.length > max) {
       const slice = rest.slice(0, max);
       const cut = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('\n'), slice.lastIndexOf('; '));
-      const at = cut > max * 0.3 ? cut + 1 : Math.max(slice.lastIndexOf(' '), Math.floor(max * 0.5));
+      let at = cut > max * 0.3 ? cut + 1 : Math.max(slice.lastIndexOf(' '), Math.floor(max * 0.5));
+      // nunca corta uma linha com segredo no meio: o corte vai para antes dela (ou, se ela abre o pedaço, depois dela)
+      for (const secret of avoid) {
+        const start = rest.indexOf(secret);
+        if (start !== -1 && start < at && at < start + secret.length) at = start > 0 ? start : start + secret.length;
+      }
       pieces.push(rest.slice(0, at).trim());
       rest = rest.slice(at).trim();
     }
@@ -191,12 +203,16 @@ export function secretLines(body: string): Set<string> {
 
 function touchesSecret(window: string, secret: ReadonlySet<string>): boolean {
   if (secret.size === 0) return false;
-  return window.split(/\r?\n/).some((line) => {
-    const trimmed = line.trim();
-    if (trimmed === '') return false;
-    if (secret.has(trimmed)) return true;
-    // uma janela cortada no meio de uma linha: um pedaço longo de uma linha secreta também conta
-    return trimmed.length >= 16 && [...secret].some((s) => s.includes(trimmed) || trimmed.includes(s));
+  const lines = window
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  return lines.some((line, index) => {
+    if (secret.has(line)) return true;
+    // a janela cortada no meio de uma linha com segredo: o pedaço da ponta conta, de qualquer tamanho (um valor curto
+    // sozinho na janela seguinte, por exemplo); no meio da janela, um pedaço longo também
+    const edge = index === 0 || index === lines.length - 1;
+    return [...secret].some((s) => (s.includes(line) && (edge || line.length >= 16)) || line.includes(s));
   });
 }
 
@@ -214,7 +230,7 @@ async function passagesFor(brain: AskBrain, ref: NoteRef, terms: readonly string
     }
   }
   const secret = secretLines(body);
-  const windows = textWindows(note.content)
+  const windows = textWindows(note.content, PASSAGE_CHARS, secret)
     .map((text, index) => ({ text, index, score: windowScore(text, terms) }))
     .sort((a, b) => b.score - a.score || a.index - b.index);
   const chosen = windows.slice(0, 1);
@@ -242,6 +258,7 @@ async function passagesFor(brain: AskBrain, ref: NoteRef, terms: readonly string
       content: window.text,
       frontmatter: fm,
       unreadable: read.frontmatter_error !== null,
+      bodyPrivate: hasPrivateBodyTag(body),
       tainted: touchesSecret(window.text, secret),
     }),
   );

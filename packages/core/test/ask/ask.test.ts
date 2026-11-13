@@ -109,8 +109,10 @@ describe('ask com o provedor falso', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(output.status).toBe('answered');
     expect(output.unsupported_claims).toBe(1);
     expect(output.removed_citations).toBe(1);
-    expect(output.answer).toContain('O Atlas usa Kafka. [sem apoio]');
-    expect(output.claims[1]).toEqual({ text: 'O Atlas usa Kafka.', supported: false, citations: [] });
+    // a afirmação sem apoio é texto livre do modelo: não sai (só conta)
+    expect(output.answer).toBe('O Atlas usa SQS. [1]');
+    expect(output.claims).toHaveLength(1);
+    expect(JSON.stringify(output)).not.toContain('Kafka');
   });
 
   it('mais da metade sem apoio: low_confidence', async () => {
@@ -132,6 +134,10 @@ describe('ask com o provedor falso', { timeout: TEST_TIMEOUT_MS }, () => {
     const { output } = await ask(brain, { question: 'Atlas migrou para SQS?' }, { providers: [provider] });
     expect(output.status).toBe('low_confidence');
     expect(output.unsupported_claims).toBe(2);
+    // só a conferida sai, e os trechos vão junto para o agente conferir
+    expect(output.answer).toBe('Certo. [1]');
+    expect(JSON.stringify(output)).not.toContain('Sem fonte');
+    expect(output.passages?.length).toBeGreaterThan(0);
   });
 
   it('a citação confere apesar de acentos, caixa, aspas curvas e espaços diferentes', async () => {
@@ -455,7 +461,7 @@ describe('injeção de instrução', { timeout: TEST_TIMEOUT_MS }, () => {
     const { output } = await ask(brain, { question: 'Atlas migrou para SQS?' }, { providers: [provider] });
     const text = JSON.stringify(output);
     expect(text).not.toMatch(/\\u001b|\\u0007|\\u0000|‮/);
-    expect(output.claims[0]?.text).toBe('Vermelho alert(1) **negrito** oculto');
+    expect(output.claims[0]?.text).toBe('Vermelho \\<script\\>alert(1)\\</script\\> **negrito** oculto');
     expect(output.missing).toBeNull();
   });
 });

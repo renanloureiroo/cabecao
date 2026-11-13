@@ -141,6 +141,7 @@ export const HTTP_PRESETS: Readonly<Record<HttpPresetId, HttpPreset>> = {
     policy: {
       summary:
         'O OpenRouter não guarda os prompts nem as respostas, a não ser que você ative o registro; o Cabeção pede só provedores que não coletam dados (provider.data_collection: "deny") e que aceitam todos os parâmetros do pedido.',
+      // o parâmetro data_collection: "deny" está em https://openrouter.ai/docs/guides/routing/provider-selection
       url: 'https://openrouter.ai/docs/guides/privacy/data-collection',
       checked: CHECKED,
     },
