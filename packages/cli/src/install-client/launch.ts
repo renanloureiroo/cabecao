@@ -14,7 +14,7 @@ export interface Launch {
 const EPHEMERAL_SEGMENT = /^(?:_npx|dlx|dlx-.*|xfs-.*|bunx-.*)$/;
 
 /** O arquivo do bin em uso, se ele mora num lugar estável (instalação global ou local) e é um `.mjs`/`.js`. */
-async function stableBin(binPath: string | undefined): Promise<string | undefined> {
+export async function stableBin(binPath: string | undefined): Promise<string | undefined> {
   if (binPath === undefined || binPath === '') return undefined;
   let real: string;
   try {
