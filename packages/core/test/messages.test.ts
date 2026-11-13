@@ -22,11 +22,15 @@ const COMMANDS = [
   'compact',
   'eval',
   'reindex',
+  'ingest',
+  'lint',
+  'forget',
+  'consolidate',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];
-/** Tools e comandos que NÃO existem e já apareceram em mensagens. */
-const MISSING_TOOLS = /\b(?:handoff_save|forget|listOperations)\b/;
+/** Tools e comandos que NÃO existem e já apareceram em mensagens (`handoff_save` e `forget` chegaram no marco 4). */
+const MISSING_TOOLS = /\b(?:listOperations|purge|forget_all|handoff_load)\b/;
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -72,7 +76,7 @@ describe('textos só citam o que existe', () => {
     expect(wrong).toEqual([]);
   });
 
-  it('nenhum texto manda usar tool que não existe (handoff_save, forget, listOperations)', () => {
+  it('nenhum texto manda usar tool que não existe (listOperations, purge...)', () => {
     const wrong: string[] = [];
     for (const file of files) {
       for (const text of literals(file)) {

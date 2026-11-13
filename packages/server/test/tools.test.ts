@@ -174,8 +174,20 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       );
       expect(related.relation).toMatchObject({ type: 'related_to', to: 'wiki/entities/SQS.md', link: '[[SQS]]' });
 
+      const handoff = check(
+        'handoff_save',
+        await server.client.call('handoff_save', {
+          session_handle: session,
+          scope: 'project:atlas',
+          done: ['Criei a nota do servidor MCP.'],
+          next: ['Testar com um cliente real.'],
+        }),
+      );
+      expect((handoff.handoff as { path: string }).path).toMatch(/^memory\/handoffs\//);
+      expect((handoff.episode as { path: string }).path).toMatch(/^memory\/episodes\//);
+
       const undone = check('undo', await server.client.call('undo', { session: session, session_handle: session }));
-      expect((undone.undone as unknown[]).length).toBe(5);
+      expect((undone.undone as unknown[]).length).toBe(6);
 
       // sem remoto configurado: o sync faz o que é local e diz como ficou
       const synced = check('sync', await server.client.call('sync', { session_handle: session }));

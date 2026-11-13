@@ -94,6 +94,7 @@ export const recallOutput = z.object({
   scope: z.string().nullable(),
   rules: z.array(dataItem),
   handoff: dataItem.nullable(),
+  handoff_seen: z.object({ at: z.string(), session: z.string() }).nullable(),
   preferences: z.array(dataItem),
   gotchas: z.array(dataItem),
   memories: z.array(dataItem),

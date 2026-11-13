@@ -26,6 +26,7 @@ import {
 } from './schemas.ts';
 import { rememberOutput } from './schemas-lifecycle.ts';
 import { registerGraphReadTools, registerRelateTool } from './tools-graph.ts';
+import { registerHandoffTool } from './tools-lifecycle.ts';
 
 /** Roda o sync em outro processo (a CLI faz isso); recebe o `session_handle` do agente, se houver. */
 export type SyncRunner = (input: { session_handle?: string }) => Promise<SyncOutput>;
@@ -50,6 +51,7 @@ export const TOOL_NAMES = [
   'facts',
   'status',
   'remember',
+  'handoff_save',
   'write_page',
   'patch_page',
   'relate',
@@ -151,6 +153,8 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     },
     (args, ctx) => run(ctx, async (brain) => (await brain()).remember(args)),
   );
+
+  registerHandoffTool(server, run);
 
   server.registerTool(
     'write_page',

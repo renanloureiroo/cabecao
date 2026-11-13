@@ -34,6 +34,8 @@ import {
 import { BrainError, toBrainError } from './errors.ts';
 import type { FactsInput, FactsOutput, GraphInput, GraphOutput } from './graph.ts';
 import { facts, graph } from './graph.ts';
+import type { HandoffSaveInput, HandoffSaveOutput } from './handoff.ts';
+import { handoffSave } from './handoff.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -126,6 +128,8 @@ export interface Brain {
   patchPage(input: PatchPageInput): Promise<WriteOutput>;
   /** Acrescenta uma relação tipada no frontmatter de uma nota (idempotente). */
   relate(input: RelateInput): Promise<RelateOutput>;
+  /** Passagem de bastão: o handoff (com validade) e, se a sessão fez algo, o episódio, num commit. */
+  handoffSave(input: HandoffSaveInput): Promise<HandoffSaveOutput>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -271,6 +275,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     writePage: (input) => writePage(ctx, input),
     patchPage: (input) => patchPage(ctx, input),
     relate: (input) => relate(ctx, input),
+    handoffSave: (input) => handoffSave(ctx, input),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {
