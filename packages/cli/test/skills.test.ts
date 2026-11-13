@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOL_NAMES } from '@cabecao/server';
+import { ASK_TOOL_NAME, TOOL_NAMES } from '@cabecao/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/commands.ts';
 import { GLOBAL_OPTIONS } from '../src/router.ts';
@@ -122,7 +122,7 @@ describe('formato e fonte única', () => {
       for (const line of text.split('\n').filter((candidate) => /\btools?\b/.test(candidate))) {
         for (const match of line.matchAll(/`([a-z][a-z_]*)`/g)) {
           const word = match[1] ?? '';
-          if (!notTools.has(word) && !(TOOL_NAMES as readonly string[]).includes(word) && word !== 'cabecao') {
+          if (!notTools.has(word) && ![...TOOL_NAMES, ASK_TOOL_NAME].includes(word) && word !== 'cabecao') {
             wrong.push(`${skill.name}: ${word}`);
           }
         }
@@ -273,8 +273,8 @@ describe('agente falso: roda o que as skills mandam', { timeout: TEST_TIMEOUT_MS
     return blocks(found.files.find((file) => file.path === 'SKILL.md')?.content ?? '');
   };
 
-  it('cabecao-consultar: recall traz regras, handoff e session_handle; search, read, graph e facts respondem', async () => {
-    const [recall = [], search = [], reading = []] = skill('cabecao-consultar');
+  it('cabecao-consultar: recall traz regras, handoff e session_handle; search, read, graph, facts e ask respondem', async () => {
+    const [recall = [], search = [], reading = [], asking = []] = skill('cabecao-consultar');
     for (const entry of recall) {
       const out = await agent('cabecao-consultar', entry);
       expect(out.code, entry.line).toBe(0);
@@ -297,6 +297,14 @@ describe('agente falso: roda o que as skills mandam', { timeout: TEST_TIMEOUT_MS
       const out = await agent('cabecao-consultar', entry);
       expect(out.code, entry.line).toBe(0);
       expect(out.json.ok).toBe(true);
+    }
+    // sem provedor de respostas nesta máquina: unavailable (código 5), com os trechos para o agente responder
+    expect(asking.length).toBeGreaterThan(0);
+    for (const entry of asking) {
+      const out = await agent('cabecao-consultar', entry);
+      expect(out.code, entry.line).toBe(5);
+      expect(out.data.status).toBe('unavailable');
+      expect((out.data.passages as unknown[]).length).toBeGreaterThan(0);
     }
   });
 
