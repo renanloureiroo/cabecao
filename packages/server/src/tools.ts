@@ -24,7 +24,15 @@ import {
   writeOutput,
   writePageInput,
 } from './schemas.ts';
+import { rememberOutput } from './schemas-lifecycle.ts';
 import { registerGraphReadTools, registerRelateTool } from './tools-graph.ts';
+import {
+  registerConsolidateTool,
+  registerForgetTool,
+  registerHandoffTool,
+  registerIngestTool,
+  registerLintTool,
+} from './tools-lifecycle.ts';
 
 /** Roda o sync em outro processo (a CLI faz isso); recebe o `session_handle` do agente, se houver. */
 export type SyncRunner = (input: { session_handle?: string }) => Promise<SyncOutput>;
@@ -48,11 +56,16 @@ export const TOOL_NAMES = [
   'graph',
   'facts',
   'status',
+  'lint',
   'remember',
+  'handoff_save',
   'write_page',
   'patch_page',
   'relate',
+  'ingest',
+  'forget',
   'sync',
+  'consolidate',
   'undo',
 ] as const;
 
@@ -138,18 +151,22 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     (_args, ctx) => run(ctx, async (brain) => (await brain()).status()),
   );
 
+  registerLintTool(server, run, READ_ONLY);
+
   server.registerTool(
     'remember',
     {
       title: 'Remember',
       description:
-        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact, handoff...) as a new note, committed to git. Never store passwords, tokens or keys.',
+        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact...), committed to git. Same scope and type are checked first: duplicates are skipped, supersets update, a fact with a new object supersedes; ambiguous cases return candidates for a second call with resolution. Never store secrets.',
       inputSchema: rememberInput,
-      outputSchema: writeOutput,
+      outputSchema: rememberOutput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     (args, ctx) => run(ctx, async (brain) => (await brain()).remember(args)),
   );
+
+  registerHandoffTool(server, run);
 
   server.registerTool(
     'write_page',
@@ -178,6 +195,8 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
   );
 
   registerRelateTool(server, run);
+  registerIngestTool(server, run);
+  registerForgetTool(server, (ctx) => runtime.brains.get(clientOf(server, ctx)), runtime.log);
 
   server.registerTool(
     'sync',
@@ -194,6 +213,8 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
         runtime.syncRunner === undefined ? (await brain()).sync(args) : runtime.syncRunner(args),
       ),
   );
+
+  registerConsolidateTool(server, run);
 
   server.registerTool(
     'undo',

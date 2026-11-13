@@ -105,11 +105,11 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(second.path).toBe('memory/gotchas/beta.md');
     // as notas são as de antes da segunda menos a primeira
     const expected = new Map(afterSecond);
-    expected.delete(first.path);
+    expected.delete(String(first.path));
     const now = await snapshot(dir);
     for (const [path, data] of expected) if (path !== 'index.md' && path !== 'log.md') expect(now.get(path)).toBe(data);
-    expect(now.has(first.path)).toBe(false);
-    expect(afterFirst.has(first.path)).toBe(true);
+    expect(now.has(String(first.path))).toBe(false);
+    expect(afterFirst.has(String(first.path))).toBe(true);
     expect((await errorOf(brain.undo({ op: first.op }))).code).toBe('already_undone');
     expect((await errorOf(brain.undo({ op: '7ZZZZZZZZZZZZZZZZZZZZZZZZZ' }))).code).toBe('not_found');
   });
@@ -121,7 +121,7 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
     const before = await snapshot(dir);
     const { session_handle: session } = await brain.recall({ task: 'qualquer' });
     const x = await brain.remember(gotcha('Sessão X', { session_handle: session }));
-    await brain.patchPage({ path: x.path, old: 'conteúdo', new: 'texto', session_handle: session });
+    await brain.patchPage({ path: String(x.path), old: 'conteúdo', new: 'texto', session_handle: session });
     await brain.remember(gotcha('Sessão Y', { session_handle: session }));
     const listed = await brain.listOperations({ session });
     expect(listed.operations.length).toBe(3);
@@ -154,7 +154,7 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
     const dir = await createBrainRepo();
     const brain = await openTest(dir);
     const created = await brain.remember(gotcha('Conflitante'));
-    await brain.patchPage({ path: created.path, old: 'conteúdo', new: 'conteúdo alterado' });
+    await brain.patchPage({ path: String(created.path), old: 'conteúdo', new: 'conteúdo alterado' });
     const before = await snapshot(dir);
     const sha = await head(dir);
     const error = await errorOf(brain.undo({ op: created.op }));
@@ -166,12 +166,12 @@ describe('undo', { timeout: TEST_TIMEOUT_MS }, () => {
 
     // edição sem commit no arquivo que o revert mudaria: também recusa sem mexer em nada
     const other = await brain.remember(gotcha('Editada depois'));
-    const edited = `${await readText(dir, other.path)}Linha do Obsidian.\n`;
-    await writeFile(join(dir, ...other.path.split('/')), edited);
+    const edited = `${await readText(dir, String(other.path))}Linha do Obsidian.\n`;
+    await writeFile(join(dir, ...String(other.path).split('/')), edited);
     const sha2 = await head(dir);
     expect((await errorOf(brain.undo())).code).toBe('conflict');
     expect(await head(dir)).toBe(sha2);
-    expect(await readText(dir, other.path)).toBe(edited);
+    expect(await readText(dir, String(other.path))).toBe(edited);
   });
 
   it('argumentos: op e session juntos, identificador inválido', async () => {

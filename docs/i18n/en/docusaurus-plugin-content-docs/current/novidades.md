@@ -11,6 +11,15 @@ npm i -g cabecao@beta
 
 ## Not yet released
 
+- **The memory lifecycle.** Five new MCP server tools and four CLI commands:
+  - `handoff_save`: the handoff, with an expiry, plus the session's episode; `recall` delivers the project's latest handoff and warns when it was already delivered to another session.
+  - `remember` handles duplicates and contradictions in the same scope and type: the same memory is skipped, one that complements updates, a fact with another object supersedes the old one, and the ambiguous case goes back to the agent to decide.
+  - `ingest` and [`cabecao ingest`](./referencia/cli.md#cabecao-ingest): register a source in `raw/` with `trust: low` and return the ingestion plan.
+  - `lint` and [`cabecao lint`](./referencia/cli.md#cabecao-lint): problem report by rules, read-only.
+  - `forget` and [`cabecao forget`](./referencia/cli.md#cabecao-forget): archive in `memory/_archive/`, with confirmation; they never delete.
+  - `consolidate` and [`cabecao consolidate`](./referencia/cli.md#cabecao-consolidate): maintenance with a restore point, closed in one commit that `undo` reverts entirely.
+  - MCP prompts `ingest`, `review`, and `consolidate`.
+- **Old memories never confirmed lose weight.** A preference, gotcha, or procedure without `confirmed` and not updated for 180 days ranks lower in search, without disappearing.
 - **More precise mentions.** A name attached to `_`, `/`, `\`, or `@` (such as `sqs_fila`, `filas/SQS`, or `ana@sqs`) no longer counts as an unlinked mention of another note.
 
 ## 0.1.0-beta.1

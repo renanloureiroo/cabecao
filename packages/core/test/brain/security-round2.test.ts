@@ -246,10 +246,14 @@ describe('R2-2: arquivos de instrução de clientes de IA, em qualquer pasta e c
     const dir = await createBrainRepo();
     const agent = await openTest(dir, { client: 'claude-code', actor: 'agent' });
     const written = await agent.remember({ type: 'entity', title: 'Claude', content: 'o modelo da Anthropic' });
-    expect(written.path.toLowerCase()).not.toBe('wiki/entities/claude.md');
+    expect(String(written.path).toLowerCase()).not.toBe('wiki/entities/claude.md');
     expect(written.path).toMatch(/^wiki\/entities\/Claude 2\.md$/);
     const gemini = await agent.remember({ type: 'concept', title: 'gemini', content: 'x' });
-    expect(gemini.path.slice(gemini.path.lastIndexOf('/') + 1).toLowerCase()).not.toBe('gemini.md');
+    expect(
+      String(gemini.path)
+        .slice(String(gemini.path).lastIndexOf('/') + 1)
+        .toLowerCase(),
+    ).not.toBe('gemini.md');
   });
 
   it('caminho com caractere invisível (AGENTS\\u200B.md) é recusado', async () => {

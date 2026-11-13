@@ -342,17 +342,17 @@ describe('relate', { timeout: TEST_TIMEOUT_MS }, () => {
       aliases: ['Kafka para eventos'],
       relations: { part_of: ['Projeto Atlas'], decided_by: ['Bruno Tavares', '[[Ana Prado]]'], related_to: ['SQS'] },
     });
-    const text = await readText(dir, out.path);
+    const text = await readText(dir, String(out.path));
     expect(text).toContain('part_of: ["[[Projeto Atlas]]"]');
     expect(text).toContain('decided_by: ["[[Bruno Tavares]]", "[[Ana Prado]]"]');
     expect(text).toContain('aliases: [Kafka para eventos]');
     expect(text).not.toContain('relations:');
-    const now = await brain.graph({ node: out.path, relation_types: ['decided_by'] });
+    const now = await brain.graph({ node: String(out.path), relation_types: ['decided_by'] });
     expect(now.neighbors.map((neighbor) => [neighbor.path, neighbor.links[0]?.validity])).toEqual([
       ['wiki/entities/Ana Prado.md', 'current'],
       ['wiki/entities/Bruno Tavares.md', 'current'],
     ]);
-    const later = await brain.graph({ node: out.path, relation_types: ['decided_by'], as_of: '2027-02-01' });
+    const later = await brain.graph({ node: String(out.path), relation_types: ['decided_by'], as_of: '2027-02-01' });
     expect(later.neighbors.every((neighbor) => neighbor.links[0]?.validity === 'expired')).toBe(true);
     const before = await brain.graph({ node: 'Kafka para eventos', as_of: '2026-10-01' });
     expect(before.resolved_by).toBe('alias');

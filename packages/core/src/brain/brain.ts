@@ -8,6 +8,8 @@ import { EmbeddingEngine } from '../embeddings/index.ts';
 import type { SyncStep } from '../sync/index.ts';
 import type { BrainConfig, EmbeddingConfig } from '../vault/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
+import type { ConsolidateInput, ConsolidateOutput } from './consolidate.ts';
+import { consolidate } from './consolidate.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
 import { assertOpen, machineName } from './context.ts';
 import type {
@@ -32,8 +34,16 @@ import {
   switchEmbeddings,
 } from './embeddings.ts';
 import { BrainError, toBrainError } from './errors.ts';
+import type { ForgetInput, ForgetOptions, ForgetOutput } from './forget.ts';
+import { forget } from './forget.ts';
 import type { FactsInput, FactsOutput, GraphInput, GraphOutput } from './graph.ts';
 import { facts, graph } from './graph.ts';
+import type { HandoffSaveInput, HandoffSaveOutput } from './handoff.ts';
+import { handoffSave } from './handoff.ts';
+import type { IngestInput, IngestOptions, IngestOutput } from './ingest.ts';
+import { ingest } from './ingest.ts';
+import type { LintInput, LintOutput } from './lint.ts';
+import { lint } from './lint.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -47,12 +57,14 @@ import type {
 import { read, recall, search, status } from './read.ts';
 import type { RelateInput, RelateOutput } from './relate.ts';
 import { relate } from './relate.ts';
+import type { RememberOutput } from './remember.ts';
+import { rememberWithDedup } from './remember.ts';
 import type { SyncInput, SyncOutput } from './sync.ts';
 import { sync } from './sync.ts';
 import type { ListOperationsInput, ListOperationsOutput, UndoInput, UndoOutput } from './undo.ts';
 import { listOperations, undo } from './undo.ts';
 import type { PatchPageInput, RememberInput, WriteOutput, WritePageInput } from './write.ts';
-import { patchPage, remember, writePage } from './write.ts';
+import { patchPage, writePage } from './write.ts';
 
 /** Nome de cliente aceito: vai para `origin: agent:<cliente>` e para o rodapé `Cabecao-Client`. */
 const CLIENT_RE = /^[A-Za-z0-9][\w.-]{0,63}$/;
@@ -111,15 +123,38 @@ export interface Brain {
   graph(input: GraphInput): Promise<GraphOutput>;
   /** Fatos por sujeito, predicado e objeto, e se valem numa data, com a cadeia de versões. */
   facts(input?: FactsInput): Promise<FactsOutput>;
+  /** Relatório de saúde por regras (sem LLM, só leitura): cada achado com severidade, caminho e correção. */
+  lint(input?: LintInput): Promise<LintOutput>;
 
-  /** Cria uma memória. Regras só com `actor: 'human'`. */
-  remember(input: RememberInput): Promise<WriteOutput>;
+  /**
+   * Grava uma memória, tratando duplicatas e contradições no mesmo escopo e tipo: igual → ignora; complementa →
+   * atualiza; contradiz → substitui; nova → cria; ambíguo → devolve as candidatas (`resolution` na segunda chamada).
+   * Regras só com `actor: 'human'`.
+   */
+  remember(input: RememberInput): Promise<RememberOutput>;
   /** Cria, sobrescreve ou acrescenta a uma página por caminho. */
   writePage(input: WritePageInput): Promise<WriteOutput>;
   /** Substituição exata e única no corpo de uma nota. */
   patchPage(input: PatchPageInput): Promise<WriteOutput>;
   /** Acrescenta uma relação tipada no frontmatter de uma nota (idempotente). */
   relate(input: RelateInput): Promise<RelateOutput>;
+  /** Passagem de bastão: o handoff (com validade) e, se a sessão fez algo, o episódio, num commit. */
+  handoffSave(input: HandoffSaveInput): Promise<HandoffSaveOutput>;
+  /**
+   * Registra uma fonte em `raw/` (`trust: low`) e devolve o plano de ingestão para o agente executar. `path` só de
+   * dentro do cérebro; `options` é só para a CLI (um arquivo que o usuário indicou).
+   */
+  ingest(input: IngestInput, options?: IngestOptions): Promise<IngestOutput>;
+  /**
+   * Arquiva uma nota em `memory/_archive/` (nunca apaga). Sem `confirm_token`, devolve o resumo e o token; com ele (ou
+   * com `options.userConfirmed`, que só o servidor MCP passa depois de perguntar ao usuário), executa.
+   */
+  forget(input: ForgetInput, options?: ForgetOptions): Promise<ForgetOutput>;
+  /**
+   * Consolidação: `start` cria o ponto de restauração e devolve o material e o `consolidation_id`; o agente escreve com
+   * as tools normais usando o id como `session_handle`; `finish` fecha tudo num commit, uma linha por nota.
+   */
+  consolidate(input: ConsolidateInput): Promise<ConsolidateOutput>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -257,14 +292,19 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     read: (input) => read(ctx, input),
     graph: (input) => graph(ctx, input),
     facts: (input) => facts(ctx, input),
+    lint: (input) => lint(ctx, input),
     status: async () => {
       assertOpen(ctx);
       return status(ctx, await machineName(ctx));
     },
-    remember: (input) => remember(ctx, input),
+    remember: (input) => rememberWithDedup(ctx, input),
     writePage: (input) => writePage(ctx, input),
     patchPage: (input) => patchPage(ctx, input),
     relate: (input) => relate(ctx, input),
+    handoffSave: (input) => handoffSave(ctx, input),
+    ingest: (input, options) => ingest(ctx, input, options),
+    forget: (input, options) => forget(ctx, input, options),
+    consolidate: (input) => consolidate(ctx, input),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {

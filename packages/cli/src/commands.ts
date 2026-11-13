@@ -260,6 +260,86 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/undo.ts'),
   },
   {
+    name: 'lint',
+    summary: 'Relatório de saúde do cérebro, por regras',
+    usage: ['lint [--rule <regra>...] [--scope <escopo>] [--limit <n>]'],
+    options: {
+      rule: {
+        type: 'string',
+        multiple: true,
+        valueName: 'regra',
+        description:
+          'Só estas regras (repita, ou separe por vírgula): invalid_frontmatter, fact_contradiction, conflict_copy, broken_link, expired_note, unconfirmed_memory, unlinked_mention, orphan_note',
+      },
+      scope: { type: 'string', valueName: 'escopo', description: '"global" ou "project:<nome>" (que inclui o global)' },
+      limit: { type: 'string', valueName: 'n', description: 'Máximo de achados, de 1 a 1000 (padrão: 200)' },
+    },
+    details: [
+      'Só lê: nada é alterado. Aponta fatos vigentes que se contradizem, links quebrados, notas órfãs, memórias sem',
+      'confirmação há mais de 180 dias, notas vencidas, menções sem link, cópias de conflito pendentes e notas com',
+      'frontmatter inválido, cada achado com a severidade, o caminho e a correção sugerida. Sem LLM: são regras.',
+      'Código de saída 1 quando há algum erro (frontmatter ilegível ou inválido); avisos e informativos saem com 0.',
+    ].join('\n'),
+    load: () => import('./commands/lint.ts'),
+  },
+  {
+    name: 'ingest',
+    summary: 'Registra uma fonte (artigo, ata, documento) em raw/',
+    usage: ['ingest <arquivo> [--title <título>] [--scope <escopo>]'],
+    options: {
+      title: { type: 'string', valueName: 'título', description: 'Título da fonte (padrão: o do arquivo)' },
+      scope: {
+        type: 'string',
+        valueName: 'escopo',
+        description: '"global" (padrão) ou "project:<nome>" para as notas',
+      },
+    },
+    details: [
+      'Copia o texto do arquivo (Markdown ou texto, até 4 MB) para raw/articles/, com origin: ingest:file e trust: low,',
+      'passando pelo scanner de segredos, num commit. Um arquivo que já está em raw/ não é copiado de novo. Mostra o',
+      'plano de ingestão (o que ler, que notas criar e atualizar): o Cabeção não tem LLM, quem escreve as notas é o',
+      'agente. O frontmatter do arquivo não vira frontmatter da nota: só título, fonte e autor são aproveitados.',
+    ].join('\n'),
+    load: () => import('./commands/ingest.ts'),
+  },
+  {
+    name: 'forget',
+    summary: 'Arquiva uma nota em memory/_archive/ (nunca apaga)',
+    usage: ['forget <id ou caminho> [--reason <texto>] [--yes]'],
+    options: {
+      reason: { type: 'string', valueName: 'texto', description: 'Por que esquecer (fica na nota arquivada)' },
+      yes: { type: 'boolean', description: 'Arquiva sem perguntar (sem terminal, é obrigatório)' },
+    },
+    details: [
+      'Mostra o que será arquivado e pergunta. A nota vai para memory/_archive/, sai da busca e do recall e continua no',
+      'git, num commit; "cabecao undo" a traz de volta. Pela CLI você arquiva qualquer nota, inclusive regras; um agente',
+      'não arquiva regras e precisa de confirmação em duas chamadas. Apagar de vez (reescrevendo o histórico) não existe.',
+    ].join('\n'),
+    load: () => import('./commands/forget.ts'),
+  },
+  {
+    name: 'consolidate',
+    summary: 'Prepara e fecha uma consolidação da memória',
+    usage: ['consolidate [--scope <escopo>]', 'consolidate --finish <id> [--title <rótulo>]'],
+    options: {
+      scope: { type: 'string', valueName: 'escopo', description: '"global" ou "project:<nome>" (que inclui o global)' },
+      finish: { type: 'string', valueName: 'id', description: 'Fecha a consolidação com este id num commit' },
+      title: {
+        type: 'string',
+        valueName: 'rótulo',
+        description: 'Com --finish: rótulo do commit (consolidate: <rótulo>)',
+      },
+    },
+    details: [
+      'Sem --finish: cria o ponto de restauração (a tag local cabecao/restore/<data>-<id>) e mostra o material',
+      '(episódios que se repetem, notas parecidas, achados do lint) e os passos para um agente seguir. O Cabeção não',
+      'tem LLM e este comando não chama nenhum agente: peça a um (Claude Code, por exemplo) para seguir os passos.',
+      'Com --finish: junta num commit tudo o que a consolidação gravou, com uma linha por nota. "cabecao undo',
+      '--session <id>" desfaz a consolidação inteira; "git reset --hard <tag>" volta ao ponto de restauração.',
+    ].join('\n'),
+    load: () => import('./commands/consolidate.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],

@@ -6,11 +6,17 @@
 // - o núcleo ganhou um campo que o esquema não declara. Como o JSON Schema publicado tem
 //   `additionalProperties: false`, um cliente que valida a saída recusaria o resultado.
 import type {
+  ConsolidateOutput,
   FactsOutput,
+  ForgetOutput,
   GraphOutput,
+  HandoffSaveOutput,
+  IngestOutput,
+  LintOutput,
   ReadOutput,
   RecallOutput,
   RelateOutput,
+  RememberOutput,
   SearchOutput,
   StatusOutput,
   SyncOutput,
@@ -28,6 +34,14 @@ import type {
   writeOutput,
 } from './schemas.ts';
 import type { factsOutput, graphOutput, relateOutput } from './schemas-graph.ts';
+import type {
+  consolidateOutput,
+  forgetOutput,
+  handoffSaveOutput,
+  ingestOutput,
+  lintOutput,
+  rememberOutput,
+} from './schemas-lifecycle.ts';
 
 /** Tira o `readonly` em profundidade (o Zod infere listas e objetos mutáveis). */
 type Writable<T> = T extends readonly (infer U)[]
@@ -75,4 +89,10 @@ export type OutputSchemasCoverCore = [
   Expect<Covers<GraphOutput, typeof graphOutput>>,
   Expect<Covers<FactsOutput, typeof factsOutput>>,
   Expect<Covers<RelateOutput, typeof relateOutput>>,
+  Expect<Covers<RememberOutput, typeof rememberOutput>>,
+  Expect<Covers<HandoffSaveOutput, typeof handoffSaveOutput>>,
+  Expect<Covers<IngestOutput, typeof ingestOutput>>,
+  Expect<Covers<LintOutput, typeof lintOutput>>,
+  Expect<Covers<ForgetOutput, typeof forgetOutput>>,
+  Expect<Covers<ConsolidateOutput, typeof consolidateOutput>>,
 ];
