@@ -5,7 +5,7 @@ export { compactIndex } from './compact.ts';
 export type { IndexOptions, IndexStep, SegmentIssue } from './context.ts';
 export { DEFAULT_MAX_SEGMENT_BYTES, INDEX_STEPS } from './context.ts';
 export { IndexRefRaceError } from './git.ts';
-export type { DrainSource, WriteResult } from './integrate.ts';
+export type { DrainSource, WriteResult as IndexWriteResult } from './integrate.ts';
 export type { EmbeddingModelSpec } from './layout.ts';
 export {
   EMBEDDINGS_DIR,
