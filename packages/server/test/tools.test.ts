@@ -115,6 +115,10 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
         validity: 'current',
       });
 
+      const linted = check('lint', await server.client.call('lint', { limit: 5 }));
+      expect(linted.data_notice).toMatch(/dado/);
+      expect((linted.findings as unknown[]).length).toBeLessThanOrEqual(5);
+
       const status = check('status', await server.client.call('status'));
       expect(status.client).toBe(expectedClient);
       expect(status.machine).toBe('maquina-teste');

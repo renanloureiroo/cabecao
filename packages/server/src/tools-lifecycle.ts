@@ -2,8 +2,15 @@
 // Cascas finas sobre o núcleo, como as de `tools.ts`: a forma da entrada é conferida pelo Zod e as regras (restrições
 // de agente, caminho dentro do cérebro, `confirm_token`, ponto de restauração) são do núcleo. A exceção é a
 // elicitação do `forget`, que é do protocolo: o servidor pergunta direto ao usuário quando o cliente declara suporte.
-import type { McpServer } from '@modelcontextprotocol/server';
-import { handoffSaveInput, handoffSaveOutput, ingestInput, ingestOutput } from './schemas-lifecycle.ts';
+import type { McpServer, ToolAnnotations } from '@modelcontextprotocol/server';
+import {
+  handoffSaveInput,
+  handoffSaveOutput,
+  ingestInput,
+  ingestOutput,
+  lintInput,
+  lintOutput,
+} from './schemas-lifecycle.ts';
 import type { ToolRunner } from './tools-graph.ts';
 
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
@@ -37,5 +44,21 @@ export function registerIngestTool(server: McpServer, run: ToolRunner): void {
       annotations: WRITE,
     },
     (args, ctx) => run(ctx, async (brain) => (await brain()).ingest(args)),
+  );
+}
+
+/** `lint`, registrada logo depois de `status`. */
+export function registerLintTool(server: McpServer, run: ToolRunner, readOnly: ToolAnnotations): void {
+  server.registerTool(
+    'lint',
+    {
+      title: 'Lint',
+      description:
+        'Read-only health report by rules: contradicting current facts, broken links, orphan notes, unconfirmed old memories, expired notes, unlinked mentions, conflict copies, invalid frontmatter. Each finding has severity, path and a suggested fix.',
+      inputSchema: lintInput,
+      outputSchema: lintOutput,
+      annotations: readOnly,
+    },
+    (args, ctx) => run(ctx, async (brain) => (await brain()).lint(args)),
   );
 }
