@@ -1,3 +1,0 @@
-function e(e,t,n){return`${e} ${e===1?t:n}`}const t=e=>String(e).padStart(2,`0`);function n(e){let n=new Date(e);return Number.isNaN(n.getTime())?e:`${n.getFullYear()}-${t(n.getMonth()+1)}-${t(n.getDate())} ${t(n.getHours())}:${t(n.getMinutes())}`}function r(e,t=`  `){return e.split(`
-`).map(e=>e===``?e:`${t}${e}`).join(`
-`)}function i(e){for(let[t,n]of[[1e9,`GB`],[1e6,`MB`],[1e3,`kB`]])if(e>=t)return`${(e/t).toLocaleString(`pt-BR`,{maximumFractionDigits:1})} ${n}`;return`${e} B`}export{e as i,n,r,i as t};
