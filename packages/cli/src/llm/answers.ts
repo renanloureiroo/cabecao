@@ -8,6 +8,7 @@ import { AnswerQuestionsError, evaluateAnswers, parseAnswerQuestions } from '@ca
 import { resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { requireHuman } from './human.ts';
 import { activeProviders, buildProvider, loadLlmMachine } from './machine.ts';
 
 const num = (value: number | null): string => (value === null ? '—' : value.toFixed(2).replace('.', ','));
@@ -36,6 +37,8 @@ export function answersText(report: AnswerEvalReport, source: string, who: strin
 }
 
 export async function runAnswersEval(ctx: CommandContext, file: string): Promise<CommandResult> {
+  // cada pergunta é uma chamada ao provedor do usuário: só ele decide gastar
+  requireHuman(ctx, 'Medir as respostas com o provedor');
   let questions: AnswerQuestion[];
   try {
     questions = parseAnswerQuestions(await readFile(resolve(ctx.cwd, file), 'utf8'), file);

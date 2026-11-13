@@ -34,6 +34,7 @@ import {
   registerHandoffTool,
   registerIngestTool,
   registerLintTool,
+  runConfirmable,
 } from './tools-lifecycle.ts';
 
 /** Roda o sync em outro processo (a CLI faz isso); recebe o `session_handle` do agente, se houver. */
@@ -105,6 +106,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
       return errorResult(toToolError(error, runtime.log));
     }
   };
+  const brainOf = (ctx: ServerContext): Promise<Brain> => runtime.brains.get(clientOf(server, ctx));
 
   server.registerTool(
     'recall',
@@ -170,12 +172,15 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Remember',
       description:
-        'Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact...), committed to git. Same scope and type are checked first: duplicates are skipped, supersets update, a fact with a new object supersedes; ambiguous cases return candidates for a second call with resolution. Never store secrets.',
+        "Save a durable, non-obvious memory (preference, correction, decision and why, gotcha, fact...), committed to git. Same scope and type are checked first: duplicates are skipped, supersets update, a fact with a new object supersedes; ambiguous cases return candidates for a second call with resolution. A rule (type: rule) needs the user's explicit request: the first call returns decision needs_confirmation with a summary and confirm_token. Never store secrets.",
       inputSchema: rememberInput,
       outputSchema: rememberOutput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    (args, ctx) => run(ctx, async (brain) => (await brain()).remember(args)),
+    (args, ctx) =>
+      runConfirmable(server, ctx, brainOf, runtime.log, args.confirm_token !== undefined, (brain, options) =>
+        brain.remember(args, options),
+      ),
   );
 
   registerHandoffTool(server, run);
@@ -185,12 +190,15 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Write page',
       description:
-        "Create, overwrite or append to a note by path. Validated against the schema, scanned for secrets and committed to git; undo reverts it. raw/ holds immutable sources (create only); the brain's control files (index.md, log.md), files named like AI-client instructions (AGENTS.md, CLAUDE.md, GEMINI.md...) in any folder, sync conflict copies (*.conflict-*) and memory/rules/ are user-only. Editing a note not created by an agent records edited_by (and lowers trust: high to medium).",
+        "Create, overwrite or append to a note by path. Validated against the schema, scanned for secrets and committed to git; undo reverts it. Needs the user's explicit request (the first call returns status confirmation_required with a summary and confirm_token; show it, ask, and call again with the token only if the user said yes): rules (type: rule, memory/rules/), the brain's control files and AI-client instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, log.md, .cabecao.json...; as plain text, no frontmatter), changes to raw/ sources and trust: high. index.md and sync conflict copies are never written. Editing a note not created by an agent records edited_by (and lowers trust: high to medium).",
       inputSchema: writePageInput,
       outputSchema: writeOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
-    (args, ctx) => run(ctx, async (brain) => (await brain()).writePage(args)),
+    (args, ctx) =>
+      runConfirmable(server, ctx, brainOf, runtime.log, args.confirm_token !== undefined, (brain, options) =>
+        brain.writePage(args, options),
+      ),
   );
 
   server.registerTool(
@@ -198,17 +206,22 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Patch page',
       description:
-        'Replace one exact snippet of a note body. Read the note first and copy `old` verbatim; it must appear exactly once.',
+        'Replace one exact snippet of a note body (or of a control file). Read it first and copy `old` verbatim; it must appear exactly once. Same confirmation as write_page for rules, control/instruction files and raw/.',
       inputSchema: patchPageInput,
       outputSchema: writeOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
-    (args, ctx) => run(ctx, async (brain) => (await brain()).patchPage(args)),
+    (args, ctx) =>
+      runConfirmable(server, ctx, brainOf, runtime.log, args.confirm_token !== undefined, (brain, options) =>
+        brain.patchPage(args, options),
+      ),
   );
 
-  registerRelateTool(server, run);
+  registerRelateTool(server, (ctx, hasToken, operation) =>
+    runConfirmable(server, ctx, brainOf, runtime.log, hasToken, operation),
+  );
   registerIngestTool(server, run);
-  registerForgetTool(server, (ctx) => runtime.brains.get(clientOf(server, ctx)), runtime.log);
+  registerForgetTool(server, brainOf, runtime.log);
 
   server.registerTool(
     'sync',
@@ -233,11 +246,14 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Undo',
       description:
-        'Undo with git revert: your last operation, one operation (the full op id returned by a write) or every write of a session (the full session_handle). Only agent operations can be undone here; the user undoes the rest with the CLI. Undoing an undo redoes it.',
+        "Undo with git revert: your last operation, one operation (the op id returned by a write) or every agent write of a session (the full session_handle). Undoing a user operation, or giving only the start of an id, needs the user's explicit request (first call returns confirmation_required with a summary and confirm_token). Undoing an undo redoes it.",
       inputSchema: undoInput,
       outputSchema: undoOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
-    (args, ctx) => run(ctx, async (brain) => (await brain()).undo(args)),
+    (args, ctx) =>
+      runConfirmable(server, ctx, brainOf, runtime.log, args.confirm_token !== undefined, (brain, options) =>
+        brain.undo(args, options),
+      ),
   );
 }

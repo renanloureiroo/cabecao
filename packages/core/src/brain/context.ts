@@ -41,6 +41,11 @@ export interface BrainContext {
   config: BrainConfig;
   readonly client: string;
   readonly actor: Actor;
+  /**
+   * As ações elevadas (regra, arquivo de controle, `raw/`...) passam pela confirmação também para o usuário: a CLI liga
+   * isto para perguntar no terminal antes de gravar. Para um agente a confirmação vale sempre.
+   */
+  readonly confirmElevated: boolean;
   readonly now: () => Date;
   readonly index: LocalIndex;
   readonly machineOption: string | undefined;

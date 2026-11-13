@@ -9,7 +9,7 @@ import {
   MAX_LINT_LIMIT,
 } from '@cabecao/core';
 import * as z from 'zod';
-import { dataNotice, INPUT_LIMITS, issue, sessionHandle, shortText, text } from './schemas.ts';
+import { confirmationShape, dataNotice, INPUT_LIMITS, issue, sessionHandle, shortText, text } from './schemas.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // handoff_save
@@ -49,7 +49,7 @@ export const handoffSaveOutput = z.object({
 
 export const rememberOutput = z.object({
   data_notice: dataNotice,
-  decision: z.enum(['created', 'updated', 'superseded', 'skipped', 'needs_resolution']),
+  decision: z.enum(['created', 'updated', 'superseded', 'skipped', 'needs_resolution', 'needs_confirmation']),
   op: z.string(),
   path: z.string().nullable(),
   id: z.string().nullable(),
@@ -77,6 +77,7 @@ export const rememberOutput = z.object({
   ),
   reason: z.string(),
   next_step: z.string().exactOptional(),
+  ...confirmationShape,
 });
 
 // ---------------------------------------------------------------------------------------------------------------

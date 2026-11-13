@@ -111,6 +111,6 @@ describe('lint', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(only.truncated).toBe(only.total > 2);
     expect((await errorOf(brain.lint({ rules: ['apagar_tudo'] }))).code).toBe('invalid_argument');
     expect((await errorOf(brain.lint({ limit: 0 }))).code).toBe('invalid_argument');
-    expect(LINT_RULES).toHaveLength(8);
+    expect(LINT_RULES).toHaveLength(9);
   });
 });

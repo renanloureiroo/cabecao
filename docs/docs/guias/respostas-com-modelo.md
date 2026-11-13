@@ -52,7 +52,7 @@ Pergunte com: cabecao ask "o que decidimos sobre ...?"
 Nos agentes, a tool "ask" aparece na próxima sessão (reinicie o cliente de IA).
 ```
 
-Ativar e trocar de provedor é **com você, no terminal**: sem um terminal interativo, ou rodando dentro de um agente, o `llm on` recusa. Um agente não ativa, não troca e não lê a chave, nem pela CLI nem por uma tool.
+Ativar, desligar, testar e apagar é **com você, no terminal**: sem um terminal controlador, ou rodando por um agente, o `llm` recusa com o código 4 (veja [Quem é humano e quem é agente](./humano-e-agente.md)); só o `llm status` roda para todos. Um agente não ativa, não troca, não testa e não lê a chave, nem pela CLI nem por uma tool, nem com token de confirmação. O `cabecao ask` é de memória: um agente pode perguntar.
 
 ### Provedores
 

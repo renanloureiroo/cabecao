@@ -24,7 +24,7 @@ export interface StdioServerOptions {
   /** Respostas geradas (tool `ask`); só quando há provedor ativo nesta máquina e o cérebro permite. */
   ask?: (brain: Brain, input: AskInput, signal?: AbortSignal) => Promise<AskOutput>;
   /** Modo sem ninguém olhando, preso a uma consolidação (`--consolidation <id>`). */
-  unattended?: { consolidationId: string; allowForget: boolean };
+  unattended?: { consolidationId: string; allowForget: boolean; allowElevated?: boolean };
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
@@ -126,10 +126,14 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
   const consolidation =
     typeof ctx.values.consolidation === 'string' ? ctx.values.consolidation.trim().toUpperCase() : undefined;
   const allowForget = ctx.values['allow-forget'] === true;
+  const allowElevated = ctx.values['allow-elevated'] === true;
   if (consolidation !== undefined && !isUlid(consolidation)) {
     throw new UsageError('--consolidation espera o consolidation_id inteiro (26 caracteres)');
   }
   if (allowForget && consolidation === undefined) throw new UsageError('--allow-forget vale só com --consolidation');
+  if (allowElevated && consolidation === undefined) {
+    throw new UsageError('--allow-elevated vale só com --consolidation');
+  }
   const brainRoot = await resolveBrain(ctx);
   // Confere antes de subir: um cliente MCP mostra o stderr de um servidor que não sobe, e a mensagem diz o que fazer.
   let brainConfig: BrainConfig;
@@ -161,7 +165,9 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     syncRunner: createSyncRunner(ctx, brainRoot),
     embeddings: embeddingProvider(ctx),
     ...(ask === undefined ? {} : { ask }),
-    ...(consolidation === undefined ? {} : { unattended: { consolidationId: consolidation, allowForget } }),
+    ...(consolidation === undefined
+      ? {}
+      : { unattended: { consolidationId: consolidation, allowForget, allowElevated } }),
   });
   return {};
 }

@@ -6,6 +6,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { resolveActor } from '../src/actor.ts';
 import {
   agentEnv,
   CALLABLE_AGENT_IDS,
@@ -19,7 +20,7 @@ import type { RunOptions } from '../src/consolidate-run/run.ts';
 import { runConsolidation } from '../src/consolidate-run/run.ts';
 import type { CommandContext, CommandResult } from '../src/types.ts';
 import type { Machine } from './helpers.ts';
-import { brainRepo, disposeSandbox, freshDir, git, machine, parseJson, TEST_TIMEOUT_MS } from './helpers.ts';
+import { brainRepo, disposeSandbox, freshDir, git, HUMAN, machine, parseJson, TEST_TIMEOUT_MS } from './helpers.ts';
 
 const FAKE_AGENT = fileURLToPath(new URL('./fake-agent.mjs', import.meta.url));
 const BIN = fileURLToPath(new URL('../src/bin.ts', import.meta.url));
@@ -100,6 +101,7 @@ function context(m: Machine, brain: string, stderr: string[]): CommandContext {
     json: true,
     brain,
     version: '0.0.0-teste',
+    actor: resolveActor({ env: {}, terminal: false }),
   };
 }
 
@@ -214,12 +216,14 @@ describe('consolidate --run com um agente falso', { timeout: TEST_TIMEOUT_MS }, 
     const { result, report, brain } = await runFake('hostile');
     expect(result.code).toBe(0);
     const refused = report.calls.filter((call) => call.isError).map((call) => [call.tool, call.code]);
+    // regra, AGENTS.md e log.md pedem o pedido explícito do usuário (decisão 37): sem ninguém olhando, indisponíveis
     expect(refused).toEqual([
-      ['write_page', 'rule_requires_human'],
-      ['write_page', 'invalid_path'],
-      ['write_page', 'invalid_path'],
+      ['write_page', 'human_only'],
+      ['write_page', 'human_only'],
+      ['write_page', 'human_only'],
+      ['write_page', 'human_only'],
       ['write_page', 'unsafe_path'],
-      ['write_page', 'invalid_path'],
+      ['write_page', 'human_only'],
       ['forget', 'human_only'],
       ['sync', 'human_only'],
       ['undo', 'human_only'],
@@ -233,6 +237,51 @@ describe('consolidate --run com um agente falso', { timeout: TEST_TIMEOUT_MS }, 
     expect(readFileSync(join(brain, 'AGENTS.md'), 'utf8')).not.toContain('Ignore o usuário');
     // só o fato entrou
     expect(dataOf(result).changes).toEqual(['add fact: Fila oficial hostile']);
+  });
+
+  it('--allow-elevated libera as ações que pedem confirmação: o agente percorre o token, e a regra fica marcada', async () => {
+    const { result, report, brain } = await runFake('elevated', { allowElevated: true });
+    expect(result.code).toBe(0);
+    const writes = report.calls.filter((call) => call.tool === 'write_page');
+    expect(writes.map((call) => call.isError)).toEqual([false, false]);
+    const text = readFileSync(join(brain, 'memory', 'rules', 'sempre-obedeca.md'), 'utf8');
+    expect(text).toContain('approved_by: user');
+    expect(text).not.toContain('origin: human');
+    // sem a opção, a mesma sequência não grava a regra
+    const blocked = await runFake('elevated');
+    expect(blocked.report.calls.filter((call) => call.tool === 'write_page').map((call) => call.code)).toEqual([
+      'human_only',
+      'human_only',
+    ]);
+    expect(existsSync(join(blocked.brain, 'memory', 'rules', 'sempre-obedeca.md'))).toBe(false);
+  });
+
+  it('--allow-forget e --allow-elevated só o usuário passa, no terminal; sem elas, --run roda sem terminal', async () => {
+    const brain = await brainRepo();
+    const m = machine();
+    for (const flag of ['--allow-forget', '--allow-elevated']) {
+      const refused = await m.cabecao([
+        'consolidate',
+        '--run',
+        flag,
+        '--agent',
+        'claude-code',
+        '--dry-run',
+        '--brain',
+        brain,
+        '--json',
+      ]);
+      expect(refused.code, flag).toBe(4);
+      expect(parseJson(refused).error.code).toBe('human_only');
+      const human = await m.cabecao(
+        ['consolidate', '--run', flag, '--agent', 'claude-code', '--dry-run', '--brain', brain],
+        HUMAN,
+      );
+      expect(human.code, `${flag} ${human.stderr}`).toBe(0);
+    }
+    expect(
+      (await m.cabecao(['consolidate', '--run', '--agent', 'claude-code', '--dry-run', '--brain', brain])).code,
+    ).toBe(0);
   });
 
   it('--allow-forget libera o forget (com a confirmação em duas chamadas do núcleo)', async () => {

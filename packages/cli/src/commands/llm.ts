@@ -484,6 +484,8 @@ async function testProvider(
 }
 
 async function runTest(ctx: CommandContext): Promise<CommandResult> {
+  // uma chamada de verdade: gasta com o provedor do usuário
+  requireHuman(ctx, 'Testar o provedor de respostas');
   const machine = await loadLlmMachine(ctx);
   if (machine.problem !== null) throw new CliError(machine.problem, { code: 'ELLM_CONFIG' });
   const config = machine.config;
@@ -590,6 +592,7 @@ async function runStatus(ctx: CommandContext): Promise<CommandResult> {
 // off e remove
 
 async function runOff(ctx: CommandContext): Promise<CommandResult> {
+  requireHuman(ctx, 'Desligar o provedor de respostas');
   const machine = await loadLlmMachine(ctx);
   if (machine.config === null || !machine.config.enabled) {
     return { data: { enabled: false }, text: 'As respostas já estão desligadas: nada sai da máquina.' };

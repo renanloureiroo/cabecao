@@ -1,8 +1,14 @@
 // As três tools do marco 3: `graph` e `facts` (leitura) e `relate` (escrita). Cascas finas sobre o núcleo, como as
 // de `tools.ts`: a forma da entrada é conferida pelo Zod e as regras (resolução da nota, data, restrições de agente)
 // são do núcleo.
-import type { Brain } from '@cabecao/core';
-import type { CallToolResult, McpServer, ServerContext, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { Brain, ConfirmOptions } from '@cabecao/core';
+import type {
+  CallToolResult,
+  InputRequiredResult,
+  McpServer,
+  ServerContext,
+  ToolAnnotations,
+} from '@modelcontextprotocol/server';
 import { factsInput, factsOutput, graphInput, graphOutput, relateInput, relateOutput } from './schemas-graph.ts';
 
 /** Executa a operação e monta o resultado (o `run` de `tools.ts`). */
@@ -40,18 +46,25 @@ export function registerGraphReadTools(server: McpServer, run: ToolRunner, readO
   );
 }
 
+/** Executa uma escrita que pode pedir confirmação (o `runConfirmable` de `tools-lifecycle.ts`). */
+export type ConfirmableRunner = (
+  ctx: ServerContext,
+  hasToken: boolean,
+  operation: (brain: Brain, options: ConfirmOptions) => Promise<object>,
+) => Promise<CallToolResult | InputRequiredResult>;
+
 /** `relate`, registrada logo depois de `patch_page`. */
-export function registerRelateTool(server: McpServer, run: ToolRunner): void {
+export function registerRelateTool(server: McpServer, run: ConfirmableRunner): void {
   server.registerTool(
     'relate',
     {
       title: 'Relate',
       description:
-        "Add a typed relation (uses, part_of, depends_on, decided_by, works_on, related_to, supersedes...) from one existing note to another, as a wikilink in the note's frontmatter, committed to git. Idempotent. Same limits as write_page: no rules, control files or raw/; editing a user note records edited_by.",
+        "Add a typed relation (uses, part_of, depends_on, decided_by, works_on, related_to, supersedes...) from one existing note to another, as a wikilink in the note's frontmatter, committed to git. Idempotent. Same limits as write_page: rules and raw/ notes need the user's explicit request (confirm_token); editing a user note records edited_by.",
       inputSchema: relateInput,
       outputSchema: relateOutput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    (args, ctx) => run(ctx, async (brain) => (await brain()).relate(args)),
+    (args, ctx) => run(ctx, args.confirm_token !== undefined, (brain, options) => brain.relate(args, options)),
   );
 }

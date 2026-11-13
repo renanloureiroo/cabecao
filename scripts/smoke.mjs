@@ -32,6 +32,12 @@ const COMMAND_NAMES = [
   'ingest',
   'forget',
   'consolidate',
+  'read',
+  'remember',
+  'write',
+  'patch',
+  'relate',
+  'handoff',
   'obsidian',
   'export',
   'upgrade',
@@ -241,7 +247,7 @@ if (expectUnsupported) {
     const llmOn = cabecao(['llm', 'on', '--provider', 'openai'], env);
     check(
       'llm on sem terminal recusa (ativar é com você no terminal), sem stack',
-      llmOn.code === 1 && llmOn.stderr.includes('terminal') && !/\n\s+at /.test(llmOn.stderr),
+      llmOn.code === 4 && llmOn.stderr.includes('terminal') && !/\n\s+at /.test(llmOn.stderr),
       llmOn,
     );
     const mcpJson = cabecao(['mcp', '--json'], { ...env, CABECAO_BRAIN: join(home, 'não existe') });

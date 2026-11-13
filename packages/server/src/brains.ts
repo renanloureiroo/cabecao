@@ -16,10 +16,30 @@ export interface UnattendedOptions {
   readonly consolidationId: string;
   /** Libera o `forget` (arquivar memória sem ninguém olhando só com opção explícita do usuário). */
   readonly allowForget: boolean;
+  /**
+   * Libera as ações que exigem o pedido explícito do usuário (decisão 37: regra, arquivo de controle, `raw/`,
+   * `trust: high`), só com a opção explícita `--allow-elevated`. Sem ela, essas ações ficam indisponíveis: sem ninguém
+   * olhando, não há usuário para confirmar, e o agente não pode percorrer sozinho o fluxo do token.
+   */
+  readonly allowElevated?: boolean;
 }
 
 /** Métodos que gravam e recebem `session_handle`: no modo sem ninguém olhando, a sessão é a da consolidação. */
 const SESSION_WRITES = new Set(['remember', 'writePage', 'patchPage', 'relate', 'forget']);
+
+/** Escritas que podem pedir confirmação (decisão 37); `undo` já fica bloqueado e `forget` tem a própria opção. */
+const CONFIRMABLE = new Set(['remember', 'writePage', 'patchPage', 'relate']);
+
+function elevatedUnavailable(): BrainError {
+  return new BrainError(
+    'human_only',
+    'numa consolidação automática (sem ninguém olhando) não há usuário para confirmar: regra, arquivo de controle ou de instrução, alteração em raw/ e trust: high ficam indisponíveis',
+    {
+      nextStep:
+        'Não faça esta alteração. Se algo merecer virar regra, proponha numa nota type: synthesis em wiki/syntheses/ e cite no resumo final; o usuário decide. (Só com --allow-elevated, opção do usuário no comando, essas ações ficam liberadas.)',
+    },
+  );
+}
 
 /** Bloqueados sem ninguém olhando: enviar ao remoto, desfazer, passar bastão, trazer conteúdo de fora. */
 const UNATTENDED_BLOCKED: Readonly<Record<string, string>> = {
@@ -84,6 +104,18 @@ export function unattendedBrain(brain: Brain, options: UnattendedOptions): Brain
             );
           }
           return method.call(target, input);
+        };
+      }
+      if (CONFIRMABLE.has(key) && options.allowElevated !== true) {
+        // sem a opção do usuário, a ação elevada não acontece: nem pelo token (o agente não o recebe, e um token
+        // trazido de fora é recusado), nem pela confirmação direta
+        return async (input: unknown, confirm?: unknown) => {
+          const record = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>;
+          const userConfirmed = (confirm as { userConfirmed?: unknown } | undefined)?.userConfirmed === true;
+          if (record.confirm_token !== undefined || userConfirmed) throw elevatedUnavailable();
+          const out = (await method.call(target, { ...record, session_handle: id })) as { status?: unknown };
+          if (out?.status === 'confirmation_required') throw elevatedUnavailable();
+          return out;
         };
       }
       if (SESSION_WRITES.has(key)) {

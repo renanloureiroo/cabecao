@@ -13,6 +13,7 @@ import {
   closeOpened,
   disposeSandbox,
   git,
+  HUMAN,
   machine,
   openAsAgent,
   parseJson,
@@ -299,7 +300,7 @@ describe('export canvas', { timeout: TEST_TIMEOUT_MS }, () => {
 
 describe('upgrade', { timeout: TEST_TIMEOUT_MS }, () => {
   it('esquema em dia; o modelo antigo aparece no status e o --template aplica', async () => {
-    const result = await m.cabecao(['upgrade', '--brain', brain]);
+    const result = await m.cabecao(['upgrade', '--brain', brain], HUMAN);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Esquema 1: em dia');
 
@@ -313,13 +314,13 @@ describe('upgrade', { timeout: TEST_TIMEOUT_MS }, () => {
       template: ['.gitignore'],
     });
 
-    const dry = await m.cabecao(['upgrade', '--template', '--dry-run', '--brain', brain]);
+    const dry = await m.cabecao(['upgrade', '--template', '--dry-run', '--brain', brain], HUMAN);
     expect(dry.stdout).toContain('AGENTS.md: editado por você');
     expect(dry.stdout).toContain('Diferença entre o seu AGENTS.md e o modelo atual');
     const agents = read('AGENTS.md');
 
     // sem terminal e sem --yes: o AGENTS.md editado fica, e o modelo novo vai para .cabecao/template/
-    const applied = await m.cabecao(['upgrade', '--template', '--brain', brain]);
+    const applied = await m.cabecao(['upgrade', '--template', '--brain', brain], HUMAN);
     expect(applied.code).toBe(0);
     expect(applied.stdout).toContain('.gitignore: linhas acrescentadas');
     expect(applied.stdout).toContain('.cabecao/template/AGENTS.md');
@@ -332,9 +333,12 @@ describe('upgrade', { timeout: TEST_TIMEOUT_MS }, () => {
   it('pergunta antes de trocar um arquivo editado', async () => {
     const questions: string[] = [];
     const result = await m.cabecao(['upgrade', '--template', '--brain', brain], {
-      prompt: async (question) => {
-        questions.push(question);
-        return 's';
+      // o usuário no terminal (upgrade é só dele): a pergunta vai ao terminal controlador
+      terminal: {
+        prompt: async (question: string) => {
+          questions.push(question);
+          return 's';
+        },
       },
     });
     expect(result.code).toBe(0);

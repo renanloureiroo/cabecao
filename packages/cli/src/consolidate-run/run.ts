@@ -62,6 +62,7 @@ export async function serverLaunch(
   brain: string,
   consolidationId: string,
   allowForget: boolean,
+  allowElevated = false,
 ): Promise<ServerLaunch> {
   const mcpArgs = [
     'mcp',
@@ -70,6 +71,7 @@ export async function serverLaunch(
     '--consolidation',
     consolidationId,
     ...(allowForget ? ['--allow-forget'] : []),
+    ...(allowElevated ? ['--allow-elevated'] : []),
   ];
   const env = serverEnv(ctx.env);
   if (ctx.binPath !== undefined && ctx.binPath !== '') {
@@ -135,6 +137,8 @@ export interface RunOptions {
   readonly dryRun: boolean;
   readonly model: string | undefined;
   readonly allowForget: boolean;
+  /** Libera as ações que exigem o pedido explícito do usuário (decisão 37). Só o usuário, no terminal, passa. */
+  readonly allowElevated?: boolean;
 }
 
 function shellQuote(value: string): string {
@@ -155,6 +159,7 @@ function placeholderPrompt(adapter: AgentAdapter, options: RunOptions): string {
     serverName: adapter.serverName,
     toolExample: adapter.toolExample,
     allowForget: options.allowForget,
+    allowElevated: options.allowElevated === true,
     scope: options.scope,
     materialJson: '<material do consolidate start>',
   });
@@ -169,7 +174,7 @@ async function dryRun(
 ): Promise<CommandResult> {
   const { agent } = chosen;
   const workDir = '<pasta temporária>';
-  const server = await serverLaunch(ctx, brain, '<consolidation_id>', options.allowForget);
+  const server = await serverLaunch(ctx, brain, '<consolidation_id>', options.allowForget, options.allowElevated);
   const invocation = adapter.prepare({
     workDir,
     server,
@@ -193,6 +198,7 @@ async function dryRun(
     'Restrições:',
     ...adapter.restrictions.map((line) => `  - ${line}`),
     `  - o servidor roda com --consolidation: sync, undo, handoff_save, ingest e consolidate start recusados${options.allowForget ? '' : '; forget também (use --allow-forget para liberar)'}`,
+    `  - ${options.allowElevated === true ? 'as ações que pedem confirmação (regra, arquivo de controle, raw/, trust: high) estão liberadas por --allow-elevated' : 'regra, arquivo de controle, raw/ e trust: high indisponíveis (não há usuário para confirmar; --allow-elevated libera)'}`,
   ];
   for (const file of invocation.files) lines.push('', `# ${workDir}/${file.path}`, file.content.trimEnd());
   lines.push('', '# Roteiro', invocation.stdin ?? placeholderPrompt(adapter, options));
@@ -310,13 +316,14 @@ export async function runConsolidation(
   try {
     const invocation = adapter.prepare({
       workDir,
-      server: await serverLaunch(ctx, brain, id, options.allowForget),
+      server: await serverLaunch(ctx, brain, id, options.allowForget, options.allowElevated),
       prompt: consolidateRunRoutine({
         consolidationId: id,
         restoreTag: tag,
         serverName: adapter.serverName,
         toolExample: adapter.toolExample,
         allowForget: options.allowForget,
+        allowElevated: options.allowElevated === true,
         scope: options.scope,
         materialJson: materialJson(started),
       }),

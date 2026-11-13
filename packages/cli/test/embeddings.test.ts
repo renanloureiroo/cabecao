@@ -26,7 +26,10 @@ function fakeMachine(name: string) {
   return {
     ...m,
     env,
-    run: (args: readonly string[], extra: Parameters<typeof m.cabecao>[1] = {}) => m.cabecao(args, { env, ...extra }),
+    // `embeddings` e `compact` são só do usuário no terminal: por padrão, um terminal controlador em que ninguém
+    // responde (cada teste que pergunta injeta o seu); `{ terminal: undefined }` simula um agente
+    run: (args: readonly string[], extra: Parameters<typeof m.cabecao>[1] = {}) =>
+      m.cabecao(args, { env, terminal: { prompt: async () => null }, ...extra }),
   };
 }
 
@@ -39,15 +42,22 @@ async function withRemote(): Promise<{ a: string; remote: string }> {
 }
 
 describe('cabecao embeddings', { timeout: TEST_TIMEOUT_MS * 2 }, () => {
-  it('on sem modelo e sem terminal: explica e mostra as sugestões; nada muda', async () => {
+  it('on sem terminal é de agente: recusado (só o usuário no terminal); sem resposta no terminal, nada muda', async () => {
     const dir = await brainRepo();
     const m = fakeMachine('a');
+    const agent = await m.run(['embeddings', 'on', 'multilingual-e5-small', '--brain', dir, '--json'], {
+      terminal: undefined,
+    });
+    expect(agent.code).toBe(4);
+    expect(parseJson(agent).error.code).toBe('human_only');
+    const status = await m.run(['embeddings', 'status', '--brain', dir, '--json'], { terminal: undefined });
+    expect(status.code, status.stderr).toBe(0);
     const result = await m.run(['embeddings', 'on', '--brain', dir, '--json']);
     expect(result.code).toBe(1);
     const out = parseJson(result);
     expect(out.error.code).toBe('model_required');
-    expect(out.error.hint).toMatch(/multilingual-e5-small/);
-    expect(out.error.hint).toMatch(/Gemma Terms of Use/);
+    expect(result.stderr).toMatch(/multilingual-e5-small/);
+    expect(result.stderr).toMatch(/Gemma Terms of Use/);
     expect((await readBrainConfig(dir)).embedding).toBeUndefined();
   });
 
@@ -59,7 +69,8 @@ describe('cabecao embeddings', { timeout: TEST_TIMEOUT_MS * 2 }, () => {
       asked.push(question);
       return '5';
     };
-    const result = await m.run(['embeddings', 'on', '--brain', dir], { prompt });
+    // o usuário num terminal controlador: a pergunta vai a ele (o terminal é injetado)
+    const result = await m.run(['embeddings', 'on', '--brain', dir], { terminal: { prompt } });
     expect(result.code, result.stderr).toBe(0);
     expect(asked[0]).toMatch(/Qual modelo/);
     expect(result.stderr).toMatch(/Modelos sugeridos/);
@@ -91,12 +102,12 @@ describe('cabecao embeddings', { timeout: TEST_TIMEOUT_MS * 2 }, () => {
     expect(brainStatus.stdout).toMatch(/embeddings na fila: 0 de \d+ trechos/);
   });
 
-  it('licença que não é de código aberto: sem terminal exige --yes', async () => {
+  it('licença que não é de código aberto: pergunta no terminal (sem resposta, cancela); --yes aceita', async () => {
     const dir = await brainRepo();
     const m = fakeMachine('a');
     const refused = await m.run(['embeddings', 'on', 'embeddinggemma-300m', '--brain', dir, '--json']);
     expect(refused.code).toBe(1);
-    expect(parseJson(refused).error.code).toBe('license_confirmation');
+    expect(parseJson(refused).error.code).toBe('cancelled');
     expect((await readBrainConfig(dir)).embedding).toBeUndefined();
     const accepted = await m.run(['embeddings', 'on', 'embeddinggemma-300m', '--yes', '--brain', dir, '--json']);
     expect(accepted.code, accepted.stderr).toBe(0);

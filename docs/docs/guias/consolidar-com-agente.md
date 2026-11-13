@@ -79,9 +79,12 @@ Não pode:
 
 - rodar comandos, ler ou editar arquivos por outro meio, nem acessar a rede (cada agente com as opções da tabela abaixo);
 - criar ou alterar regras (`memory/rules/`): uma regra só pode ser **proposta**, numa nota em `wiki/syntheses/`;
-- escrever em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, no `index.md`, no `log.md` ou fora do cérebro;
+- escrever em `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, no `log.md` e nos demais arquivos de controle, alterar fontes de `raw/` ou gravar `trust: high`. Numa sessão sua, essas ações acontecem com o seu pedido explícito, confirmado ([Quem é humano e quem é agente na CLI](./humano-e-agente.md)); aqui não há ninguém para confirmar, então ficam indisponíveis, nem com o token, a não ser que você passe `--allow-elevated`;
+- escrever no `index.md` ou fora do cérebro;
 - enviar ao remoto (`sync`), desfazer (`undo`), deixar recado para a próxima sessão (`handoff_save`) ou trazer conteúdo de fora (`ingest`);
 - arquivar notas (`forget`), a não ser que você passe `--allow-forget`;
+
+`--allow-forget` e `--allow-elevated` só você passa, no seu terminal: um processo sem terminal controlador (um agendamento, outro agente) que as tente sai com o código 4. Sem elas, o `--run` roda também sem terminal (agendado), e conta como agente;
 - gravar fora da sessão da consolidação: toda escrita vai com o id dela, e por isso `undo --session` alcança tudo.
 
 As restrições de agente de sempre continuam valendo; estas são a mais. Como cada agente é contido:
