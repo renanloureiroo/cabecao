@@ -221,7 +221,11 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   if (process.platform !== 'win32') await chmod(path, 0o600).catch(() => {});
 }
 
+/** A conta vai na linha de comando do `security -i`: só caracteres que não mudam o comando. */
+export const SAFE_ACCOUNT = /^[A-Za-z0-9._@:[\]-]{1,200}$/;
+
 async function keychainWrite(io: CredentialIo, id: string, key: string): Promise<void> {
+  if (!SAFE_ACCOUNT.test(id)) throw new Error('o nome da conta da chave tem caracteres inválidos');
   const run = io.runner ?? systemRunner;
   const env = minimalEnv(io.env);
   if (io.platform === 'darwin') {

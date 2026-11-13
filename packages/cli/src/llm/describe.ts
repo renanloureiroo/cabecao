@@ -14,7 +14,6 @@ import { posix, resolve, win32 } from 'node:path';
 import type { LlmConfig, ProviderEntry } from '@cabecao/core';
 import {
   activeProviderIds,
-  cacheDir,
   configDir,
   consentValid,
   HTTP_PRESETS,
@@ -39,6 +38,10 @@ export const CLAUDE_CODE_DESTINATION = 'Anthropic, pelo Claude Code instalado (c
 export interface LlmMachine {
   /** Pasta do `llm.json` (a padrão do usuário; veja o topo do arquivo). `null` se não deu para descobrir. */
   readonly configDir: string;
+  /**
+   * Pasta do `ask.log`: a mesma do `llm.json` (não a de cache, que segue o ambiente de quem roda; revisão adversária,
+   * 2ª rodada, G). Vazia quando não há pasta confiável: nada é registrado.
+   */
   readonly cacheDir: string;
   /** `null`: nada configurado (ou arquivo inválido: veja `problem`). */
   readonly config: LlmConfig | null;
@@ -93,12 +96,12 @@ export function trustedConfigDir(io: LlmIo): TrustedDir {
 }
 
 export async function loadLlmMachine(io: LlmIo): Promise<LlmMachine> {
-  const cache = cacheDir(dirContext(io));
   const trusted = trustedConfigDir(io);
   if (trusted.dir === null) {
-    return { configDir: '', cacheDir: cache, config: null, problem: trusted.problem, secret: null };
+    return { configDir: '', cacheDir: '', config: null, problem: trusted.problem, secret: null };
   }
   const dir = trusted.dir;
+  const cache = dir;
   const secret = await readConsentSecret(dir);
   try {
     return { configDir: dir, cacheDir: cache, config: await readLlmConfig(dir), problem: null, secret };

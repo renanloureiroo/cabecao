@@ -178,8 +178,12 @@ async function render(ctx: CommandContext, result: AskResult, streamed: number, 
     if (output.unsupported_claims > 0) {
       lines.push(
         '',
-        `${output.unsupported_claims} afirmação(ões) sem citação conferida, marcadas com [sem apoio]: confira com "cabecao search" antes de usar.`,
+        `${output.unsupported_claims} afirmação(ões) do modelo sem citação conferida foram descartadas${output.status === 'low_confidence' ? ' (mais da metade): confira com "cabecao search" antes de usar' : ''}.`,
       );
+    }
+    if (output.status === 'low_confidence') {
+      const block = passagesBlock(output, 3);
+      if (block.length > 0) lines.push('', ...block);
     }
     if (output.removed_citations > 0) {
       lines.push(

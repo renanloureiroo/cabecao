@@ -14,11 +14,11 @@
 // tem teto de 32.767 caracteres); a resposta volta em JSON validado pelo próprio Claude Code (`--json-schema`).
 // Flags conferidas com `claude --help` (2.1.323) e na referência da CLI (code.claude.com/docs/en/cli-reference).
 // NÃO usa `--bare`: ele não usa o login da assinatura.
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir, userInfo } from 'node:os';
+import { dirname, join } from 'node:path';
 import type { Availability, GenerateRequest, GenerateResult, GenerationProvider } from '@cabecao/core';
-import { ProviderError, redact } from '@cabecao/core';
+import { ProviderError, redact, spendRequest } from '@cabecao/core';
 import type { AgentProcessOptions, AgentProcessResult } from '../agents/index.ts';
 import { agentEnv, CALLABLE_AGENTS, locateAgent, runAgentProcess } from '../agents/index.ts';
 import type { Env } from '../types.ts';
@@ -33,12 +33,52 @@ export {
 
 const CLAUDE = CALLABLE_AGENTS['claude-code'];
 
-/** Ambiente mínimo do agente (a regra comum de `../agents/`), sem atualização automática e sem histórico de prompts. */
-export function claudeEnv(env: Env): Env {
-  return agentEnv(env, CLAUDE, CLAUDE.credentials(env), {
-    DISABLE_AUTOUPDATER: '1',
-    CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1',
-  });
+/**
+ * Ambiente mínimo do agente (a regra comum de `../agents/`), sem atualização automática e sem histórico de prompts.
+ *
+ * Com `restricted` (quem pergunta é um AGENTE, que controla o ambiente dos comandos que roda), nada do ambiente dele
+ * muda para onde o `claude` manda os trechos nem qual configuração ele lê: sem `ANTHROPIC_BASE_URL`,
+ * `CLAUDE_CONFIG_DIR`, as chaves e os desvios para Bedrock, Vertex ou Foundry; `HOME` (e, no Windows, `USERPROFILE`) é
+ * a pasta do usuário do SISTEMA (`os.userInfo()`); e o PATH só tem a pasta do executável confirmado, a do Node e as do
+ * sistema (um `claude` que é script acha o interpretador sem passar pelo PATH do agente).
+ */
+export function claudeEnv(
+  env: Env,
+  restricted = false,
+  binary?: string,
+  platform: NodeJS.Platform = process.platform,
+): Env {
+  const extra = { DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1' };
+  if (!restricted) return agentEnv(env, CLAUDE, CLAUDE.credentials(env), extra);
+  const base = agentEnv(env, { loginEnv: [] }, {}, extra) as Record<string, string | undefined>;
+  let home: string | undefined;
+  try {
+    home = userInfo().homedir;
+  } catch {
+    home = undefined;
+  }
+  const sep = platform === 'win32' ? ';' : ':';
+  const system =
+    platform === 'win32'
+      ? [
+          `${env.SystemRoot ?? env.SYSTEMROOT ?? 'C:\\Windows'}\\System32`,
+          env.SystemRoot ?? env.SYSTEMROOT ?? 'C:\\Windows',
+        ]
+      : ['/usr/local/bin', '/usr/bin', '/bin'];
+  const dirs = [...(binary === undefined ? [] : [dirname(binary)]), dirname(process.execPath), ...system];
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(base)) {
+    if (value === undefined || /^(XDG_|CLAUDE_CONFIG|ANTHROPIC_)/.test(name)) continue;
+    out[name] = value;
+  }
+  delete out.PATH;
+  delete out.Path;
+  out[platform === 'win32' ? 'Path' : 'PATH'] = [...new Set(dirs)].join(sep);
+  if (home !== undefined && home !== '') {
+    out.HOME = home;
+    if (platform === 'win32') out.USERPROFILE = home;
+  }
+  return out;
 }
 
 /** Argumentos exatos (sem shell). O prompt de sistema vai num arquivo da pasta temporária. */
@@ -174,6 +214,10 @@ export interface ClaudeCodeProviderOptions {
   readonly run?: (file: string, args: readonly string[], options: AgentProcessOptions) => Promise<AgentProcessResult>;
   /** Troca a busca no PATH (testes). */
   readonly locate?: () => Promise<string | undefined>;
+  /** O executável confirmado no `llm on` (caminho real): usado no lugar da busca no PATH. */
+  readonly binary?: string;
+  /** Quem pergunta é um agente: ambiente restrito (veja `claudeEnv`). */
+  readonly restricted?: boolean;
 }
 
 /** Acha o `claude` no PATH (a regra comum: no Windows, um `.cmd`/`.bat` é recusado), sem lançar. */
@@ -195,6 +239,22 @@ export function createClaudeCodeProvider(options: ClaudeCodeProviderOptions): Ge
   const model = options.model ?? CLAUDE_CODE_DEFAULT_MODEL;
   const run = options.run ?? runAgentProcess;
   const locate = async (): Promise<{ path: string | null; problem: string | null }> => {
+    if (options.binary !== undefined) {
+      const binary = options.binary;
+      return (await stat(binary).then(
+        (info) => info.isFile(),
+        () => false,
+      ))
+        ? { path: binary, problem: null }
+        : {
+            path: null,
+            problem: `o Claude Code confirmado (${binary}) não está mais lá; rode "cabecao llm on" de novo no seu terminal`,
+          };
+    }
+    if (options.restricted === true) {
+      // sem o caminho confirmado, um agente não escolhe qual "claude" roda
+      return { path: null, problem: 'falta o caminho do Claude Code confirmado; rode "cabecao llm on" de novo' };
+    }
     if (options.locate !== undefined) {
       const path = (await options.locate()) ?? null;
       return { path, problem: path === null ? 'o comando "claude" não foi encontrado' : null };
@@ -222,6 +282,7 @@ export function createClaudeCodeProvider(options: ClaudeCodeProviderOptions): Ge
       const found = await locate();
       if (found.path === null)
         throw new ProviderError('not_installed', found.problem ?? 'o Claude Code não foi encontrado');
+      spendRequest(request.budget);
       const workDir = await mkdtemp(join(options.tmpRoot ?? tmpdir(), 'cabecao-ask-'));
       try {
         const systemFile = join(workDir, 'system.txt');
@@ -229,7 +290,7 @@ export function createClaudeCodeProvider(options: ClaudeCodeProviderOptions): Ge
         const started = Date.now();
         const result = await run(found.path, claudeArgs({ schema: request.schema, model, systemFile }), {
           cwd: workDir,
-          env: claudeEnv(options.env),
+          env: claudeEnv(options.env, options.restricted === true, options.binary, options.platform),
           stdin: request.user,
           timeoutMs: request.timeoutMs,
           platform: options.platform,

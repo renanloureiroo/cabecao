@@ -2,7 +2,7 @@
 // verificação barata de cada um (binário no PATH, chave presente), SEM chamar o modelo: a chamada de verdade é o
 // `cabecao llm test`, que custa uma pergunta. O `init` não mostra nada disso (o RAG é opcional e sob demanda).
 import type { BrainConfig } from '@cabecao/core';
-import { readLlmPolicy } from '@cabecao/core';
+import { llmPolicyLookalikes, readLlmPolicy } from '@cabecao/core';
 import type { CheckResult } from '../doctor/checks.ts';
 import type { LlmIo, LlmSummary } from './describe.ts';
 import { llmSummary } from './describe.ts';
@@ -26,7 +26,17 @@ export async function llmCheck(io: LlmIo, brainConfig: BrainConfig | null, agent
       title,
       status: 'warn',
       message: `o "llm_policy" do .cabecao.json está inválido, e nada é enviado a provedor nenhum: ${policy.problem}`,
-      fix: 'Corrija o "llm_policy" (allow: "none", "agent" ou "any"; exclude_paths, exclude_types e exclude_trust como listas).',
+      fix: 'Corrija o "llm_policy" do .cabecao.json (só os campos allow: "none", "agent" ou "any"; exclude_paths, exclude_types e exclude_trust, como listas). "cabecao llm policy" mostra e grava a política.',
+    };
+  }
+  const lookalikes = brainConfig === null ? [] : llmPolicyLookalikes(brainConfig);
+  if (lookalikes.length > 0) {
+    return {
+      id: 'llm',
+      title,
+      status: 'warn',
+      message: `o .cabecao.json tem ${lookalikes.map((key) => `"${key}"`).join(', ')}, parecida com "llm_policy" e ignorada`,
+      fix: 'Apague a chave parecida; a política de envio vale só em "llm_policy" ("cabecao llm policy" grava).',
     };
   }
   if (summary.state === 'invalid') {

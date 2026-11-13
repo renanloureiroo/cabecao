@@ -36,7 +36,16 @@ interface Plan {
   program: string | null;
 }
 
-const LLM_FILES = ['llm.json', 'llm-consent.key', CREDENTIALS_FILE, DPAPI_FILE, USAGE_FILE];
+const LLM_FILES = [
+  'llm.json',
+  'llm-consent.key',
+  CREDENTIALS_FILE,
+  DPAPI_FILE,
+  USAGE_FILE,
+  'ask.log',
+  'ask.log.1',
+  'ask-usage.lock',
+];
 
 async function llmPlan(ctx: CommandContext): Promise<Plan['llm']> {
   const machine = await loadLlmMachine(ctx).catch(() => null);
@@ -102,7 +111,7 @@ async function makePlan(ctx: CommandContext): Promise<Plan> {
   };
 }
 
-function planText(plan: Plan, home: string, dryRun: boolean): string {
+function planText(plan: Plan, home: string, dryRun: boolean, agent = false): string {
   const show = (path: string) => displayPath(path, home);
   const lines = [
     dryRun ? 'O que "cabecao uninstall" tiraria desta máquina (nada foi feito):' : 'Vai sair desta máquina:',
@@ -122,7 +131,9 @@ function planText(plan: Plan, home: string, dryRun: boolean): string {
     lines.push(`  skills do Cabeção em ${show(skills.dir)} (${skills.clients.join(', ')}; só as que você não alterou)`);
   }
   if (plan.schedule !== null) lines.push(`  sync agendado (${plan.schedule.mechanism})`);
-  if (plan.llm !== null) {
+  if (plan.llm !== null && agent) {
+    lines.push('  respostas (ask): a configuração e as chaves guardadas (os detalhes, só no seu terminal)');
+  } else if (plan.llm !== null) {
     const keys = plan.llm.providers.map((provider) => provider.id);
     lines.push(
       `  respostas (ask): a configuração em ${show(plan.llm.dir)}${keys.length === 0 ? '' : ` e as chaves guardadas de ${keys.join(', ')} (cofre do sistema e arquivo)`}`,
@@ -155,8 +166,13 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   const dryRun = ctx.values['dry-run'] === true;
   const home = homeDir(ctx);
   const plan = await makePlan(ctx);
-  const text = planText(plan, home, dryRun);
-  if (dryRun) return { data: { action: 'dry-run', ...plan }, text };
+  // para um agente, nada do provedor de respostas (nome, destino, pasta): só que há configuração
+  const agent = ctx.actor.actor !== 'human';
+  const text = planText(plan, home, dryRun, agent);
+  if (dryRun) {
+    const shown = agent && plan.llm !== null ? { ...plan, llm: { configured: true } } : plan;
+    return { data: { action: 'dry-run', ...shown }, text };
+  }
 
   if (ctx.prompt === undefined) {
     throw new CliError(

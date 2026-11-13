@@ -4,7 +4,7 @@
 // terminal (código 4 para um agente); `status` roda para todos, mas para um agente diz só se as respostas estão ligadas.
 // A confirmação do `on` é assinada com um segredo local (`llm-consent.key`): um `llm.json` escrito à mão não ativa nada.
 
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   AgentProviderEntry,
@@ -273,10 +273,13 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
       });
     }
     id = AGENT_ID;
+    // o caminho real, resolvido agora e coberto pela confirmação: o ask nunca procura o "claude" no PATH de quem chama
+    const binary = await realpath(detected.claude.path).catch(() => detected.claude.path as string);
     entry = {
       kind: 'agent',
       agent: 'claude-code',
       model: flagModel ?? null,
+      binary,
       consented_at: consentedAt,
     } satisfies AgentProviderEntry;
   } else {
@@ -442,6 +445,7 @@ const TEST_PASSAGE: Passage = {
   content: 'Neste teste do Cabeção, o céu do planeta Atlas é verde-limão durante o dia inteiro.',
   frontmatter: {},
   unreadable: false,
+  bodyPrivate: false,
   tainted: false,
 };
 

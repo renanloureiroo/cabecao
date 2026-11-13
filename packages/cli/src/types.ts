@@ -161,5 +161,10 @@ export interface CommandSpec {
    * nem o JSON de `--json`, nem o de erro. Mensagens e erros vão só para stderr.
    */
   ownsStdout?: boolean;
+  /**
+   * Quem usa o comando é SEMPRE um agente, haja o terminal que houver: o `mcp` atende o cliente de IA, e o terminal
+   * controlador herdado de um cliente de terminal não faz dele o usuário (revisão adversária, 2ª rodada, A).
+   */
+  alwaysAgent?: boolean;
   load: () => Promise<CommandModule>;
 }
