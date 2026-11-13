@@ -21,6 +21,10 @@ A client counts as "detected" when its executable is on the `PATH` or its config
 
 ## Connect to Claude Code
 
+:::tip[Prefer the plugin]
+In Claude Code, the [Cabeção plugin](../guias/claude-code.md) does more than the registration below: it bundles the server, puts the brain's briefing at the start of every session, and syncs at the end. Use one or the other, not both (the tools would show up twice).
+:::
+
 ```bash
 cabecao install-client claude-code
 ```
