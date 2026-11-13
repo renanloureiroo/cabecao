@@ -56,7 +56,7 @@ export class MigrationError extends Error {
 }
 
 const UPDATE_HINT =
-  'Atualize o Cabeção nesta máquina ("npm i -g cabecao@latest" ou "npx cabecao@latest") e rode de novo.';
+  'Atualize o Cabeção nesta máquina e rode de novo ("cabecao doctor" mostra o comando para a sua instalação).';
 
 /** `schemaVersion` cru do `.cabecao.json`, sem a validação completa (que recusaria um esquema mais novo). */
 export async function readSchemaVersion(root: string): Promise<number> {

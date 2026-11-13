@@ -228,10 +228,8 @@ async function openIndexRetrying(root: string): Promise<LocalIndex> {
           cause: error,
         });
       }
-      throw new BrainError('index_failed', `não consegui abrir o banco local em ${root}/.cabecao: ${String(error)}`, {
-        nextStep: 'Rode "cabecao doctor"; apagar a pasta .cabecao/ é seguro (o banco é refeito a partir das notas).',
-        cause: error,
-      });
+      const failure = indexOpenFailure(root, error);
+      throw new BrainError('index_failed', failure.message, { nextStep: failure.nextStep, cause: error });
     }
   }
 }
@@ -346,5 +344,35 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
       );
       await ctx.engine.dispose();
     },
+  };
+}
+
+/**
+ * Por que o banco local não abriu, em português e com o que fazer. Sem permissão de escrita na pasta `.cabecao/` (ou
+ * com o disco só de leitura), o SQLite diz só "attempt to write a readonly database"; apagar a pasta não resolve.
+ */
+export function indexOpenFailure(root: string, error: unknown): { message: string; nextStep: string } {
+  const detail = error instanceof Error ? error.message : String(error);
+  const code = error instanceof Error ? ((error as NodeJS.ErrnoException).code ?? '') : '';
+  const local = `${root}/.cabecao`;
+  if (
+    /readonly|read-only|SQLITE_READONLY|SQLITE_CANTOPEN|unable to open database|EACCES|EPERM|EROFS/i.test(
+      `${code} ${detail}`,
+    )
+  ) {
+    return {
+      message: `não consegui gravar no banco local (${local}/cabecao.db): falta permissão de escrita na pasta ${local}, ou o disco está só para leitura`,
+      nextStep: `Libere a escrita na pasta (no macOS e no Linux: chmod -R u+w "${local}"; confira o dono com ls -ld "${local}") ou use o cérebro num disco em que você pode gravar. O banco é só uma visão das notas: nada se perdeu.`,
+    };
+  }
+  if (/ENOSPC|disk is full|SQLITE_FULL/i.test(`${code} ${detail}`)) {
+    return {
+      message: `não consegui gravar no banco local (${local}/cabecao.db): o disco está cheio`,
+      nextStep: 'Libere espaço no disco e rode de novo. O banco é só uma visão das notas: nada se perdeu.',
+    };
+  }
+  return {
+    message: `não consegui abrir o banco local em ${local}: ${detail}`,
+    nextStep: 'Rode "cabecao doctor"; apagar a pasta .cabecao/ é seguro (o banco é refeito a partir das notas).',
   };
 }
