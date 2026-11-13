@@ -25,7 +25,6 @@ Um comando para medir a qualidade da busca no seu próprio cérebro, com as suas
 
 - **Consolidação agendada**: rodar a consolidação com um agente não interativo, sem você abrir uma sessão. Hoje ela é preparada e fechada pelo `cabecao consolidate`, e um agente numa sessão sua faz o trabalho.
 - **Apagar de vez** (`cabecao purge`): tirar uma nota do histórico do git, para o caso raro de algo que não podia estar lá. Hoje o `forget` arquiva, e o arquivado continua no git.
-- **Integração com o Obsidian**: configuração do vault e painéis prontos em `dashboards/`.
-- **Pacote para o Claude Desktop**, para instalar o servidor com um clique.
+- **Explorador do grafo dentro do Claude**, para navegar pelas notas e relações numa janela da conversa.
 
 Quer acompanhar ou opinar? Abra uma [issue](https://github.com/renanloureiroo/cabecao/issues).

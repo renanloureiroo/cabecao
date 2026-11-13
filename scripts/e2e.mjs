@@ -467,7 +467,46 @@ async function main() {
   );
 
   await hooksPart(A, B, dirA, dirB);
+  await obsidianPart(A, B, dirA, dirB);
   await embeddingsPart(A, B, dirA, dirB, remote);
+}
+
+// Marco 5: configuração do Obsidian, painéis e mapa viajam pelo sync; a segunda máquina não tem nada a mudar.
+async function obsidianPart(A, B, dirA, dirB) {
+  const setupA = cabecao(A, ['obsidian', 'setup', '--json']);
+  check(
+    'A: obsidian setup cria .obsidian/ e os painéis',
+    setupA.code === 0 &&
+      existsSync(join(dirA, '.obsidian', 'graph.json')) &&
+      existsSync(join(dirA, 'dashboards', 'memorias.base')),
+    setupA,
+  );
+  const canvas = cabecao(A, ['export', 'canvas', '--json']);
+  check(
+    'A: export canvas grava o mapa em dashboards/',
+    canvas.code === 0 && existsSync(join(dirA, 'dashboards', 'mapa.canvas')),
+    canvas,
+  );
+  const syncA = cabecao(A, ['sync', '--json']);
+  const syncB = cabecao(B, ['sync', '--json']);
+  check(
+    'B: recebe a configuração do Obsidian, os painéis e o mapa pelo sync',
+    syncA.code === 0 && syncB.code === 0 && existsSync(join(dirB, 'dashboards', 'mapa.canvas')),
+    { syncA, syncB },
+  );
+  const setupB = cabecao(B, ['obsidian', 'setup', '--json']);
+  check(
+    'B: obsidian setup depois do sync não muda nada',
+    setupB.code === 0 && json(setupB)?.data?.files?.every((file) => file.status === 'unchanged') === true,
+    setupB,
+  );
+  // upgrade é só do usuário no terminal: roda como ele, num pseudo-terminal
+  const upgrade = cabecaoHuman(B, ['upgrade', '--json']);
+  check(
+    'B: upgrade sem migração pendente',
+    upgrade.code === 0 && json(upgrade)?.data?.status === 'up_to_date',
+    upgrade,
+  );
 }
 
 function alive(pid) {
