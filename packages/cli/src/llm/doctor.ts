@@ -7,8 +7,17 @@ import type { CheckResult } from '../doctor/checks.ts';
 import type { LlmIo, LlmSummary } from './describe.ts';
 import { llmSummary } from './describe.ts';
 
-export async function llmCheck(io: LlmIo, brainConfig: BrainConfig | null): Promise<CheckResult> {
+export async function llmCheck(io: LlmIo, brainConfig: BrainConfig | null, agent = false): Promise<CheckResult> {
   const summary = await llmSummary(io);
+  if (agent) {
+    // para um agente: só ligado ou desligado, nada de provedor, modelo, destino ou erro
+    return {
+      id: 'llm',
+      title: 'Respostas (ask)',
+      status: 'ok',
+      message: summary.state === 'on' ? 'respostas com modelo: ligadas' : 'respostas com modelo: desligadas',
+    };
+  }
   const title = 'Respostas (ask)';
   const policy = brainConfig === null ? null : readLlmPolicy(brainConfig);
   if (policy?.problem != null) {

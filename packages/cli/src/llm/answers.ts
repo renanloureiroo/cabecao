@@ -8,6 +8,7 @@ import { AnswerQuestionsError, evaluateAnswers, parseAnswerQuestions } from '@ca
 import { resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { confirmed } from './describe.ts';
 import { requireHuman } from './human.ts';
 import { activeProviders, buildProvider, loadLlmMachine } from './machine.ts';
 
@@ -73,8 +74,11 @@ export async function runAnswersEval(ctx: CommandContext, file: string): Promise
   } else {
     for (const id of wanted) {
       const entry = config?.providers[id];
-      if (entry === undefined || entry.consented_at === null) {
-        throw new UsageError(`o provedor "${id}" não está ativado nesta máquina (veja "cabecao llm status")`);
+      // respeita o "llm off" e a confirmação assinada: um provedor desligado ou não confirmado não é chamado
+      if (entry === undefined || config?.enabled !== true || !confirmed(machine, id, entry)) {
+        throw new UsageError(
+          `o provedor "${id}" não está ligado nesta máquina (veja "cabecao llm status"; "cabecao llm on" liga)`,
+        );
       }
       const provider = buildProvider(ctx, machine, id, entry);
       runs.push({ who: `provedor ${id} (modelo ${provider.model ?? 'padrão'})`, providers: [provider] });

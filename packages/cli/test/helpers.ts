@@ -121,6 +121,7 @@ export function machine(name = 'maquina'): Machine {
     },
     cabecao: (args, extra = {}) =>
       run(args, {
+        llmConfigDir: configDir,
         env,
         cwd: home,
         platform: process.platform,

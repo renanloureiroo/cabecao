@@ -4,11 +4,18 @@
 import { appendFile, mkdir, rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { GenerationProvider, ProviderEntry } from '@cabecao/core';
-import { activeProviderIds, createHttpProvider, HTTP_PRESET_IDS, HTTP_PRESETS } from '@cabecao/core';
+import {
+  activeProviderIds,
+  createHttpProvider,
+  HTTP_PRESET_IDS,
+  HTTP_PRESETS,
+  isLocalUrl,
+  ProviderError,
+} from '@cabecao/core';
 import type { Env } from '../types.ts';
 import { createClaudeCodeProvider, locateClaude } from './claude-code.ts';
 import type { CredentialRunner } from './credentials.ts';
-import { readKey } from './credentials.ts';
+import { credentialAccount, readKey } from './credentials.ts';
 
 import type { LlmIo, LlmMachine } from './describe.ts';
 
@@ -17,9 +24,13 @@ export { describeEntry, loadLlmMachine } from './describe.ts';
 
 let proxyEnabled: string | null | undefined;
 
+/** Destinos que NUNCA passam por proxy: um servidor nesta máquina não pode virar túnel para fora. */
+export const LOOPBACK_NO_PROXY = ['localhost', '127.0.0.1', '::1', '[::1]'];
+
 /**
  * O `fetch` do Node só passa pelo proxy de `HTTPS_PROXY` quando isso é ligado (Node ≥ 24 com `NODE_USE_ENV_PROXY=1`,
- * ou `http.setGlobalProxyFromEnv()` onde existe). Liga uma vez por processo quando há proxy no ambiente; devolve o
+ * ou `http.setGlobalProxyFromEnv()` onde existe). Liga uma vez por processo quando há proxy no ambiente, SEMPRE com os
+ * endereços desta máquina em `NO_PROXY` (um Ollama em localhost nunca vai por túnel ao proxy, em texto puro); devolve o
  * que foi feito, para o `llm status`.
  */
 export async function enableProxyFromEnv(env: Env): Promise<string | null> {
@@ -29,21 +40,42 @@ export async function enableProxyFromEnv(env: Env): Promise<string | null> {
     proxyEnabled = null;
     return null;
   }
-  if (env.NODE_USE_ENV_PROXY === '1') {
-    proxyEnabled = 'proxy do ambiente (NODE_USE_ENV_PROXY=1)';
-    return proxyEnabled;
-  }
+  const noProxy = [env.no_proxy ?? env.NO_PROXY ?? '', ...LOOPBACK_NO_PROXY].filter((item) => item !== '').join(',');
   const http = (await import('node:http')) as {
     setGlobalProxyFromEnv?: (env?: Record<string, string | undefined>) => unknown;
   };
   if (typeof http.setGlobalProxyFromEnv === 'function') {
-    http.setGlobalProxyFromEnv({ ...env });
-    proxyEnabled = 'proxy do ambiente (HTTPS_PROXY)';
+    http.setGlobalProxyFromEnv({ ...env, NO_PROXY: noProxy, no_proxy: noProxy });
+    proxyEnabled = 'proxy do ambiente (HTTPS_PROXY; endereços desta máquina sempre sem proxy)';
+  } else if (env.NODE_USE_ENV_PROXY === '1') {
+    proxyEnabled = 'proxy do ambiente (NODE_USE_ENV_PROXY=1; inclua localhost em NO_PROXY se usar um servidor local)';
   } else {
     proxyEnabled = `HTTPS_PROXY definido, mas este Node (${process.versions.node}) não deixa o fetch usar proxy: atualize para o Node 24 e defina NODE_USE_ENV_PROXY=1`;
   }
   return proxyEnabled;
 }
+
+/**
+ * O proxy do ambiente pode pegar um servidor desta máquina? Só quando quem ligou o proxy foi o próprio Node
+ * (`NODE_USE_ENV_PROXY=1`, sem `setGlobalProxyFromEnv` para pôr os endereços locais em `NO_PROXY`) e o `NO_PROXY` do
+ * ambiente não cobre `localhost` e `127.0.0.1`.
+ */
+export function loopbackMayBeProxied(env: Env, enabled: string | null | undefined): boolean {
+  if (enabled === null || enabled === undefined || !enabled.includes('NODE_USE_ENV_PROXY')) return false;
+  const noProxy = (env.NO_PROXY ?? env.no_proxy ?? '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item !== '');
+  if (noProxy.includes('*')) return false;
+  return !(noProxy.includes('localhost') && noProxy.includes('127.0.0.1'));
+}
+
+const refuseProxiedLoopback = async (): Promise<Response> => {
+  throw new ProviderError(
+    'network',
+    'o proxy do ambiente levaria o pedido a este servidor local para fora da máquina: inclua localhost,127.0.0.1 em NO_PROXY',
+  );
+};
 
 export interface BuildOptions {
   readonly credentialRunner?: CredentialRunner;
@@ -85,11 +117,15 @@ export function buildProvider(
           configDir: machine.configDir,
           ...(options.credentialRunner === undefined ? {} : { runner: options.credentialRunner }),
         },
-        id,
+        credentialAccount(id, entry),
         entry.key,
         preset.envKey,
       ),
-    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+    ...(options.fetch !== undefined
+      ? { fetch: options.fetch }
+      : isLocalUrl(entry.base_url ?? preset.baseUrl ?? '') && loopbackMayBeProxied(io.env, proxyEnabled)
+        ? { fetch: refuseProxiedLoopback }
+        : {}),
   });
 }
 
@@ -101,7 +137,8 @@ export async function activeProviders(
 ): Promise<GenerationProvider[]> {
   const config = machine.config;
   if (config === null) return [];
-  const ids = activeProviderIds(config);
+  // só os confirmados pelo usuário nesta máquina (assinatura local válida)
+  const ids = activeProviderIds(config, machine.secret);
   if (ids.some((id) => config.providers[id]?.kind === 'http')) await enableProxyFromEnv(io.env);
   return ids.map((id) => buildProvider(io, machine, id, config.providers[id] as ProviderEntry, options));
 }

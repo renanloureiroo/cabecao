@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import type { AskInput, AskOutput, Brain, BrainConfig, EmbeddingProvider, SyncOutput } from '@cabecao/core';
 import { isUlid, readBrainConfig } from '@cabecao/core';
-import { machineConfigDir, readMachine, resolveBrain, toCliError } from '../brain.ts';
+import { readMachine, resolveBrain, toCliError } from '../brain.ts';
 import { embeddingProvider } from '../embeddings.ts';
 import { CliError, UsageError } from '../errors.ts';
 import type { CliIo, CommandContext, CommandResult } from '../types.ts';
@@ -84,10 +84,14 @@ export function parseSyncProcessOutput(result: { code: number | null; stdout: st
  * servidor: ativar depois pede reiniciar o cliente de IA.
  */
 export async function askRunnerFor(
-  io: Pick<CliIo, 'env' | 'platform' | 'homedir' | 'stderr'>,
+  io: Pick<CliIo, 'env' | 'platform' | 'homedir' | 'stderr' | 'llmConfigDir'>,
   config: BrainConfig,
 ): Promise<StdioServerOptions['ask']> {
-  const exists = await stat(`${machineConfigDir(io)}/llm.json`).then(
+  // a pasta padrão do usuário; desviada por variável de ambiente, nada (o servidor roda para um agente; llm/describe.ts)
+  const { trustedConfigDir } = await import('../llm/describe.ts');
+  const { dir } = trustedConfigDir(io);
+  if (dir === null) return undefined;
+  const exists = await stat(`${dir}/llm.json`).then(
     () => true,
     () => false,
   );
@@ -95,8 +99,10 @@ export async function askRunnerFor(
   try {
     const { askAnnounced, runAsk } = await import('../llm/run.ts');
     if (!(await askAnnounced(io, config))) return undefined;
+    // um contador por processo: o teto por sessão do servidor (um cliente de IA aberto)
+    const session = { calls: 0 };
     return async (brain, input, signal) =>
-      (await runAsk(io, brain, input, signal === undefined ? {} : { signal })).output;
+      (await runAsk(io, brain, input, { session, ...(signal === undefined ? {} : { signal }) })).output;
   } catch (error) {
     io.stderr.write(
       `[cabecao] respostas (ask) indisponíveis: ${error instanceof Error ? error.message : String(error)}\n`,

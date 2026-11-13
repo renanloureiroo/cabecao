@@ -43,7 +43,7 @@ process.stdin.on('end', () => {
     return;
   }
   const marker = /Marca dos delimitadores desta mensagem: ([0-9a-f]+)/.exec(input)?.[1];
-  const match = new RegExp(`<<<TRECHO ${marker} (S\\d+)>>>\\n([\\s\\S]*?)\\n<<<FIM`).exec(input);
+  const match = new RegExp(`<<<TRECHO ${marker} (S\\d+)>>>\\n[\\s\\S]*?\\n---\\n([\\s\\S]*?)\\n<<<FIM`).exec(input);
   const label = match?.[1] ?? 'S1';
   const sentence =
     (match?.[2] ?? '')
