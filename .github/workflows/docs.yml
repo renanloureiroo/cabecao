@@ -1,5 +1,5 @@
-# Site de documentação (website/, Astro Starlight). Separado do CI do produto: só roda quando o site muda.
-# Em PR, só constrói (o build falha com link interno quebrado). Na main, constrói e publica no GitHub Pages.
+# Site de documentação (docs-site/, Docusaurus). Separado do CI do produto: só roda quando o site muda.
+# Em PR, só constrói (o build falha com link ou âncora interna quebrada). Na main, constrói e publica no GitHub Pages.
 # O GitHub Pages precisa estar ligado uma vez, com a origem "GitHub Actions" (Settings > Pages > Source).
 name: docs
 
@@ -7,12 +7,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "website/**"
+      - "docs-site/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
-      - "website/**"
+      - "docs-site/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
@@ -36,13 +36,13 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile --filter cabecao-website
+      - run: pnpm install --frozen-lockfile --filter cabecao-docs
       - name: build (com verificação de links internos)
         run: pnpm docs:build
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
-          path: website/dist
+          path: docs-site/build
 
   deploy:
     name: publica no GitHub Pages

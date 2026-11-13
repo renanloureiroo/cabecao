@@ -1,0 +1,26 @@
+{
+  "title": {
+    "message": "Cabeção",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "Cabeção",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Começar": {
+    "message": "Get started",
+    "description": "Navbar item with label Começar"
+  },
+  "item.label.Referência": {
+    "message": "Reference",
+    "description": "Navbar item with label Referência"
+  },
+  "item.label.Novidades": {
+    "message": "Release notes",
+    "description": "Navbar item with label Novidades"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

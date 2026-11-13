@@ -1,0 +1,151 @@
+---
+title: Criar ou conectar um cérebro
+description: O que o cabecao init faz em cada tipo de repositório, numa máquina nova ou na segunda máquina.
+sidebar_position: 2
+---
+
+`cabecao init` é o único comando de instalação. Você passa a URL do repositório e ele decide o resto pelo que encontra lá, sem perguntar nada:
+
+```bash
+cabecao init git@github.com:voce/cerebro.git
+```
+
+| O repositório tem | O que acontece |
+| --- | --- |
+| Nada (acabou de ser criado), ou só README e LICENSE | Cria a estrutura do cérebro, faz o primeiro commit e envia |
+| Um cérebro do Cabeção (`.cabecao.json` na raiz) | Só baixa: é a segunda máquina |
+| Um vault do Obsidian ou uma pasta de Markdown | Adota: acrescenta a configuração do Cabeção sem mover nenhum arquivo |
+| Outra coisa (um projeto de código, por exemplo) | Recusa e explica; nada fica para trás |
+
+Depois ele monta o índice local, registra o servidor MCP nos clientes de IA que encontrar (como `cabecao install-client --all`) e roda o [`doctor`](../referencia/cli.md#cabecao-doctor).
+
+O cérebro fica em `~/cabecao`. Para outra pasta, use `--dir`. O nome da máquina sai do nome do computador; para escolher, use `--machine`. Ele aparece nos commits e no nome das cópias de conflito.
+
+## Repositório vazio
+
+```text
+$ cabecao init git@github.com:voce/cerebro.git --machine notebook
+cabecao: consultando o remoto...
+cabecao: baixando o repositório...
+cabecao: vendo o que há no repositório...
+cabecao: criando a estrutura do cérebro...
+cabecao: fazendo o commit inicial...
+cabecao: gravando a configuração desta máquina...
+cabecao: enviando ao remoto...
+cabecao: montando o índice local...
+Pasta do cérebro: ~/cabecao (máquina notebook)
+
+Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
+
+Índice local: 0 notas indexadas em 2 ms.
+
+Clientes de IA:
+  Claude Code: registrado
+    ~/.claude.json: registrado
+  Reinicie o cliente para ele enxergar a mudança.
+
+Diagnóstico (cabecao doctor, sem consultar o remoto de novo):
+  ok     Node.js                  v24.21.0
+  ok     git                      2.54.0
+  ok     Cérebro                  ~/cabecao (esquema 1)
+  ok     Configuração da máquina  máquina "notebook"
+  ok     Identidade do git        Ana Exemplo <ana@exemplo.invalid>
+  ok     Assinatura de commits    commit.gpgsign desligado
+  ok     Remoto                   origin (git@github.com:voce/cerebro.git); não consultado (--offline)
+  ok     .gitignore               tem as linhas que o Cabeção precisa
+  ok     .gitattributes           tem as linhas que o Cabeção precisa
+  ok     Banco local              em dia com o último commit (0 nota(s), varrido em 2026-11-13 00:03)
+  ok     Travas                   nenhuma trava órfã
+  ok     Operações interrompidas  nenhuma
+  ok     Conflitos                nenhum pendente
+  ok     Clientes MCP             1 cliente(s) registrado(s)
+                                  - Claude Code: ~/.claude.json: registrado para este cérebro
+
+  14 ok, 0 avisos, 0 falhas.
+
+Próximos passos:
+  - Em outra máquina, rode cabecao init git@github.com:voce/cerebro.git.
+```
+
+As linhas que começam com `cabecao:` mostram o progresso e vão para a saída de erro. A estrutura criada está em [Estrutura do cérebro](../conceitos/estrutura.md).
+
+## Segunda máquina (cérebro existente)
+
+Na outra máquina, instale o Cabeção e rode o mesmo comando, com a mesma URL (início da saída; o diagnóstico vem depois):
+
+```text
+$ cabecao init git@github.com:voce/cerebro.git --machine trabalho
+cabecao: consultando o remoto...
+cabecao: baixando o repositório...
+cabecao: vendo o que há no repositório...
+cabecao: gravando a configuração desta máquina...
+cabecao: montando o índice local...
+Pasta do cérebro: ~/cabecao (máquina trabalho)
+
+Repositório: Cérebro existente: clonado em ~/cabecao (branch main).
+
+Índice local: 3 notas indexadas em 41 ms.
+
+Clientes de IA:
+  Claude Code: registrado
+    ~/.claude.json: registrado
+  Reinicie o cliente para ele enxergar a mudança.
+```
+
+Nada no repositório muda. O índice local é montado a partir das notas, e as memórias gravadas na primeira máquina já aparecem para os agentes desta. Para manter as duas em dia, veja [Sincronizar entre máquinas](../guias/sincronizar-maquinas.md).
+
+## Vault do Obsidian ou pasta de Markdown
+
+Se o repositório já tem notas, o Cabeção adota o que existe. Nenhum arquivo é movido nem renomeado (início da saída):
+
+```text
+$ cabecao init git@github.com:voce/vault-obsidian.git --dir ~/Obsidian/Notas --machine notebook --no-clients
+Pasta do cérebro: ~/Obsidian/Notas (máquina notebook)
+
+Repositório: Vault adotado sem mover nenhum arquivo: .cabecao.json, .gitattributes, .gitignore, AGENTS.md, CLAUDE.md acrescentados ou completados e enviados na branch main.
+
+Índice local: 3 notas indexadas em 7 ms.
+```
+
+As pastas que já têm notas entram na lista de pastas de notas do `.cabecao.json`, ao lado de `wiki`, `memory` e `raw`, onde o Cabeção grava as notas novas. Os detalhes estão em [Adotar um vault existente](../guias/adotar-vault.md).
+
+## Só nesta máquina
+
+Sem URL, o cérebro é criado só local, sem remoto (início da saída):
+
+```text
+$ cabecao init --machine notebook --no-clients
+Pasta do cérebro: ~/cabecao (máquina notebook)
+
+Repositório: Cérebro criado só nesta máquina, em ~/cabecao (branch main). Nenhum remoto foi ligado.
+```
+
+Tudo funciona igual, inclusive o `undo`: o histórico é um repositório git local. O `sync` só avisa que não há remoto. Para ligar um depois, crie um repositório privado e vazio e, na pasta do cérebro:
+
+```bash
+git remote add origin git@github.com:voce/cerebro.git
+git push -u origin main
+cabecao sync
+```
+
+## Quando o init recusa
+
+Um repositório com cara de projeto de código (`package.json`, `src/`, `Cargo.toml` e outros marcadores) não vira cérebro:
+
+```text
+$ cabecao init git@github.com:voce/projeto-codigo.git --no-clients
+O cérebro não foi criado: git@github.com:voce/projeto-codigo.git não parece um cérebro nem um vault de notas: parece um projeto de código: tem package.json, src/. Nada foi criado nesta máquina nem alterado no remoto.
+O que fazer: use um repositório vazio (de preferência privado) ou um vault de notas em Markdown. Ou comece só local: "cabecao init" sem a URL.
+```
+
+O código de saída é 1 e nada fica para trás, nem na máquina nem no remoto. Erros de endereço e de credencial estão em [Solução de problemas](../problemas.md).
+
+## Opções
+
+| Opção | O que faz |
+| --- | --- |
+| `--dir <pasta>` | Pasta do cérebro (padrão: `~/cabecao`) |
+| `--machine <nome>` | Nome desta máquina (padrão: o nome do computador). Vira minúsculas, dígitos e hífen, até 32 caracteres: `"Meu PC"` fica `meu-pc` |
+| `--no-clients` | Não registra o servidor MCP nos clientes de IA |
+
+A lista completa, com as opções globais, está na [referência da CLI](../referencia/cli.md#cabecao-init).
