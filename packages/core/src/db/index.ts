@@ -104,6 +104,7 @@ export {
   chunksForKeys,
   DEFAULT_CANDIDATE_DEPTH,
   embeddingInputs,
+  embeddingKeys,
   keywordCandidates,
   MIN_IDF,
   termIdfs,

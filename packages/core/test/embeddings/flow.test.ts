@@ -69,6 +69,29 @@ describe('embeddings entre duas máquinas', { timeout: TEST_TIMEOUT_MS * 2 }, ()
     expect(providerB.stats.queries).toBe(1);
   });
 
+  it('nota gravada depois do cálculo: a busca avisa que há trecho sem vetor, e o aviso some quando o sync calcula', async () => {
+    const { a } = await world();
+    const brain = await openHuman(a, fakeProvider());
+    await brain.setEmbedding(TEST_EMBEDDING);
+    await brain.computeEmbeddings();
+    expect((await brain.search({ query: QUESTION })).warnings).toEqual([]);
+
+    await brain.remember({
+      type: 'gotcha',
+      title: 'Cópia noturna',
+      content: 'A cópia de segurança roda de madrugada.',
+    });
+    const before = await brain.search({ query: QUESTION });
+    expect(before.mode_used).toBe('hybrid');
+    expect(before.warnings).toHaveLength(1);
+    expect(before.warnings[0]).toMatch(/^1 trecho\(s\) ainda sem vetor/);
+    // por palavra-chave não há o que avisar: nenhum vetor entra na conta
+    expect((await brain.search({ query: QUESTION, mode: 'keyword' })).warnings).toEqual([]);
+
+    expect((await brain.sync()).index).toMatchObject({ computed: 1, pending: 0 });
+    expect((await brain.search({ query: QUESTION })).warnings).toEqual([]);
+  });
+
   it('só o que falta é calculado: editar recalcula o trecho; mover não recalcula; mudar o título recalcula a nota', async () => {
     const { a } = await world();
     const provider = fakeProvider();
