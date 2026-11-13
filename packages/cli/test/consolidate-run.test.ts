@@ -72,6 +72,12 @@ function context(m: Machine, brain: string, stderr: string[]): CommandContext {
       ...m.env,
       // o servidor que o agente sobe precisa do git de verdade e da identidade de teste
       PATH: process.env.PATH ?? '',
+      // no Windows, o Node e o git dos filhos precisam das variáveis do sistema
+      ...Object.fromEntries(
+        ['SystemRoot', 'windir', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP']
+          .map((name) => [name, process.env[name]])
+          .filter((entry): entry is [string, string] => entry[1] !== undefined),
+      ),
       GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL ?? '',
       GIT_CONFIG_NOSYSTEM: '1',
       SEGREDO_QUALQUER: 'nao-deveria-chegar-ao-agente',
@@ -119,7 +125,6 @@ async function runFake(
     },
   );
   const report = JSON.parse(readFileSync(reportPath, 'utf8')) as Report;
-  if (process.env.DEBUG_FAKE === '1') console.error(JSON.stringify(report.calls, null, 1));
   pids.push(report.pid);
   if (report.serverPid !== null) pids.push(report.serverPid);
   return { result, report, brain, stderr: stderr.join('') };
