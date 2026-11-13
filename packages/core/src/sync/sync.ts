@@ -716,6 +716,7 @@ async function runSync(
       if (edit !== null && 'denied' in edit) {
         stop({
           status: 'error',
+          reason: 'permission',
           message: `O git não conseguiu gravar o commit das edições feitas fora do Cabeção: falta permissão de escrita na pasta .git do cérebro, ou o disco está só para leitura${edit.denied === '' ? '' : ` (${edit.denied})`}. As edições continuam nos arquivos, mas ainda NÃO estão em nenhum commit, e nada foi enviado. Libere a escrita na pasta do cérebro (no macOS e no Linux: chmod -R u+w "${root}/.git"; confira o dono com ls -ld "${root}/.git") e rode o sync de novo.`,
         });
       }

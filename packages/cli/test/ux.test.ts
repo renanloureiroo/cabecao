@@ -111,6 +111,39 @@ describe('erros de borda', () => {
     expect(out.stderr).not.toMatch(/EACCES|Error:|CABECAO_DEBUG/);
   });
 
+  it('banco local e .git sem permissão de escrita: o que houve e o que fazer; o sync não diz que commitou', async () => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) return; // chmod não vale no Windows nem como root
+    const { chmod } = await import('node:fs/promises');
+    const { execFileSync } = await import('node:child_process');
+    const m = machine();
+    const brain = await brainRepo();
+    expect((await m.cabecao(['status', '--brain', brain])).code).toBe(0);
+    execFileSync('chmod', ['-R', 'a-w', join(brain, '.cabecao')]);
+    try {
+      const search = await m.cabecao(['search', 'atlas', '--brain', brain]);
+      expect(search.code).toBe(1);
+      expect(search.stderr).toContain('não consegui gravar no banco local');
+      expect(search.stderr).toContain('chmod -R u+w');
+      expect(search.stderr).not.toMatch(/readonly database|Error:/);
+    } finally {
+      execFileSync('chmod', ['-R', 'u+w', join(brain, '.cabecao')]);
+    }
+    await writeFile(join(brain, 'wiki', 'concepts', 'nova.md'), '---\ntype: concept\ntitle: Nova\n---\nNova.\n');
+    execFileSync('chmod', ['-R', 'a-w', join(brain, '.git')]);
+    try {
+      const sync = await m.cabecao(['sync', '--brain', brain, '--json']);
+      expect(sync.code).toBe(1);
+      const data = JSON.parse(sync.stdout).data;
+      expect(data).toMatchObject({ status: 'error', reason: 'permission' });
+      expect(data.message).toContain('ainda NÃO estão em nenhum commit');
+      expect(data.message).not.toContain('estão em commits locais');
+      expect(data.next_step).toContain('Libere a escrita');
+    } finally {
+      execFileSync('chmod', ['-R', 'u+w', join(brain, '.git')]);
+      await chmod(brain, 0o755);
+    }
+  });
+
   it('um cérebro de versão mais nova: a dica traz o comando de atualização desta instalação e do canal', async () => {
     const m = machine();
     const brain = await brainRepo();
