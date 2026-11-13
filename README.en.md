@@ -22,7 +22,7 @@
 
 <!-- README-I18N:END -->
 
-Your notes are Markdown files in a git repository you own, on any host. AI agents (Claude Code, Codex, Cursor and others) read and write them over MCP, and every write becomes a commit you can undo with one command. The name is a nod to Cabeção ("big head") from the Brazilian TV show *Malhação*, the character who remembered everything.
+Your notes are Markdown files in a git repository you own, on any host. AI agents (Claude Code, Codex, Cursor and others) read and write them over MCP, and every write becomes a commit you can undo with one command. The name is a nod to Cabeção ("big head") from the Brazilian TV show *Malhação*.
 
 > **Beta.** The current version is `0.1.0-beta.1`. It works day to day, but commands and formats may still change before 1.0. The CLI prints its messages in Portuguese for now; the MCP tools that agents use are described in English.
 
