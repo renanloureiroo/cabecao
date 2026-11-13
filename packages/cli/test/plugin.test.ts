@@ -35,8 +35,14 @@ const TOOLS = [
   'relate',
   'sync',
   'undo',
+  'handoff_save',
+  'ingest',
+  'lint',
+  'forget',
+  'consolidate',
 ];
-const MISSING = /\b(?:handoff_save|forget|ingest|lint|consolidate)\b/;
+/** Nomes que não são tools (as mesmas da lista de `packages/core/test/messages.test.ts`). */
+const MISSING = /\b(?:listOperations|purge|forget_all|handoff_load)\b/;
 
 interface HookCommand {
   type: string;
@@ -119,7 +125,12 @@ describe('manifestos do plugin e do marketplace', () => {
     expect(description.length).toBeLessThanOrEqual(1024);
     expect(skill).not.toMatch(MISSING);
     for (const tool of skill.matchAll(/\*\*`(\w+)`\*\*/g)) expect(TOOLS).toContain(tool[1]);
-    expect(HOOK_USAGE_RULES.join('\n')).not.toMatch(MISSING);
+    const rules = HOOK_USAGE_RULES.join('\n');
+    expect(rules).not.toMatch(MISSING);
+    for (const tool of rules.matchAll(/`([a-z_]+)`/g)) {
+      if (!['rule', 'as_of', 'session_handle'].includes(tool[1] ?? '')) expect(TOOLS).toContain(tool[1]);
+    }
+    expect(rules).toContain('`handoff_save`');
   });
 });
 

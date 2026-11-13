@@ -70,7 +70,7 @@ async function hookBriefing(ctx: CommandContext, deps: RecallDeps): Promise<Brie
         scopeNote = `todos os escopos (nada em ${scope} nem no global)`;
       }
     }
-    return renderHookBriefing(output, { nonce: deps.nonce(), scopeNote });
+    return renderHookBriefing(output, { nonce: deps.nonce(), scopeNote, source: input.source });
   });
 }
 

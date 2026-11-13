@@ -100,6 +100,24 @@ describe('recall --hook', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(context.trimEnd().endsWith(close)).toBe(true);
   });
 
+  it('handoff já entregue: avisa numa sessão nova, mas não ao retomar ou compactar a mesma conversa', async () => {
+    const cwd = await projectDir('atlas');
+    const run = async (source: string) =>
+      hookJson((await m.cabecao(['recall', '--hook', '--brain', brain], stdinOf({ cwd, source }))).stdout)
+        .hookSpecificOutput.additionalContext;
+    const first = await run('startup');
+    expect(first).toContain('## Último handoff');
+    expect(first).not.toContain('já tinha sido entregue');
+    // o hook entrega o handoff à sessão (é ela que o lê): a próxima sessão é avisada
+    const second = await run('startup');
+    expect(second).toMatch(/Aviso: o último handoff já tinha sido entregue a outra sessão em \d{4}-\d{2}-\d{2}/);
+    // o aviso fica fora do bloco de dados, junto do escopo
+    expect(second.indexOf('Aviso: o último handoff')).toBeLessThan(second.indexOf('Tudo entre'));
+    expect(await run('resume')).not.toContain('já tinha sido entregue');
+    expect(await run('compact')).not.toContain('já tinha sido entregue');
+    expect(await run('clear')).toContain('já tinha sido entregue');
+  });
+
   it('pasta sem notas do projeto fica só com o global; sem nada no escopo, cai para todos', async () => {
     const other = await projectDir('Outro Projeto');
     const global = hookJson((await m.cabecao(['recall', '--hook', '--brain', brain], stdinOf({ cwd: other }))).stdout)
@@ -260,6 +278,7 @@ describe('peças puras do hook', () => {
       scope: null,
       rules: [],
       handoff: null,
+      handoff_seen: null,
       preferences: [],
       gotchas: [],
       memories: [],
