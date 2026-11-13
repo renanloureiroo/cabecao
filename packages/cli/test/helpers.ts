@@ -207,3 +207,23 @@ export interface JsonOutput {
 export function parseJson(result: CliResult): JsonOutput {
   return JSON.parse(result.stdout) as JsonOutput;
 }
+
+/**
+ * O usuário num terminal controlador (é o que faz a CLI rodar como humano; `actor.ts`). Sem resposta a perguntas: o
+ * teste que pergunta injeta o seu `prompt`. Sem isto, como num processo de agente, a CLI roda como agente.
+ */
+export const HUMAN: { readonly terminal: { prompt: (question: string) => Promise<string | null> } } = {
+  terminal: { prompt: async () => null },
+};
+
+/** O usuário no terminal, respondendo em ordem (e anotando as perguntas em `asked`). */
+export function answering(asked: string[], ...answers: string[]): typeof HUMAN {
+  return {
+    terminal: {
+      prompt: async (question: string) => {
+        asked.push(question);
+        return answers.shift() ?? null;
+      },
+    },
+  };
+}

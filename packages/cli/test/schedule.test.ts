@@ -7,6 +7,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeMachineConfig } from '@cabecao/core';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { resolveActor } from '../src/actor.ts';
 import { runSchedule } from '../src/commands/schedule.ts';
 import { systemExec } from '../src/exec.ts';
 import {
@@ -447,6 +448,7 @@ describe.skipIf(process.env.CABECAO_TEST_REAL_SCHEDULER !== '1')('agendador de v
       json: false,
       brain: undefined,
       version: '0.0.0',
+      actor: resolveActor({ env, terminal: false }),
     });
     const names = { launchd: 'dev.cabecao.sync.teste', systemd: 'cabecao-sync-teste', schtasks: 'Cabecao Sync Teste' };
     try {

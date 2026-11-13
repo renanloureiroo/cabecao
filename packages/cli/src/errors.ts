@@ -11,6 +11,8 @@ export interface CliErrorOptions {
   code?: string;
   /** Linha extra dizendo o que fazer a seguir. */
   hint?: string;
+  /** Detalhes estruturados (os `details` de um erro da camada de operações), para `--json`. */
+  details?: unknown;
   cause?: unknown;
 }
 
@@ -21,11 +23,13 @@ export interface CliErrorOptions {
 export class CliError extends Error {
   readonly code: string | undefined;
   readonly hint: string | undefined;
+  readonly details: unknown;
 
   constructor(message: string, options: CliErrorOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'CliError';
     this.code = options.code;
     this.hint = options.hint;
+    this.details = options.details;
   }
 }
