@@ -1,6 +1,6 @@
 # Integrações
 
-Cada pasta empacota o Cabeção para um cliente. Nenhuma tem conteúdo ainda; a tabela diz em que marco do [roadmap](../docs/10-roadmap.md) cada uma chega.
+Cada pasta empacota o Cabeção para um cliente. Nenhuma tem conteúdo ainda; a tabela diz em que marco do roadmap cada uma chega.
 
 | Pasta | O que vai ter | Marco |
 |---|---|---|
