@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@cabecao/core": "workspace:*",
+    "@cabecao/embeddings": "workspace:*",
     "@cabecao/server": "workspace:*"
   }
 }

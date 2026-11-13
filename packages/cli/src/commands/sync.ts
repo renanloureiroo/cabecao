@@ -38,6 +38,22 @@ export function syncText(output: SyncOutput): string {
       `Recebidos: ${plural(output.pulled, 'commit', 'commits')} · enviados: ${output.pushed} · criados neste sync: ${output.committed}`,
     );
   }
+  const index = output.index;
+  if (index?.participating === true) {
+    const parts = [
+      `vetores recebidos ${index.received}`,
+      `calculados ${index.computed}`,
+      `enviados ${index.pushed}`,
+      `geração ${index.generation ?? '—'}`,
+    ];
+    lines.push(`Índice: ${parts.join(' · ')}${index.graph_written ? ' · grafo exportado atualizado' : ''}`);
+    if (index.pending !== null && index.pending > 0) {
+      lines.push(
+        `  ${plural(index.pending, 'trecho sem embedding', 'trechos sem embedding')}${index.skipped === null ? '' : `: ${index.skipped}`}`,
+      );
+    }
+    if (index.error !== null) lines.push(`  Aviso do índice: ${index.error}`);
+  }
   if (output.remote === null && (output.status === 'ok' || output.status === 'offline')) {
     lines.push(
       'Aviso: este cérebro não tem remoto; as mudanças ficam só nesta máquina. Para ligar um, crie um repositório privado e vazio e rode, na pasta do cérebro, "git remote add origin <url>" e "git push -u origin <branch>".',

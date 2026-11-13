@@ -2,6 +2,7 @@
 // incremental (feita só se nenhuma começou depois do pedido) e devolve o conteúdo dentro do envelope de dado.
 import type { IndexedNote, KeywordHit } from '../db/index.ts';
 import { backlinks, getNote, indexStatus, listNotes, outgoingLinks, searchKeyword, validityOf } from '../db/index.ts';
+import { readLocalEmbeddingState } from '../embeddings/index.ts';
 import type { ParsedNote } from '../markdown/index.ts';
 import { estimateTokens, HEADING_PATH_SEPARATOR } from '../markdown/index.ts';
 import type { ConflictCopy, SyncStatusInfo } from '../sync/index.ts';
@@ -10,11 +11,15 @@ import { isSafeRelativePath, ulid } from '../util/index.ts';
 import { isNoteType, isValidScope, NOTE_TYPE_DIRS, readNote } from '../vault/index.ts';
 import type { BrainContext } from './context.ts';
 import { today, withFreshIndex } from './context.ts';
+import type { EmbeddingsStatusOutput } from './embeddings.ts';
+import { embeddingsStatus, refreshConfig } from './embeddings.ts';
 import type { ContentKind, DataEnvelope, DataItem } from './envelope.ts';
 import { DATA_NOTICE, dataItem } from './envelope.ts';
 import { BrainError, toBrainError } from './errors.ts';
 import type { RelatedOutput } from './graph.ts';
 import { parseAsOf, relatedBlock } from './graph.ts';
+import type { SearchMode, SearchModeUsed } from './semantic.ts';
+import { fusedSearch, SEARCH_MODES } from './semantic.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Validação de argumentos comuns
@@ -254,10 +259,18 @@ export interface SearchInput {
   readonly budget_tokens?: number;
   /** Data da consulta (`AAAA-MM-DD`; padrão hoje): a validade de cada resultado é calculada nela. */
   readonly as_of?: string;
+  /**
+   * `auto` (padrão): híbrida quando a busca por significado está ativada e o runtime está disponível nesta máquina;
+   * senão, palavra-chave. `keyword`: só palavra-chave. `semantic`: só vetor. `hybrid`: fusão das duas.
+   */
+  readonly mode?: SearchMode;
 }
 
 export interface SearchHit extends DataItem {
-  /** Pontuação (maior é melhor), já rebaixada se o resultado estiver vencido. */
+  /**
+   * Pontuação (maior é melhor), já rebaixada se o resultado estiver vencido. Na palavra-chave é o BM25 invertido; na
+   * busca híbrida ou por significado é a da fusão, de 0 a 1.
+   */
   readonly score: number;
   /** Seção do melhor trecho da nota. */
   readonly heading_path: readonly string[];
@@ -265,8 +278,19 @@ export interface SearchHit extends DataItem {
 
 export interface SearchOutput extends DataEnvelope {
   readonly query: string;
-  /** `and`: todos os termos casaram; `or`: recuo para qualquer termo; `none`: pergunta vazia depois da limpeza. */
+  /**
+   * Como a palavra-chave casou: `and` (todos os termos), `or` (recuo para qualquer termo) ou `none` (pergunta vazia
+   * depois da limpeza, ou busca só por significado). O modo da busca está em `mode_used`.
+   */
   readonly mode: 'and' | 'or' | 'none';
+  /** Modo pedido (`auto` quando não veio). */
+  readonly mode_requested: SearchMode;
+  /** Modo de fato usado: `keyword`, `semantic` ou `hybrid`. */
+  readonly mode_used: SearchModeUsed;
+  /** Por que este modo (em português). */
+  readonly mode_reason: string;
+  /** Avisos, como a queda para palavra-chave quando o runtime falha no meio da busca. */
+  readonly warnings: readonly string[];
   readonly terms: readonly string[];
   /** Data em que a validade foi calculada. */
   readonly as_of: string;
@@ -282,24 +306,105 @@ export interface SearchOutput extends DataEnvelope {
   readonly next_step?: string;
 }
 
+function modeOf(value: unknown): SearchMode {
+  if (value === undefined || value === null) return 'auto';
+  if (typeof value !== 'string' || !(SEARCH_MODES as readonly string[]).includes(value)) {
+    throw invalid(`"mode" deveria ser um de ${SEARCH_MODES.join(', ')}`);
+  }
+  return value as SearchMode;
+}
+
+interface ModeDecision {
+  readonly used: SearchModeUsed;
+  readonly reason: string;
+  readonly warnings: string[];
+}
+
+/** Decide o modo sem carregar nada: configuração do cérebro, estado desta máquina e o runtime injetado. */
+async function decideMode(ctx: BrainContext, requested: SearchMode): Promise<ModeDecision> {
+  if (requested === 'keyword') return { used: 'keyword', reason: 'busca por palavra-chave, como pedido', warnings: [] };
+  const fallback = (reason: string): ModeDecision => ({
+    used: 'keyword',
+    reason,
+    warnings:
+      requested === 'auto'
+        ? []
+        : [
+            `a busca ${requested === 'semantic' ? 'por significado' : 'híbrida'} não está disponível: ${reason}; resultado só por palavra-chave`,
+          ],
+  });
+  const config = await refreshConfig(ctx);
+  const embedding = config.embedding;
+  if (embedding === undefined) {
+    return fallback('a busca por significado não está ativada neste cérebro ("cabecao embeddings on" ativa)');
+  }
+  if ((await readLocalEmbeddingState(ctx.root)).disabled) {
+    return fallback('a busca por significado está desligada nesta máquina ("cabecao embeddings on" religa)');
+  }
+  const availability = await ctx.engine.available(embedding);
+  if (!availability.ok) return fallback(availability.reason);
+  return requested === 'semantic'
+    ? { used: 'semantic', reason: `busca por significado com ${embedding.model}, como pedido`, warnings: [] }
+    : {
+        used: 'hybrid',
+        reason: `${requested === 'auto' ? 'busca por significado ativada: ' : ''}fusão da palavra-chave com ${embedding.model}`,
+        warnings: [],
+      };
+}
+
 export async function search(ctx: BrainContext, input: SearchInput): Promise<SearchOutput> {
   const query = requireText(input?.query, 'query');
   const scopes = scopesFor(input.scope);
   const types = typesFor(input.types);
   const limit = positiveInt(input.limit, 'limit');
   const budget = positiveInt(input.budget_tokens, 'budget_tokens');
+  const requested = modeOf(input.mode);
   const now = ctx.now();
   const asOf = parseAsOf(ctx, input.as_of);
+  const decision = await decideMode(ctx, requested);
+  let used = decision.used;
+  let reason = decision.reason;
+  const warnings = [...decision.warnings];
+  // o modelo e os vetores carregam fora da trava do banco; uma falha aqui não derruba a busca
+  let semantic: { store: Awaited<ReturnType<typeof ctx.engine.vectors>>; vector: Float32Array } | null = null;
+  const embedding = ctx.config.embedding;
+  if (used !== 'keyword' && embedding !== undefined) {
+    try {
+      const store = await ctx.engine.vectors(embedding);
+      const vector = await ctx.engine.embedQuery(embedding, query);
+      semantic = { store, vector };
+    } catch (error) {
+      const detail = (error instanceof Error ? error.message : String(error)).split('\n')[0]?.slice(0, 300) ?? '';
+      warnings.push(`a busca por significado falhou (${detail}); resultado só por palavra-chave`);
+      reason = 'o runtime de embeddings falhou nesta busca';
+      used = 'keyword';
+    }
+  }
   const { result, notes, related } = await withFreshIndex(ctx, () => {
-    const found = searchKeyword(ctx.index, {
-      query,
-      now,
-      asOf,
+    const filters = {
       ...(scopes === undefined ? {} : { scope: scopes }),
       ...(types === undefined ? {} : { types }),
-      ...(limit === undefined ? {} : { limit }),
-      ...(budget === undefined ? {} : { budgetTokens: budget }),
-    });
+    };
+    const found =
+      semantic === null
+        ? searchKeyword(ctx.index, {
+            query,
+            now,
+            asOf,
+            ...filters,
+            ...(limit === undefined ? {} : { limit }),
+            ...(budget === undefined ? {} : { budgetTokens: budget }),
+          })
+        : fusedSearch(ctx.index, {
+            query,
+            filters,
+            store: semantic.store,
+            vector: semantic.vector,
+            asOf,
+            limit: Math.min(100, limit ?? 10),
+            ...(budget === undefined ? {} : { budgetTokens: budget }),
+            semanticOnly: used === 'semantic',
+          });
     const byId = new Map<string, IndexedNote>();
     for (const hit of found.hits) {
       const note = getNote(ctx.index, { id: hit.noteId });
@@ -344,6 +449,10 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
     data_notice: DATA_NOTICE,
     query,
     mode: result.mode,
+    mode_requested: requested,
+    mode_used: used,
+    mode_reason: reason,
+    warnings,
     terms: result.terms,
     as_of: asOf,
     hits,
@@ -353,7 +462,9 @@ export async function search(ctx: BrainContext, input: SearchInput): Promise<Sea
       ? {}
       : {
           next_step:
-            'Nada encontrado. A busca é por palavra-chave: tente sinônimos, o nome exato ou menos termos, sem filtros.',
+            used === 'keyword'
+              ? 'Nada encontrado. A busca foi por palavra-chave: tente sinônimos, o nome exato ou menos termos, sem filtros.'
+              : 'Nada encontrado. Tente outras palavras, menos termos ou sem filtros.',
         }),
   };
 }
@@ -572,6 +683,8 @@ export interface StatusOutput {
     readonly running: boolean;
   } | null;
   readonly conflicts: readonly ConflictOutput[];
+  /** Busca por significado: modelo, runtime nesta máquina, trechos com e sem vetor (a fila). `null` se não deu para ler. */
+  readonly embeddings: EmbeddingsStatusOutput | null;
   readonly next_step?: string;
 }
 
@@ -598,6 +711,18 @@ export async function status(ctx: BrainContext, machine: string): Promise<Status
   if (index.status.schemaVersion !== index.status.expectedSchemaVersion) {
     problems.push(
       'o banco local está num esquema diferente do esperado; rode "cabecao doctor" (apagar a pasta .cabecao/ é seguro: o banco é refeito a partir das notas)',
+    );
+  }
+  let embeddings: EmbeddingsStatusOutput | null = null;
+  try {
+    embeddings = await embeddingsStatus(ctx);
+    if (embeddings.problem !== null) problems.push(`embeddings: ${embeddings.problem}`);
+  } catch (error) {
+    problems.push(
+      `não consegui ler o estado dos embeddings: ${error instanceof Error ? error.message : String(error)}`.slice(
+        0,
+        400,
+      ),
     );
   }
   const steps: string[] = [];
@@ -650,6 +775,7 @@ export async function status(ctx: BrainContext, machine: string): Promise<Status
       machine: conflict.machine,
       date: conflict.date,
     })),
+    embeddings,
     ...(steps.length === 0 ? {} : { next_step: steps.join(' ') }),
   };
 }

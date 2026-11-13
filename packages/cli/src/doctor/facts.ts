@@ -6,9 +6,11 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { hostname as osHostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
+  type BrainConfig,
   checkRemoteVisibility,
   configFilePath,
   currentBranch,
+  embeddingInputs,
   GitError,
   gitVersion,
   indexDbPath,
@@ -21,10 +23,12 @@ import {
   mergeGitattributes,
   mergeGitignore,
   openIndex,
+  openIndexStore,
   probeRemote,
   REQUIRED_GITATTRIBUTES_LINES,
   REQUIRED_GITIGNORE_LINES,
   readBrainConfig,
+  readLocalEmbeddingState,
   readMachineConfig,
   redactCredentials,
   remoteFailureMessage,
@@ -33,13 +37,15 @@ import {
   syncLayout,
   syncStatus,
 } from '@cabecao/core';
+import { modelCacheStatus, runtimeStatus } from '@cabecao/embeddings';
 import { homeDir, machineConfigDir, toCliError } from '../brain.ts';
+import { embeddingProvider, embeddingsCacheDir, fakeEmbedderOn, specOf } from '../embeddings.ts';
 import { CliError } from '../errors.ts';
 import type { Location } from '../install-client/clients.ts';
 import { resolveLaunch } from '../install-client/launch.ts';
 import { detectClients, readRegistrations } from '../install-client/register.ts';
 import type { CliIo } from '../types.ts';
-import type { DoctorFacts, IndexFact, LockFact } from './checks.ts';
+import type { DoctorFacts, EmbeddingsFact, IndexFact, LockFact } from './checks.ts';
 
 export type DoctorIo = Pick<CliIo, 'env' | 'platform' | 'homedir' | 'execPath' | 'binPath' | 'exec' | 'stderr'>;
 
@@ -121,6 +127,70 @@ async function indexFact(root: string): Promise<IndexFact> {
   } catch (error) {
     return { kind: 'error', message: `não consegui abrir o banco local: ${messageOf(error).message}` };
   }
+}
+
+/** Busca por significado: configuração, estado desta máquina, runtime, modelo no cache e trechos sem vetor. */
+async function embeddingsFact(io: DoctorIo, root: string, config: BrainConfig): Promise<EmbeddingsFact> {
+  const embedding = config.embedding;
+  if (embedding === undefined) return { kind: 'off' };
+  const local = await readLocalEmbeddingState(root);
+  const base = {
+    model: embedding.model,
+    variant: embedding.variant,
+    revision: typeof embedding.revision === 'string' ? embedding.revision : null,
+    enabledHere: !local.disabled,
+    fake: fakeEmbedderOn(io),
+  };
+  let spec: ReturnType<typeof specOf>;
+  let resolved: ReturnType<ReturnType<typeof embeddingProvider>['resolve']>;
+  try {
+    spec = specOf(embedding);
+    resolved = embeddingProvider(io).resolve(embedding);
+  } catch (error) {
+    return { kind: 'invalid', ...base, message: messageOf(error).message };
+  }
+  const cache = embeddingsCacheDir(io);
+  let runtime: Extract<EmbeddingsFact, { kind: 'configured' }>['runtime'] = null;
+  let modelCached: boolean | null = null;
+  if (!base.fake) {
+    try {
+      const status = await runtimeStatus({ cacheDir: cache });
+      runtime = {
+        installed: status.installed,
+        upToDate: status.upToDate,
+        backend: status.backend ?? null,
+        problem: status.problem ?? null,
+        dir: status.dir,
+      };
+      modelCached = (await modelCacheStatus(spec, { cacheDir: cache })).cached;
+    } catch {
+      runtime = null;
+    }
+  }
+  let chunks: number | null = null;
+  let pending: number | null = null;
+  if (existsSync(indexDbPath(root))) {
+    try {
+      const index = await openIndex(root);
+      let keys: string[];
+      try {
+        keys = embeddingInputs(index).map((input) => input.key);
+      } finally {
+        index.close();
+      }
+      const store = await openIndexStore(
+        root,
+        { model: resolved.model, variant: resolved.variant, recipe: resolved.recipe },
+        { dims: resolved.dims },
+      );
+      const known = await store.listKeys();
+      chunks = keys.length;
+      pending = keys.filter((key) => !known.has(key)).length;
+    } catch {
+      pending = null;
+    }
+  }
+  return { kind: 'configured', ...base, modelDir: resolved.modelDir, runtime, modelCached, chunks, pending };
 }
 
 async function lockFacts(root: string, options: GatherOptions): Promise<LockFact[]> {
@@ -248,9 +318,10 @@ export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise
     facts.machine = { kind: 'error', message: messageOf(error).message };
   }
 
+  let brainConfig: BrainConfig;
   try {
-    const config = await readBrainConfig(root);
-    facts.config = { kind: 'ok', schemaVersion: config.schemaVersion, supported: SUPPORTED_SCHEMA_VERSION };
+    brainConfig = await readBrainConfig(root);
+    facts.config = { kind: 'ok', schemaVersion: brainConfig.schemaVersion, supported: SUPPORTED_SCHEMA_VERSION };
   } catch (error) {
     const { message, hint } = messageOf(error);
     facts.config = {
@@ -319,6 +390,7 @@ export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise
   }
 
   facts.index = await indexFact(root);
+  facts.embeddings = await embeddingsFact(io, root, brainConfig);
   facts.locks = await lockFacts(root, options);
   const state = await gitStateFacts(root, now);
   facts.gitOperation = state.operation;

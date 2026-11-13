@@ -3,6 +3,7 @@
 
 import type { Readable, Writable } from 'node:stream';
 import { format } from 'node:util';
+import type { EmbeddingProvider } from '@cabecao/core';
 import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createBrainProvider } from './brains.ts';
 import { LineLimiter, MAX_MESSAGE_BYTES } from './line-limit.ts';
@@ -18,6 +19,8 @@ export interface StdioServerOptions {
   machine?: string;
   /** Quando presente, a tool `sync` usa isto (a CLI roda o sync em processo separado); senão, roda no próprio processo. */
   syncRunner?: SyncRunner;
+  /** Runtime de embeddings (a CLI injeta). O modelo carrega na primeira busca que precisa dele, nunca na subida. */
+  embeddings?: EmbeddingProvider;
   /** Limite de uma mensagem JSON-RPC, em bytes. Padrão: `MAX_MESSAGE_BYTES` (10 MiB). Para testes. */
   maxMessageBytes?: number;
   /** Para testes. Sem eles, usa o stdin e o stdout do processo e cuida dos sinais. */
@@ -79,6 +82,7 @@ export function runStdioServer(options: StdioServerOptions): Promise<void> {
     brains: createBrainProvider({
       root: options.brainRoot,
       ...(options.machine === undefined ? {} : { machine: options.machine }),
+      ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
     }),
     ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
     log: stderrLog,

@@ -2,6 +2,8 @@
 // trava da pasta de trabalho em volta das escritas e o nome da máquina.
 import type { LocalIndex } from '../db/index.ts';
 import { scan } from '../db/index.ts';
+import type { EmbeddingEngine } from '../embeddings/index.ts';
+import type { SyncStep } from '../sync/index.ts';
 import { syncLayout } from '../sync/index.ts';
 import {
   defaultMachineName,
@@ -52,6 +54,10 @@ export interface BrainContext {
   lastScanStartedAt: number;
   closed: boolean;
   readonly faultAt: ((step: WriteStep) => void | Promise<void>) | undefined;
+  /** Embeddings: o runtime injetado (se houver), o modelo carregado e os vetores em memória. */
+  readonly engine: EmbeddingEngine;
+  /** Gancho de teste do sync (`SyncOptions.faultAt`). */
+  readonly syncFaultAt: ((step: SyncStep) => void | Promise<void>) | undefined;
 }
 
 export function assertOpen(ctx: BrainContext): void {

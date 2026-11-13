@@ -100,6 +100,46 @@ export interface SyncRemoteError {
   readonly detail: string;
 }
 
+/**
+ * A branch de índice (`cabecao/index`) no sync (marco 2). Presente quando quem chama pediu o índice
+ * (`SyncOptions.index`) e o cérebro participa: tem `embedding` no `.cabecao.json` ou já tem branch de índice.
+ */
+export interface SyncIndexResult {
+  /** O índice entrou neste sync. Sem `embedding` configurado e sem branch de índice, nenhuma é criada. */
+  participating: boolean;
+  /** Geração corrente da branch de índice depois do sync; `null` se não existe. */
+  generation: number | null;
+  /** Vetores do modelo em uso que chegaram do remoto neste sync. */
+  received: number;
+  /** Vetores calculados nesta máquina neste sync. */
+  computed: number;
+  /** Vetores enviados ao remoto (contados pelo manifesto da branch de índice). */
+  pushed: number;
+  /** Trechos que continuam sem vetor do modelo em uso; `null` sem modelo configurado. */
+  pending: number | null;
+  /** O grafo exportado (`graph/nodes.jsonl`, `graph/edges.jsonl`) mudou e foi gravado neste sync. */
+  graphWritten: boolean;
+  /** Por que nada foi calculado nesta máquina (sem runtime, desligado aqui, sem modelo); `null` quando calculou. */
+  skipped: string | null;
+  /** Falha no índice que não impediu o sync do conteúdo. */
+  error: string | null;
+}
+
+/** O que o sync pede a quem cuida do índice, uma vez por ciclo. */
+export interface SyncIndexHook {
+  /** Logo antes de buscar a branch de índice do remoto (para contar o que chegou). */
+  beforeFetch?(): Promise<void>;
+  /**
+   * Depois de integrar e aplicar o conteúdo (e reindexar o banco): junta a branch de índice com a do remoto, calcula
+   * os vetores que faltam e grava o grafo exportado. Não envia nada: o envio é do sync, no mesmo `push --atomic`.
+   */
+  update(input: {
+    readonly remote: string | null;
+    readonly online: boolean;
+    readonly contentCommit: string | null;
+  }): Promise<Omit<SyncIndexResult, 'pushed' | 'generation'>>;
+}
+
 export interface SyncResult {
   status: SyncStatus;
   /** Commits do remoto integrados. */
@@ -132,6 +172,8 @@ export interface SyncResult {
    * rodou (a última válida do histórico, ou a padrão). O sync roda mesmo assim, para poder receber a correção.
    */
   configProblem?: string;
+  /** A branch de índice neste sync; ausente quando quem chamou não pediu o índice. */
+  index?: SyncIndexResult;
 }
 
 export interface SyncOptions {
@@ -156,6 +198,11 @@ export interface SyncOptions {
    * ser chamado mais de uma vez num sync (um por ciclo que mudou algo).
    */
   onApplied?: ((changes: readonly SyncChange[]) => void | Promise<void>) | undefined;
+  /**
+   * Leva a branch de índice junto: busca as duas branches, chama `update` depois de aplicar o conteúdo e envia
+   * conteúdo e índice num único `git push --atomic` (decisão 15).
+   */
+  index?: SyncIndexHook | undefined;
   /** Gancho de teste: chamado em cada passo; pode lançar (abortar) ou matar o processo. */
   faultAt?: ((step: SyncStep) => void | Promise<void>) | undefined;
   /** Relógio, para nomes de conflito e datas de commit. Padrão: `new Date()`. */

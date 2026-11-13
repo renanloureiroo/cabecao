@@ -15,7 +15,8 @@
       "!pnpm-lock.yaml",
       "!spikes",
       "!fixtures",
-      "!templates"
+      "!templates",
+      "!.claude"
     ]
   },
   "formatter": {
