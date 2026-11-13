@@ -92,7 +92,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'search',
     summary: 'Busca no cérebro pelo terminal',
-    usage: ['search "<pergunta>" [--type <tipo>...] [--scope <escopo>] [--limit <n>]'],
+    usage: ['search "<pergunta>" [--type <tipo>...] [--scope <escopo>] [--limit <n>] [--as-of <data>]'],
     options: {
       type: {
         type: 'string',
@@ -106,10 +106,58 @@ export const COMMANDS: readonly CommandSpec[] = [
         description: '"global" ou "project:<nome>" (que inclui também o global)',
       },
       limit: { type: 'string', valueName: 'n', description: 'Máximo de resultados, de 1 a 100 (padrão: 10)' },
+      'as-of': {
+        type: 'string',
+        valueName: 'data',
+        description: 'Data AAAA-MM-DD em que a validade é calculada (padrão: hoje)',
+      },
     },
-    details:
-      'Busca por palavra-chave. Cada resultado traz título, caminho, trecho e se a nota está vigente ou vencida\n(as vencidas aparecem mais abaixo, nunca escondidas).',
+    details: [
+      'Busca por palavra-chave. Cada resultado traz título, caminho, trecho e se a nota está vigente, vencida ou',
+      'ainda não vigente na data (as que não valem aparecem mais abaixo, nunca escondidas). Para perguntas sobre o',
+      'passado, use --as-of: a decisão que valia naquela data sobe. No fim, um bloco separado lista até 5 notas',
+      'ligadas no grafo aos melhores resultados, com o motivo; ele não muda a ordem dos resultados.',
+    ].join('\n'),
     load: () => import('./commands/search.ts'),
+  },
+  {
+    name: 'graph',
+    summary: 'Vizinhos de uma nota no grafo',
+    usage: ['graph "<nota>" [--depth 1|2] [--type <tipo>...] [--as-of <data>]'],
+    options: {
+      depth: { type: 'string', valueName: 'n', description: 'Saltos: 1 (padrão) ou 2' },
+      type: {
+        type: 'string',
+        multiple: true,
+        valueName: 'tipo',
+        description:
+          'Só estas relações (repita, ou separe por vírgula): uses, part_of..., supersedes, wikilink, fact, mention',
+      },
+      'as-of': { type: 'string', valueName: 'data', description: 'Data AAAA-MM-DD da validade (padrão: hoje)' },
+    },
+    details: [
+      'A nota pode ser o título, o caminho ou o id. Mostra as notas ligadas a ela: relações tipadas do frontmatter,',
+      'wikilinks, fatos, encadeamento de versões (supersedes) e menções sem link, cada uma com a direção e se vale',
+      'na data. Um nó muito ligado tem a resposta cortada, com o aviso.',
+    ].join('\n'),
+    load: () => import('./commands/graph.ts'),
+  },
+  {
+    name: 'facts',
+    summary: 'Fatos e se valem numa data',
+    usage: ['facts [--subject <nota>] [--predicate <p>] [--object <nota>] [--as-of <data>] [--limit <n>]'],
+    options: {
+      subject: { type: 'string', valueName: 'nota', description: 'Sujeito: título, caminho ou id da nota' },
+      predicate: { type: 'string', valueName: 'p', description: 'Predicado, como uses_queue ou led_by' },
+      object: { type: 'string', valueName: 'nota', description: 'Objeto: título, caminho ou id (ou um valor)' },
+      'as-of': { type: 'string', valueName: 'data', description: 'Data AAAA-MM-DD da validade (padrão: hoje)' },
+      limit: { type: 'string', valueName: 'n', description: 'Máximo de fatos, de 1 a 200 (padrão: 50)' },
+    },
+    details: [
+      'Lista as notas de fato (memory/facts/) que atendem aos filtros, com o período de validade, se valem na data',
+      'e o encadeamento: que fato cada um substitui e por qual foi substituído. Os vencidos aparecem, por último.',
+    ].join('\n'),
+    load: () => import('./commands/facts.ts'),
   },
   {
     name: 'undo',

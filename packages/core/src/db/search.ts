@@ -1,6 +1,6 @@
 // Busca por palavra-chave (doc 06, "Palavra-chave"): FTS5 com remoção de acentos sobre o texto e o título,
 // pergunta limpa de palavras vazias, AND primeiro e OR como recuo, BM25 com peso maior para o título.
-// Embeddings, fusão, `as_of` e o bloco `related` são dos marcos 2 e 3.
+// A validade é calculada na data da consulta (`asOf`, padrão hoje). Embeddings e fusão são do marco 2.
 
 import type { SQLInputValue } from 'node:sqlite';
 import { estimateTokens } from '../markdown/index.ts';
@@ -11,7 +11,10 @@ import { connection } from './open.ts';
 /** Peso das colunas no BM25: texto do trecho e `Título › Seção`. */
 export const BM25_TEXT_WEIGHT = 1.0;
 export const BM25_TITLE_WEIGHT = 2.0;
-/** Fator aplicado à pontuação de um resultado vencido: rebaixado, nunca escondido (doc 06, "Validade no tempo"). */
+/**
+ * Fator aplicado à pontuação de um resultado vencido ou ainda não vigente na data da consulta: rebaixado, nunca
+ * escondido (doc 06, "Validade no tempo").
+ */
 export const EXPIRED_SCORE_FACTOR = 0.5;
 /** Termos além deste número são ignorados (uma pergunta colada de um texto longo não vira uma consulta enorme). */
 export const MAX_QUERY_TERMS = 16;
@@ -76,19 +79,36 @@ export function buildFtsQuery(terms: readonly QueryTerm[], operator: 'AND' | 'OR
   return terms.map(ftsTerm).join(` ${operator} `);
 }
 
-export type Validity = 'current' | 'expired';
+/**
+ * Validade de uma nota numa data (doc 06, "Validade no tempo"):
+ * - `current`: vigente;
+ * - `expired`: vencida (`valid_until`, `expires_at` ou a data em que outra nota a substituiu é a data ou antes);
+ * - `not_yet_valid`: ainda não vigente (`valid_from` depois da data). Só aparece numa consulta com `as_of` no
+ *   passado, ou numa nota com `valid_from` no futuro.
+ * As duas últimas são rebaixadas na busca, nunca escondidas.
+ */
+export const VALIDITIES = ['current', 'expired', 'not_yet_valid'] as const;
+export type Validity = (typeof VALIDITIES)[number];
+
+/** Os campos de uma nota que decidem a validade. */
+export interface ValidityFields {
+  readonly validFrom?: string | null;
+  readonly validUntil: string | null;
+  readonly expiresAt: string | null;
+  /** Data em que outra nota passou a substituir esta (`supersedes`/`superseded_by`), derivada na varredura. */
+  readonly supersededOn?: string | null;
+}
 
 /**
- * Vigente ou vencido em `today` (`AAAA-MM-DD`). Vencido quando `valid_until` ou `expires_at` é hoje ou antes:
- * `valid_until` é exclusivo (a decisão que vale até 03/05 e a que vale a partir de 03/05 não se sobrepõem).
- * Uma nota com `valid_from` no futuro conta como vigente; a consulta por data (`as_of`) é do marco 3.
+ * Validade em `date` (`AAAA-MM-DD`). `valid_until` é exclusivo (a decisão que vale até 03/05 e a que vale a partir
+ * de 03/05 não se sobrepõem); `valid_from` é inclusivo. Datas com hora contam pelo dia.
  */
-export function validityOf(
-  note: { readonly validUntil: string | null; readonly expiresAt: string | null },
-  today: string,
-): Validity {
-  const ended = (date: string | null): boolean => date !== null && date.slice(0, 10) <= today;
-  return ended(note.validUntil) || ended(note.expiresAt) ? 'expired' : 'current';
+export function validityOf(note: ValidityFields, date: string): Validity {
+  const day = date.slice(0, 10);
+  const ended = (value: string | null | undefined): boolean => value != null && value.slice(0, 10) <= day;
+  if (ended(note.validUntil) || ended(note.expiresAt) || ended(note.supersededOn)) return 'expired';
+  if (note.validFrom != null && note.validFrom.slice(0, 10) > day) return 'not_yet_valid';
+  return 'current';
 }
 
 export interface KeywordSearchOptions {
@@ -110,6 +130,8 @@ export interface KeywordSearchOptions {
   readonly includeConflictCopies?: boolean;
   /** "Hoje" para calcular a validade. Padrão: a data local atual. */
   readonly now?: Date;
+  /** Data da consulta (`AAAA-MM-DD`): a validade é calculada nela, não em `now` (doc 06, `as_of`). */
+  readonly asOf?: string;
 }
 
 export interface KeywordHit {
@@ -156,6 +178,7 @@ interface CandidateRow {
   readonly validFrom: string | null;
   readonly validUntil: string | null;
   readonly expiresAt: string | null;
+  readonly supersededOn: string | null;
 }
 
 const text = (value: unknown): string | null => (value === null || value === undefined ? null : String(value));
@@ -219,7 +242,8 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
     select c.note_id as noteId, n.path, n.title, n.type, n.scope, c.heading_path as headingPath,
       snippet(chunks_fts, 0, '«', '»', '…', 24) as snippet,
       bm25(chunks_fts, ${BM25_TEXT_WEIGHT}, ${BM25_TITLE_WEIGHT}) as rank,
-      n.trust, n.origin, n.valid_from as validFrom, n.valid_until as validUntil, n.expires_at as expiresAt
+      n.trust, n.origin, n.valid_from as validFrom, n.valid_until as validUntil, n.expires_at as expiresAt,
+      n.superseded_on as supersededOn
     from chunks_fts
       join chunks c on c.id = chunks_fts.rowid
       join notes n on n.id = c.note_id
@@ -242,6 +266,7 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
       validFrom: text(row.validFrom),
       validUntil: text(row.validUntil),
       expiresAt: text(row.expiresAt),
+      supersededOn: text(row.supersededOn),
     }));
 
   let mode: 'and' | 'or' = 'and';
@@ -251,12 +276,12 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
     rows = run('OR');
   }
 
-  const today = localDate(options.now ?? new Date());
+  const today = options.asOf ?? localDate(options.now ?? new Date());
   const best = new Map<string, KeywordHit>();
   for (const row of rows) {
     if (best.has(row.noteId)) continue; // as linhas vêm do melhor para o pior trecho
     const validity = validityOf(row, today);
-    const score = -row.rank * (validity === 'expired' ? EXPIRED_SCORE_FACTOR : 1);
+    const score = -row.rank * (validity === 'current' ? 1 : EXPIRED_SCORE_FACTOR);
     best.set(row.noteId, {
       noteId: row.noteId,
       path: row.path,

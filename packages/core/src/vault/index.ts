@@ -69,6 +69,7 @@ export type {
 } from './schema.ts';
 export {
   ARCHIVE_DIR,
+  aliasesOf,
   CANONICAL_FIELDS,
   DATE_FIELDS,
   defaultTrustForOrigin,
