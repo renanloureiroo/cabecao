@@ -461,6 +461,8 @@ Maintenance where the agent does the reasoning and Cabeção takes care of safet
 
 Either way, `undo({ session: "<consolidation_id>" })` undoes the whole consolidation.
 
+When it is `cabecao consolidate --run` that calls the agent, the server starts tied to the consolidation (`cabecao mcp --consolidation <id>`): `start` was already done by the CLI, every write goes with the id as its session, and `sync`, `undo`, `handoff_save`, `ingest`, a second `start`, and (without `--allow-forget`) `forget` come back with the `human_only` error. See [Consolidate with an agent](../guias/consolidar-com-agente.md).
+
 **Input:** `action` (`start` or `finish`); in `start`, `scope`; in `finish`, `consolidation_id` and `title` (the commit label).
 
 **Output:** `action`, `consolidation_id`, `restore_point` (`tag`, `commit`), `material` (only in `start`: `repeated_episodes`, `episodes`, `duplicates`, `lint`), `instructions`, `op`, `commit`, `squashed`, `changes`, `next_step`, and the `data_notice`. A real `finish`:

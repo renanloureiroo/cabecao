@@ -133,7 +133,7 @@ function existingConfig(target: Target): string {
   return `{\n  // meu comentário\n  "tema": "escuro",\n  "${target.section}": {\n    "outro": { "command": "outro", "args": ["--x"] }\n  }\n}\n`;
 }
 
-const FILE_CLIENTS = ['claude-desktop', 'codex', 'cursor', 'vscode', 'gemini', 'claude-code'] as const;
+const FILE_CLIENTS = ['claude-desktop', 'codex', 'cursor', 'vscode', 'antigravity', 'gemini', 'claude-code'] as const;
 
 describe.each(FILE_CLIENTS)('%s, editando o arquivo', (id) => {
   // Sem `claude` no PATH, o Claude Code também é registrado editando o arquivo.
@@ -282,7 +282,7 @@ describe('detalhes por cliente', () => {
   });
 
   it('formato da entrada: type stdio onde o cliente usa, sem type onde não usa', async () => {
-    for (const id of ['claude-desktop', 'cursor', 'gemini', 'claude-code', 'vscode'] as const) {
+    for (const id of ['claude-desktop', 'cursor', 'antigravity', 'gemini', 'claude-code', 'vscode'] as const) {
       await box.cabecao([id, '--brain', box.brain]);
     }
     const read = async (id: ClientId) => {
@@ -292,6 +292,7 @@ describe('detalhes por cliente', () => {
     const plain = { command: FAKE_NODE, args: expectedArgs() };
     expect(await read('claude-desktop')).toEqual(plain);
     expect(await read('gemini')).toEqual(plain);
+    expect(await read('antigravity')).toEqual(plain);
     expect(await read('cursor')).toEqual({ type: 'stdio', ...plain });
     expect(await read('claude-code')).toEqual({ type: 'stdio', ...plain });
     expect(await read('vscode')).toEqual({ type: 'stdio', ...plain, tools: ['*'] });
@@ -316,6 +317,57 @@ describe('detalhes por cliente', () => {
     await box.cabecao(['vscode', '--remove']);
     expect(entryIn(legacy, await readFile(legacy.path, 'utf8'))).toBeUndefined();
     expect(entryIn(copilot, await readFile(copilot.path, 'utf8'))).toBeUndefined();
+  });
+
+  it('Antigravity: o caminho antigo do IDE e do App só é gravado se a pasta existe', async () => {
+    const [current, legacy] = targetsOf('antigravity') as JsonTarget[];
+    if (current === undefined || legacy === undefined) throw new Error('Antigravity deveria ter dois arquivos');
+    await box.cabecao(['antigravity', '--brain', box.brain]);
+    expect(entryIn(current, await readFile(current.path, 'utf8'))).toEqual({
+      command: FAKE_NODE,
+      args: expectedArgs(),
+    });
+    expect(existsSync(legacy.path)).toBe(false);
+
+    await mkdir(dirname(legacy.path), { recursive: true });
+    await box.cabecao(['antigravity', '--brain', box.brain]);
+    expect(entryIn(legacy, await readFile(legacy.path, 'utf8'))).toEqual({ command: FAKE_NODE, args: expectedArgs() });
+
+    await box.cabecao(['antigravity', '--remove']);
+    expect(entryIn(current, await readFile(current.path, 'utf8'))).toBeUndefined();
+    expect(entryIn(legacy, await readFile(legacy.path, 'utf8'))).toBeUndefined();
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'Antigravity: o mcp_config.json antigo como link para o novo continua link, e a escrita vai para o alvo',
+    async () => {
+      const [current, legacy] = targetsOf('antigravity') as JsonTarget[];
+      if (current === undefined || legacy === undefined) throw new Error('Antigravity deveria ter dois arquivos');
+      await mkdir(dirname(current.path), { recursive: true });
+      await mkdir(dirname(legacy.path), { recursive: true });
+      await writeFile(current.path, '{\n  "mcpServers": { "outro": { "command": "outro" } }\n}\n');
+      const { symlink, lstat } = await import('node:fs/promises');
+      await symlink(current.path, legacy.path);
+      const result = await box.cabecao(['antigravity', '--brain', box.brain]);
+      expect(result.code).toBe(0);
+      expect((await lstat(legacy.path)).isSymbolicLink()).toBe(true);
+      const document = toValue(parseJsonc(await readFile(current.path, 'utf8'))) as Record<
+        string,
+        Record<string, unknown>
+      >;
+      expect(Object.keys(document.mcpServers ?? {}).sort()).toEqual(['cabecao', 'outro']);
+    },
+  );
+
+  it('Gemini CLI: registra como antes, com o aviso de que contas pessoais migraram para o Antigravity', async () => {
+    const result = await box.cabecao(['gemini', '--brain', box.brain]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Gemini CLI: registrado');
+    expect(result.stdout).toContain('cabecao install-client antigravity');
+    const printed = await box.cabecao(['--print', 'gemini', '--brain', box.brain]);
+    expect(printed.stdout).toContain('# aviso: o Gemini CLI deixou de atender contas pessoais');
+    const removed = await box.cabecao(['gemini', '--remove']);
+    expect(removed.stdout).not.toContain('aviso');
   });
 
   it('um cliente com arquivo quebrado não impede os outros', async () => {
@@ -484,11 +536,30 @@ describe('seleção de clientes e erros de uso', () => {
   it('--all registra só os clientes detectados', async () => {
     await mkdir(join(box.home, '.cursor'));
     await mkdir(join(box.home, '.gemini'));
+    await writeFile(join(box.home, '.gemini', 'settings.json'), '{}\n');
     const result = await box.cabecao(['--all', '--brain', box.brain, '--json']);
     expect(result.code).toBe(0);
     const clients = JSON.parse(result.stdout).data.clients.map((client: { client: string }) => client.client);
     expect(clients).toEqual(['cursor', 'gemini']);
     expect(existsSync(mainTarget('codex').path)).toBe(false);
+  });
+
+  it('--all: a pasta ~/.gemini do Antigravity não faz o Gemini CLI parecer instalado', async () => {
+    await mkdir(join(box.home, '.gemini', 'antigravity-cli'), { recursive: true });
+    const result = await box.cabecao(['--all', '--brain', box.brain, '--json']);
+    const clients = JSON.parse(result.stdout).data.clients.map((client: { client: string }) => client.client);
+    expect(clients).toEqual(['antigravity']);
+    expect(existsSync(join(box.home, '.gemini', 'config', 'mcp_config.json'))).toBe(true);
+    expect(existsSync(join(box.home, '.gemini', 'settings.json'))).toBe(false);
+  });
+
+  it('--all detecta o Antigravity pelo executável agy', async () => {
+    const name = process.platform === 'win32' ? 'agy.exe' : 'agy';
+    await writeFile(join(box.pathDir, name), '');
+    await chmod(join(box.pathDir, name), 0o755);
+    const result = await box.cabecao(['--all', '--brain', box.brain, '--json']);
+    const clients = JSON.parse(result.stdout).data.clients.map((client: { client: string }) => client.client);
+    expect(clients).toEqual(['antigravity']);
   });
 
   it('--all detecta pelo executável no PATH', async () => {
@@ -613,6 +684,7 @@ describe('caminhos dos arquivos nos três sistemas', () => {
       codex: ['/Users/ze/.codex/config.toml'],
       cursor: ['/Users/ze/.cursor/mcp.json'],
       vscode: ['/Users/ze/.copilot/mcp-config.json', '/Users/ze/Library/Application Support/Code/User/mcp.json'],
+      antigravity: ['/Users/ze/.gemini/config/mcp_config.json', '/Users/ze/.gemini/antigravity/mcp_config.json'],
       gemini: ['/Users/ze/.gemini/settings.json'],
     });
   });
@@ -640,6 +712,10 @@ describe('caminhos dos arquivos nos três sistemas', () => {
       codex: ['C:\\Users\\ze\\.codex\\config.toml'],
       cursor: ['C:\\Users\\ze\\.cursor\\mcp.json'],
       vscode: ['C:\\Users\\ze\\.copilot\\mcp-config.json', 'C:\\Users\\ze\\AppData\\Roaming\\Code\\User\\mcp.json'],
+      antigravity: [
+        'C:\\Users\\ze\\.gemini\\config\\mcp_config.json',
+        'C:\\Users\\ze\\.gemini\\antigravity\\mcp_config.json',
+      ],
       gemini: ['C:\\Users\\ze\\.gemini\\settings.json'],
     });
   });

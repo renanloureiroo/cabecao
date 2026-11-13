@@ -29,6 +29,8 @@ npm i -g cabecao@beta
 - **Sync automático.** `cabecao schedule on|off|status` registra o sync periódico no agendador do sistema (LaunchAgent, timer do systemd de usuário ou crontab, Agendador de Tarefas), sem administrador. Veja [Sync automático](./guias/sync-automatico.md).
 - **Comandos novos:** `cabecao recall` mostra o briefing de uma tarefa no terminal; `cabecao sync` ganha `--detach` (em segundo plano), `--hook` e `--log`. O `doctor` passa a verificar o agendamento.
 - **Menções mais precisas.** Um nome colado a `_`, `/`, `\` ou `@` (como `sqs_fila`, `filas/SQS` ou `ana@sqs`) não conta mais como menção sem link a outra nota.
+- **Consolidar com um agente.** `cabecao consolidate --run` chama o Claude Code ou o Codex (com chave de API) sem ninguém olhando, só com as tools do Cabeção (shell, edição de arquivos e rede negados), numa pasta temporária, com tempo limite; se o agente não fechar a consolidação, o que ele gravou é desfeito. `--dry-run` mostra tudo antes. Veja [Consolidar com um agente](./guias/consolidar-com-agente.md).
+- **Antigravity.** `cabecao install-client antigravity` registra o servidor no Antigravity (CLI `agy`, IDE e App), o sucessor do Gemini CLI para contas pessoais. Ele não entra no `--run`: os termos do plano pessoal não permitem que outro programa o chame. O `gemini` continua, com aviso, e deixa de ser detectado só pela pasta `~/.gemini`, que é dividida entre os dois.
 
 ## 0.1.0-beta.1
 
