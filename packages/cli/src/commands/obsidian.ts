@@ -262,7 +262,7 @@ async function setup(
   };
 }
 
-function formatReports(reports: readonly FileReport[]): string[] {
+function formatReports(reports: readonly FileReport[], removing = false): string[] {
   const mark: Record<FileStatus, string> = {
     created: '+',
     updated: '~',
@@ -273,7 +273,7 @@ function formatReports(reports: readonly FileReport[]): string[] {
   };
   const word: Record<FileStatus, string> = {
     created: 'criado',
-    updated: 'mesclado',
+    updated: removing ? 'alterado' : 'mesclado',
     unchanged: 'sem mudanças',
     kept: 'mantido',
     invalid: 'não tocado',
@@ -350,7 +350,7 @@ async function remove(
   }
   if (!dryRun) await rm(abs(root, SETUP_RECORD), { force: true });
   const lines = [`Obsidian: ${root} — desfazendo o setup${dryRun ? ' (simulação: nada foi gravado)' : ''}`];
-  lines.push(...formatReports(reports));
+  lines.push(...formatReports(reports, true));
   if (reports.every((report) => report.status === 'unchanged' || report.status === 'kept')) {
     lines.push('Nada a tirar.');
   }
