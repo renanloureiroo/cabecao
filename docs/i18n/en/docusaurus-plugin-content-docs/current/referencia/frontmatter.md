@@ -40,7 +40,7 @@ Only in `type: fact`, and required there.
 | `origin` | `human`, `agent:<cliente>`, or `ingest:<fonte>` | On an agent write, Cabeção fills it in and ignores the value sent |
 | `trust` | `high`, `medium`, or `low` | Default by origin: `human` → `high`, agent → `medium`, `ingest` → `low`. An agent cannot write `high` |
 | `edited_by` | `agent:<cliente>` | The last agent that changed a note that was not created by an agent |
-| `private` | `true` | The note is never sent to an [`ask`](../guias/respostas-com-modelo.md) answer provider. It does not change search or what an agent reads through the tools |
+| `private` | `true` | The note is never sent to an [`ask`](../guias/respostas-com-modelo.md) answer provider, nor is its name when another note cites it. It works in any case (`Private`) and with any true value (`yes`, `on`, `sim`, `1`, `[true]`); the `private` tag in `tags` has the same effect ([what counts as a private note](../guias/respostas-com-modelo.md#what-counts-as-a-private-note)). It does not change search or what an agent reads through the tools |
 
 See [Provenance and trust](../conceitos/proveniencia.md).
 

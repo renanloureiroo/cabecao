@@ -40,7 +40,7 @@ Só em `type: fact`, e obrigatórios nele.
 | `origin` | `human`, `agent:<cliente>` ou `ingest:<fonte>` | Numa gravação de agente, o Cabeção preenche e ignora o valor enviado |
 | `trust` | `high`, `medium` ou `low` | Padrão pela origem: `human` → `high`, agente → `medium`, `ingest` → `low`. Um agente não grava `high` |
 | `edited_by` | `agent:<cliente>` | O último agente que alterou uma nota que não foi criada por agente |
-| `private` | `true` | A nota nunca é enviada a um provedor de respostas do [`ask`](../guias/respostas-com-modelo.md). Não muda a busca nem o que um agente lê pelas tools |
+| `private` | `true` | A nota nunca é enviada a um provedor de respostas do [`ask`](../guias/respostas-com-modelo.md), nem o nome dela quando outra nota a cita. Vale em qualquer caixa (`Private`) e com qualquer valor verdadeiro (`yes`, `on`, `sim`, `1`, `[true]`); a tag `private` em `tags` tem o mesmo efeito ([o que conta como nota privada](../guias/respostas-com-modelo.md#o-que-conta-como-nota-privada)). Não muda a busca nem o que um agente lê pelas tools |
 
 Veja [Proveniência e confiança](../conceitos/proveniencia.md).
 

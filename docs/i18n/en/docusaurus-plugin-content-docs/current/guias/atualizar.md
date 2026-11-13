@@ -128,6 +128,7 @@ npm runs nothing when it uninstalls a package. That is why, before removing the 
 - the skills it installed (the ones you edited stay);
 - the scheduled sync (like `cabecao schedule off`);
 - the machine configuration (`~/.config/cabecao`, or the `CABECAO_CONFIG_DIR` folder);
+- the provider for [answers with a model](./respostas-com-modelo.md), if you turned it on: `llm.json` and the stored keys, in the system keychain and in the file (if the keychain refuses to delete a key, `uninstall` says which);
 - the cache: the semantic search runtime and models and the consolidation logs (`--keep-cache` keeps it).
 
 The **brain is never touched**: it is yours, and it is in git and on the remote. The `.bak` copy that `install-client` saved of each client's original file also stays.

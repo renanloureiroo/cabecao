@@ -16,7 +16,7 @@ Cada uma cobre uma **intenção**, e a descrição dela é escrita pelo que voc�
 
 | Skill | Entra quando | Comandos |
 | --- | --- | --- |
-| `cabecao-consultar` | Começo de tarefa; antes de afirmar algo sobre o seu histórico, decisões ou preferências | `recall`, `search`, `read`, `graph`, `facts` |
+| `cabecao-consultar` | Começo de tarefa; antes de afirmar algo sobre o seu histórico, decisões ou preferências | `recall`, `search`, `read`, `graph`, `facts`, `ask` |
 | `cabecao-lembrar` | Você diz uma preferência, corrige o agente, toma uma decisão; o agente descobre uma armadilha | `remember` (com `--resolution` para memórias parecidas), `relate`, `write`, `patch` |
 | `cabecao-passar-bastao` | Fim de um trabalho relevante, troca de máquina ou de agente | `handoff`, `sync` |
 | `cabecao-manutencao` | Só quando você pede: ver o estado, achar problemas, consolidar, esquecer, desfazer, sincronizar | `status`, `lint`, `consolidate`, `forget`, `undo`, `sync` |

@@ -355,7 +355,7 @@ Fontes:
       "Bruno Tavares lidera o Projeto Atlas desde setembro de 2026."
 ```
 
-**Saída:** `0` respondeu; `3` o cérebro não tem isso; `4` mais da metade das afirmações sem apoio; `5` nenhum provedor disponível; `2` erro de uso. Com `--json`, o mesmo objeto da [tool `ask`](./mcp.md#ask).
+**Saída:** `0` quando o comando funcionou (respondeu, respondeu com pouco apoio ou o cérebro não tem isso: o `status` diz qual); `5` quando nenhum provedor gerou a resposta (desligado, falhou ou teto de gasto atingido; vêm os trechos achados); `2` erro de uso. Os códigos 3 e 4 não são usados, porque em toda a CLI querem dizer "pede o seu pedido explícito" e "só você, no terminal". Com `--json`, o mesmo objeto da [tool `ask`](./mcp.md#ask). Para um agente, `--verbose` é ignorado e `--show-context` não mostra o destino.
 
 ## cabecao llm
 
@@ -367,23 +367,26 @@ cabecao llm off
 cabecao llm status
 cabecao llm test [--provider <provedor>]
 cabecao llm remove <provedor>
+cabecao llm policy [--allow none|agent|any] [--exclude-path <glob>...] [--exclude-type <tipo>...] [--exclude-trust <nível>...] [--clear]
 ```
 
 | Subcomando | O que faz | Precisa de você no terminal? |
 | --- | --- | --- |
 | `on` | Detecta o que já existe (Claude Code instalado, variáveis de chave), oferece isso primeiro, mostra o que sai e para onde, pede confirmação e faz um teste | Sim |
 | `off` | Desliga sem apagar nada | Sim |
-| `status` | Provedores, modelo, destino, disponibilidade e onde está a chave (mascarada) | Não |
+| `status` | Provedores, modelo, destino, disponibilidade e onde está a chave (mascarada). Para um agente, só se as respostas estão ligadas | Não |
 | `test` | Uma chamada mínima, sem nada do cérebro: diz se funcionou e quanto demorou (gasta uma pergunta) | Sim |
-| `remove` | Apaga o provedor e a chave que o Cabeção guardou | Sim |
+| `remove` | Apaga o provedor e a chave que o Cabeção guardou; se o cofre recusar, diz isso e sai com `1` | Sim |
+| `policy` | Mostra ou muda a `llm_policy` deste cérebro (vai para o git; só restringe). Um agente não a muda, nem com confirmação | Sim |
 
 | Opção | O que faz |
 | --- | --- |
 | `--provider` | `claude-code`, `anthropic`, `openai`, `gemini`, `openrouter`, `groq`, `ollama`, `lmstudio` ou `compatible` |
 | `--model` | O modelo (padrão: o mais barato com saída estruturada; obrigatório em OpenRouter, servidores locais e `compatible`) |
-| `--base-url` | Endereço de um serviço compatível com a API da OpenAI: `https`, ou `http` só em `localhost` |
+| `--base-url` | Só com `compatible`, `ollama` e `lmstudio`: `https`, ou `http` só nesta máquina; metadados de nuvem e rede de enlace são recusados |
 | `--key-env` | Lê a chave desta variável de ambiente, sem guardá-la |
 | `--store` | Onde guardar uma chave colada: `keychain` (cofre do sistema, padrão) ou `file` (arquivo `0600`) |
+| `--allow`, `--exclude-path`, `--exclude-type`, `--exclude-trust`, `--clear` | Com `policy`: os campos da [`llm_policy`](../guias/respostas-com-modelo.md#política-por-cérebro) |
 
 ```text
 $ cabecao llm status
@@ -397,7 +400,9 @@ Configuração: ~/.config/cabecao/llm.json · log: ~/.cache/cabecao/ask.log
 
 O Antigravity instalado e o Codex não são oferecidos; o motivo está no [guia](../guias/respostas-com-modelo.md#por-que-o-antigravity-instalado-não-é-oferecido).
 
-**Saída:** `0`; `4` quando `on`, `off`, `test` ou `remove` rodam sem terminal ou por um agente (veja [Quem é humano e quem é agente](../guias/humano-e-agente.md)); `1` quando você não confirma ou quando `test` falha; `2` com provedor ou opção inválidos.
+A configuração fica na pasta padrão do seu usuário; desviada por `CABECAO_CONFIG_DIR` (ou `HOME`, `XDG_CONFIG_HOME`, `APPDATA`), vale só para você no terminal (veja [Onde fica a configuração](../guias/respostas-com-modelo.md#onde-fica-a-configuração)).
+
+**Saída:** `0`; `4` quando `on`, `off`, `test`, `remove` ou `policy` rodam sem terminal ou por um agente (veja [Quem é humano e quem é agente](../guias/humano-e-agente.md)); `1` quando você não confirma ou quando `test` falha; `2` com provedor ou opção inválidos.
 
 ## cabecao eval --answers
 

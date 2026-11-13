@@ -13,11 +13,15 @@ None of this is needed to use Cabeção, and nothing leaves the machine until yo
 ## What `ask` does
 
 1. **Retrieves** like `search` (hybrid when semantic search is on), with `--as-of`, `--scope` and `--type`, and reads the section of each note found.
-2. **Filters what may leave** (see below) and builds the request: each passage is labeled (`S1`, `S2`...) with its path, validity and provenance, between delimiters carrying a mark drawn at random for each question.
+2. **Filters what may leave** (see below) and builds the request: each passage is labeled (`S1`, `S2`...) with its validity and provenance, between delimiters carrying a mark drawn at random for each question. The note's path, title and sections go **inside** the delimited block (they are data, like the text), and outside content goes with its words separated by `^`.
 3. **Calls the provider** enabled on this machine, asking for the answer as JSON: each claim with its sources and a verbatim quote.
-4. **Checks every citation**: the label must exist and the quote must appear in the cited passage (ignoring differences in accents, case, quotes and spaces). What does not check out is dropped; a claim without any checked citation is marked `[sem apoio]` (unsupported); with none at all, the answer becomes "the brain does not have this".
+4. **Checks every citation**: the label must exist and the quote must appear in the cited passage (ignoring differences in accents, case, quotes and spaces). The quote must be **substantive**: at least 16 letters or digits and 3 content words; with an ellipsis, at most 3 pieces, each one like that, in order. The quote you see is always the **note's real text**, never what the model wrote. What does not check out is dropped; a claim without any checked citation is marked `[sem apoio]` (unsupported); with none at all, the answer becomes "the brain does not have this".
 
-The answer is **read only**: it is never written to the brain, executed, or used to call anything else.
+The answer is **read only**: it is never written to the brain, executed, or used to call anything else. Images, links, addresses and HTML the model writes are stripped from the text (in a client that renders Markdown, an image would load by itself and carry data in its address).
+
+:::note[The honest limit]
+Cabeção **checks the citation, not the conclusion**: it guarantees the cited passage exists and says that, not that the claim follows from it. For anything important, open the source.
+:::
 
 ## Turn it on
 
@@ -52,7 +56,13 @@ Pergunte com: cabecao ask "o que decidimos sobre ...?"
 Nos agentes, a tool "ask" aparece na próxima sessão (reinicie o cliente de IA).
 ```
 
-Turning it on, off, testing and deleting are **up to you, in the terminal**: without a controlling terminal, or when run by an agent, `llm` refuses with exit code 4 (see [Who is human and who is an agent](./humano-e-agente.md)); only `llm status` runs for everyone. An agent does not turn it on, switch it, test it or read the key, neither through the CLI nor through a tool, not even with a confirmation token. `cabecao ask` is a memory command: an agent may ask.
+Turning it on, off, testing, deleting and changing the policy are **up to you, in the terminal**: without a controlling terminal, or when run by an agent, `llm` refuses with exit code 4 (see [Who is human and who is an agent](./humano-e-agente.md)); only `llm status` runs for everyone, and for an agent it only says whether answers are on. An agent does not turn it on, switch it, test it or read the key, neither through the CLI nor through a tool, not even with a confirmation token. `cabecao ask` is a memory command: an agent may ask.
+
+The `llm on` confirmation is **signed** in `llm.json` with a secret from this machine (`llm-consent.key`, `0600` permission) and covers the destination, the model and where the key comes from. An `llm.json` written by hand, copied from another machine or with its address changed afterwards turns nothing on: run `cabecao llm on` again.
+
+### Where the configuration lives
+
+`llm.json`, the confirmation secret, the spending-cap counter and file-stored keys live in **your user's default** configuration folder (`~/.config/cabecao`; on Windows, `%APPDATA%\cabecao`), computed from the system user. If the folder is redirected by an environment variable (`CABECAO_CONFIG_DIR`, `XDG_CONFIG_HOME`, `APPDATA` or `HOME`), the redirected configuration applies **only to you, in the terminal**; for an agent (which controls the environment of the commands it runs), answers stay off and nothing is read. That way an agent cannot point `ask` at an `llm.json` it wrote itself.
 
 ### Providers
 
@@ -68,7 +78,7 @@ Turning it on, off, testing and deleting are **up to you, in the terminal**: wit
 | LM Studio, on this machine | `cabecao llm on --provider lmstudio --model <model>` | (the one you loaded) | None |
 | Another OpenAI-compatible service | `cabecao llm on --provider compatible --base-url <url> --model <model>` | (pick yours) | Optional |
 
-The default models are the cheapest ones with structured output in each provider's documentation on 2026-11-13; change them with `--model`. A compatible service's address must be `https`, or `http` only on `localhost`. To use a key from a variable without storing it, pass `--key-env NAME`.
+The default models are the cheapest ones with structured output in each provider's documentation on 2026-11-13; change them with `--model`. The address (`--base-url`) only applies to `compatible`, `ollama` and `lmstudio`: providers with a fixed address refuse it, so the destination shown in the confirmation is always the real one. It must be `https`, or `http` only on this machine (`localhost`, `127.0.0.1`, `[::1]`); link-local and cloud metadata addresses (`169.254.*`, `fe80::`, `0.0.0.0`) are refused, and `llm.json` is checked again on every read. To use a key from a variable without storing it, pass `--key-env NAME`.
 
 **Claude Code** is offered because Anthropic documents that `claude -p` draws from your subscription limits ([Anthropic support](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan), checked on 2026-11-13). To generate the answer it runs **without any tool**: no shell, no file reads, no MCP servers, none of your settings, in an empty temporary folder and with a time limit. If the agent in your conversation is also Claude Code, each `ask` opens a second session (it costs twice).
 
@@ -82,13 +92,23 @@ With each question, what goes **to the provider you turned on** is: the question
 
 **Never leaves**, with any provider:
 
-- notes with `private: true` in the frontmatter;
+- **private notes**, and their names (see below);
+- notes whose frontmatter cannot be read (when in doubt, it stays);
 - control files: the catalog, `log.md`, `AGENTS.md`, `CLAUDE.md` and the like, conflict copies;
-- any passage where the [secret scanner](../seguranca.md#secret-scanner) flags something (ignoring `cabecao:allow-secret`, which clears a line for git, not for an outside provider);
+- any passage where the [secret scanner](../seguranca.md#secret-scanner) flags something, searched across the **whole note** (a private key block counts from `BEGIN` to `END`, and a passage touching it stays out too), ignoring `cabecao:allow-secret`, which clears a line for git, not for an outside provider;
 - whatever the brain's policy excludes;
 - the key.
 
 What was left out shows in the answer ("Trechos não enviados ao provedor: 1 de nota privada"). And `cabecao ask "<question>" --show-context` shows exactly what **would** be sent, without sending anything.
+
+### What counts as a private note
+
+A note is private, and never goes to any provider, when its frontmatter has:
+
+- the `private` key, in any case (`private`, `Private`, `PRIVATE`), with a true value: `true`, `yes`, `on`, `sim`, `1`, as text or in a list (`[true]`);
+- or the `private` tag (with or without `#`) in `tags`.
+
+A note whose frontmatter cannot be read does not leave either. And a private note's **name** does not leave even when another note cites it: its title, aliases (`aliases`), path and file name become `[nota privada]` in the text, title and sections of the passages that leave, and it never comes in as a note related through the graph.
 
 ### Per-brain policy
 
@@ -114,6 +134,17 @@ In `.cabecao.json` (which applies on every machine), the `llm_policy` field rest
 
 Without the field, the brain restricts nothing beyond what the machine configured. An invalid `llm_policy` **closes**: nothing is sent, and `doctor` says what to fix.
 
+The policy **only restricts**: what enables a provider is always this machine's configuration (`cabecao llm on`); the brain can only close it further. Change it with `cabecao llm policy` (only you, in the terminal, with confirmation):
+
+```bash
+cabecao llm policy                          # shows the current policy
+cabecao llm policy --allow agent            # only the installed agent
+cabecao llm policy --exclude-path "memory/personal/**"
+cabecao llm policy --clear                  # removes the policy
+```
+
+An agent **does not change** `llm_policy`, not through the CLI, not through a tool, not even with a confirmation token (like the `embedding` section). It goes into git and reaches the other machines through `sync`: a policy loosened on another machine (or by anyone with write access to the remote) is loosened here too. That is accepted on purpose: whoever writes to the remote can already change the notes themselves, and each machine still decides whether to turn any provider on.
+
 ## Each provider's data policy
 
 Checked on 2026-11-13. Check the current page before turning one on:
@@ -138,7 +169,7 @@ On the Gemini API's free tier, passages from your notes may be read by Google's 
 - **Claude Code:** comes out of your subscription limits (or the key Claude Code uses). In this guide's test run, one question cost US$ 0.0017 with `haiku`, according to Claude Code itself.
 - **Local server:** no per-question charge.
 
-The per-question limits live in `limits` in [`llm.json`](../referencia/arquivos.md#answer-provider-llmjson): `context_tokens` (default 3000, up to 8000), `max_output_tokens` (2048) and `timeout_ms` (60000). Transient errors (rate limit, server down, network) get up to two retries, within the time limit.
+The limits live in `limits` in [`llm.json`](../referencia/arquivos.md#answer-provider-llmjson): per question, `context_tokens` (default 3000, up to 8000), `max_output_tokens` (2048) and `timeout_ms` (60000); and a **spending cap**: `max_calls_per_hour` (default 30, counting every question on this machine) and `max_calls_per_session` (default 20 per MCP server session, that is, per open AI client). Once the cap is reached, `ask` returns `unavailable` (`limit_reached`) with the passages found, without calling the provider: an agent in a loop does not drain your account. Transient errors (rate limit, server down) get up to two retries, and a connection failure at most one, within the time limit. A redirect from the server is never followed: the key and the passages do not go to another address.
 
 ## Ask
 
@@ -174,21 +205,23 @@ Diagnóstico (só para você; o agente não vê):
 
 Notice the three dropped citations: the model cited passages that did not contain the sentence, and Cabeção removed those citations instead of trusting them. (In this run the input token count did not yet add the part read from the cache; that has been fixed.)
 
-In the terminal, each claim appears as soon as it arrives complete and checked; the sources come at the end. With `--json`, you get the same object the `ask` tool returns to agents, without the provider's or the model's name (`--verbose` adds a `diagnostics` block, only for you).
+In the terminal, each claim appears as soon as it arrives complete and checked; the sources come at the end. With `--json`, you get the same object the `ask` tool returns to agents, without the provider's or the model's name (`--verbose` adds a `diagnostics` block, only for you in the terminal: for an agent, the option is ignored).
 
 | Exit code | When |
 | --- | --- |
-| `0` | Answered, with checked citations |
-| `3` | The brain does not have this |
-| `4` | More than half of the claims are unsupported |
-| `5` | No provider available: shows the passages found and how to turn one on |
+| `0` | The command worked: answered, answered with little support (`low_confidence`) or the brain does not have this (`not_found`); the `--json` `status` says which |
+| `5` | No provider generated the answer (off, failed or cap reached): shows the passages found |
 | `2` | Usage error |
+
+Codes 3 and 4 are left out on purpose: across the whole CLI, they mean "needs your explicit request" and "only you, in the terminal".
 
 Ctrl+C cancels the question and stops the provider (including the Claude Code process and whatever it opened).
 
 ## In agents: the `ask` tool
 
 With a provider turned on, the MCP server starts announcing the [`ask`](../referencia/mcp.md#ask) tool, right after `search`. The agent sends only the question and search options; it does not choose or see the provider or the model, and the answer always has the same shape. If the provider fails, the tool returns `unavailable` with the passages found, and the agent answers on its own. The tool shows up in the next session: restart the AI client after `llm on`.
+
+**What an agent sees of the provider: nothing.** Not the name, the model, the destination or the provider's error message, through any path: the `ask` tool, `cabecao ask` (with `--verbose` or `--show-context`), `llm status` (only "on" or "off"), `status` and `doctor`. Those details show up only for you, in the terminal. The `cabecao-consultar` skill teaches the agent to use `ask` through the CLI the same way.
 
 ## Where the key lives
 
@@ -201,7 +234,9 @@ With a provider turned on, the MCP server starts announcing the [`ask`](../refer
 
 The provider's environment variable, when set, takes precedence over the stored key. The key never goes into the brain, `llm.json`, the log or an error message, and `llm status` shows only its last four characters. Note: an MCP server started by the AI client may not inherit your terminal's variables; for agents' `ask`, prefer storing the key.
 
-Behind a proxy: Node's `fetch` only uses `HTTPS_PROXY` when that is switched on. Cabeção switches it on by itself where Node allows (`http.setGlobalProxyFromEnv`); on Node 24, `NODE_USE_ENV_PROXY=1` works too. `llm status` tells you what applies on your machine.
+Behind a proxy: Node's `fetch` only uses `HTTPS_PROXY` when that is switched on. Cabeção switches it on by itself where Node allows (`http.setGlobalProxyFromEnv`), always with this machine's addresses in `NO_PROXY`: a local server (Ollama, LM Studio) **never** goes through a tunnel to the proxy. With `NODE_USE_ENV_PROXY=1` and without `localhost,127.0.0.1` in `NO_PROXY`, Cabeção refuses to call the local server and says how to fix it. `llm status` tells you what applies on your machine.
+
+The stored key is bound to the destination (the keychain account is `<provider>@<address>`): changing the provider's address does not hand the key to another server. The key file is closed (`0600`) before it receives the key, and a configuration folder other users of the machine can change is refused.
 
 ## See, test, turn off and delete
 
@@ -210,9 +245,12 @@ cabecao llm status          # providers, model, destination, where the key is (m
 cabecao llm test            # one minimal call, with nothing from the brain: did it work? how long did it take?
 cabecao llm off             # turns it off: nothing else leaves; the configuration and the key stay
 cabecao llm remove openai   # deletes the provider and the key Cabeção stored (asks for confirmation)
+cabecao llm policy          # this brain's sending policy (see above)
 ```
 
-`cabecao status` and `cabecao doctor` also show a "Respostas (ask)" line.
+If the system keychain refuses to delete the key, `llm remove` says so and exits with an error, instead of saying "deleted". [`cabecao uninstall`](./atualizar.md) also deletes the answers configuration and the stored keys (in the keychain and in the file).
+
+`cabecao status` and `cabecao doctor` show a neutral "Respostas (ask)" line (on, off, or optional and off). The provider never shows up at the end of `init` nor in the list of optional steps: turning it on is on demand, whenever you want.
 
 ## Measure
 
@@ -225,5 +263,7 @@ Measures, with your questions: valid citations, unsupported claims, right source
 ## Known limits
 
 - **Tested:** the whole flow with a fake provider, both adapters against local servers that mimic the APIs, and one real run with Claude Code. **Not tested with real keys** for Anthropic, OpenAI, Gemini, OpenRouter and Groq, nor with each system's real keychain (the tests use a fake runner; on Windows, DPAPI is tested for real).
-- **The check verifies the citation, not the reasoning.** A claim can cite a true passage and draw a wrong conclusion from it. For anything important, open the source (`cabecao search`, or `read` with the citation's `id`).
+- **The check verifies the citation, not the conclusion.** A claim can cite a true passage and draw a wrong conclusion from it. For anything important, open the source (`cabecao search`, or `read` with the citation's `id`).
+- **The confirmation signature protects against a forged `llm.json`, not against whoever reads your files.** An agent with a shell that reads your user folder can read the local secret, just as it can read your notes directly. The protection holds for the path Cabeção controls: the CLI and the tools.
+- **The brain's policy travels through git.** Anyone with write access to the remote can loosen it (see above); each machine still decides whether to turn a provider on.
 - **"Data, never instruction" is still guidance to the model.** Content goes delimited, outside content goes marked, and the answer executes nothing; even so, malicious text can influence the answer. Citation checking limits the damage.
