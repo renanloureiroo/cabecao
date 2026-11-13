@@ -320,6 +320,7 @@ export function startInMemory(
     machine: options.machine ?? 'maquina-teste',
     ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
     ...(options.maxMessageBytes === undefined ? {} : { maxMessageBytes: options.maxMessageBytes }),
+    ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
     stdin,
     stdout,
   });

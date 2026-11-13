@@ -2,6 +2,17 @@
 export type { Brain, OpenBrainOptions } from './brain.ts';
 export { openBrain } from './brain.ts';
 export type { Actor, WriteStep } from './context.ts';
+export type {
+  CompactInput,
+  CompactOutput,
+  ComputeEmbeddingsInput,
+  ComputeEmbeddingsOutput,
+  EmbeddingsStatusOutput,
+  EvaluateInput,
+  EvaluateOutput,
+  SetEmbeddingOutput,
+  SwitchEmbeddingsOutput,
+} from './embeddings.ts';
 export type { ContentKind, DataEnvelope, DataItem } from './envelope.ts';
 export { DATA_NOTICE } from './envelope.ts';
 export type { BrainErrorCode, BrainErrorDetails, BrainErrorJson, IssueOutput, SecretHit } from './errors.ts';
@@ -44,6 +55,8 @@ export type {
 } from './read.ts';
 export { DEFAULT_RECALL_BUDGET_TOKENS, RECALL_ITEM_MAX_CHARS, RECALL_MEMORY_LIMIT, RECALL_PRIORITY } from './read.ts';
 export type { RelateInput, RelateOutput } from './relate.ts';
+export type { SearchMode, SearchModeUsed } from './semantic.ts';
+export { SEARCH_MODES } from './semantic.ts';
 export type { SyncInput, SyncOutput } from './sync.ts';
 export { toSyncOutput } from './sync.ts';
 export type {

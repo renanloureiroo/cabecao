@@ -1,8 +1,6 @@
 // Verificações do `doctor` (docs/08-instalacao-e-operacao.md, "O que o doctor verifica"). Cada uma é uma função pura:
 // recebe os fatos já coletados (`facts.ts` faz a parte que lê disco, git e rede) e devolve o resultado com a correção
 // sugerida. Assim cada regra é testável sem montar um cérebro de verdade.
-//
-// Ficam de fora, por serem do marco 2: runtime e modelo de embeddings, trechos sem embedding.
 import type { ClientId } from '../install-client/clients.ts';
 import type { ClientRegistration } from '../install-client/register.ts';
 import { formatWhen } from '../text.ts';
@@ -54,6 +52,41 @@ export type IndexFact =
     }
   | { kind: 'error'; message: string };
 
+/** Busca por significado (marco 2). */
+export type EmbeddingsFact =
+  | { kind: 'off' }
+  | {
+      kind: 'invalid';
+      model: string;
+      variant: string;
+      revision: string | null;
+      enabledHere: boolean;
+      fake: boolean;
+      message: string;
+    }
+  | {
+      kind: 'configured';
+      model: string;
+      variant: string;
+      revision: string | null;
+      enabledHere: boolean;
+      /** `CABECAO_TEST_FAKE_EMBEDDER=1`: embedder falso de teste. */
+      fake: boolean;
+      modelDir: string;
+      /** `null` no modo de teste ou quando não deu para ler. */
+      runtime: {
+        installed: boolean;
+        upToDate: boolean;
+        backend: string | null;
+        problem: string | null;
+        dir: string;
+      } | null;
+      modelCached: boolean | null;
+      /** Trechos distintos no banco local e quantos estão sem vetor; `null` sem banco ou sem leitura. */
+      chunks: number | null;
+      pending: number | null;
+    };
+
 /** Tudo o que as verificações precisam saber. Os campos `undefined` não foram coletados (dependiam de outro). */
 export interface DoctorFacts {
   platform: NodeJS.Platform;
@@ -71,6 +104,7 @@ export interface DoctorFacts {
   gitignore?: { exists: boolean; missing: readonly string[] };
   gitattributes?: { exists: boolean; missing: readonly string[] };
   index?: IndexFact;
+  embeddings?: EmbeddingsFact;
   locks?: readonly LockFact[];
   /** `index.lock` do git e a idade dele. */
   gitIndexLock?: { path: string; ageMs: number } | null;
@@ -564,6 +598,119 @@ export const checkClients: Check = (facts) => {
 };
 
 /** Todas as verificações, na ordem em que aparecem. */
+const EMBEDDINGS_ON_FIX = 'Rode "cabecao embeddings on" nesta máquina (usa o modelo já escolhido no cérebro).';
+
+export const checkEmbeddings: Check = (facts) => {
+  const fact = facts.embeddings;
+  if (fact === undefined) return null;
+  const title = 'Busca por significado';
+  if (fact.kind === 'off') {
+    return { id: 'embeddings', title, status: 'ok', message: 'desativada: a busca é por palavra-chave' };
+  }
+  const model = `${fact.model} (${fact.variant})`;
+  if (fact.kind === 'invalid') {
+    return {
+      id: 'embeddings',
+      title,
+      status: 'fail',
+      message: `o "embedding" do .cabecao.json não vale: ${fact.message}`,
+      fix: 'Corrija o campo "embedding" do .cabecao.json, ou rode "cabecao embeddings switch <modelo>".',
+    };
+  }
+  if (!fact.enabledHere) {
+    return {
+      id: 'embeddings',
+      title,
+      status: 'ok',
+      message: `${model}, desligada nesta máquina ("cabecao embeddings on" religa)`,
+    };
+  }
+  if (fact.fake)
+    return {
+      id: 'embeddings',
+      title,
+      status: 'warn',
+      message: `${model} com o embedder FALSO de teste`,
+      fix: 'Tire a variável CABECAO_TEST_FAKE_EMBEDDER do ambiente.',
+    };
+  if (fact.revision === null) {
+    return {
+      id: 'embeddings',
+      title,
+      status: 'warn',
+      message: `${model}, sem revisão fixada: cada máquina baixa o que estiver em main no Hugging Face`,
+      fix: 'Nada urgente; um "cabecao embeddings switch" para o mesmo modelo grava a revisão.',
+    };
+  }
+  return { id: 'embeddings', title, status: 'ok', message: `${model}, revisão ${fact.revision.slice(0, 12)}` };
+};
+
+export const checkEmbeddingsRuntime: Check = (facts) => {
+  const fact = facts.embeddings;
+  if (fact?.kind !== 'configured' || !fact.enabledHere || fact.fake) return null;
+  const title = 'Runtime de embeddings';
+  const runtime = fact.runtime;
+  if (runtime === null) {
+    return {
+      id: 'embeddings-runtime',
+      title,
+      status: 'warn',
+      message: 'não consegui ler o estado do runtime',
+      fix: EMBEDDINGS_ON_FIX,
+    };
+  }
+  if (!runtime.installed) {
+    return {
+      id: 'embeddings-runtime',
+      title,
+      status: 'warn',
+      message: `não instalado nesta máquina${runtime.problem === null ? '' : ` (${runtime.problem})`}: a busca aqui é só por palavra-chave`,
+      fix: EMBEDDINGS_ON_FIX,
+    };
+  }
+  if (!runtime.upToDate) {
+    return {
+      id: 'embeddings-runtime',
+      title,
+      status: 'warn',
+      message: 'instalado com outra versão ou para outro sistema',
+      fix: EMBEDDINGS_ON_FIX,
+    };
+  }
+  return { id: 'embeddings-runtime', title, status: 'ok', message: `${runtime.backend ?? '?'} em ${runtime.dir}` };
+};
+
+export const checkEmbeddingsModel: Check = (facts) => {
+  const fact = facts.embeddings;
+  if (fact?.kind !== 'configured' || !fact.enabledHere || fact.fake || fact.modelCached === null) return null;
+  return fact.modelCached
+    ? { id: 'embeddings-model', title: 'Modelo de embeddings', status: 'ok', message: `${fact.model} baixado` }
+    : {
+        id: 'embeddings-model',
+        title: 'Modelo de embeddings',
+        status: 'warn',
+        message: `${fact.model} não está baixado nesta máquina`,
+        fix: EMBEDDINGS_ON_FIX,
+      };
+};
+
+export const checkEmbeddingsPending: Check = (facts) => {
+  const fact = facts.embeddings;
+  if (fact?.kind !== 'configured' || fact.pending === null || fact.chunks === null) return null;
+  const title = 'Trechos sem embedding';
+  if (fact.pending === 0)
+    return { id: 'embeddings-pending', title, status: 'ok', message: `todos os ${fact.chunks} trechos têm vetor` };
+  return {
+    id: 'embeddings-pending',
+    title,
+    status: 'warn',
+    message: `${fact.pending} de ${fact.chunks} trechos sem embedding: concorrem só pela palavra-chave`,
+    fix: fact.enabledHere
+      ? 'Rode "cabecao sync" (calcula o que falta e traz o que outras máquinas calcularam) ou "cabecao embeddings on".'
+      : 'Esta máquina está com a busca por significado desligada; outra máquina calcula no próximo sync dela.',
+  };
+};
+
 export const CHECKS: readonly Check[] = [
   checkNode,
   checkGit,
@@ -576,6 +723,10 @@ export const CHECKS: readonly Check[] = [
   checkGitignore,
   checkGitattributes,
   checkIndex,
+  checkEmbeddings,
+  checkEmbeddingsRuntime,
+  checkEmbeddingsModel,
+  checkEmbeddingsPending,
   checkLocks,
   checkInterrupted,
   checkConflicts,
