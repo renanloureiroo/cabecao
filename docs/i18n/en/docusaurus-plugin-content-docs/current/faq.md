@@ -5,7 +5,7 @@ description: Short answers to the most common questions about Cabeção.
 
 ## Is it a GraphRAG?
 
-Not in the usual sense. A GraphRAG usually uses a language model to extract entities and relations from documents and build a separate graph. Cabeção does not call any model: the graph comes from what is already in the notes (wikilinks, typed relations in the frontmatter, facts, replacements, and mentions of other notes' titles), and the notes remain the source of truth. Today's search is by keyword, with a block of neighboring notes in the graph; the one reasoning about the result is the agent you already use.
+Not in the usual sense. A GraphRAG usually uses a language model to extract entities and relations from documents and build a separate graph. Cabeção does not use a model to build the graph: it comes from what is already in the notes (wikilinks, typed relations in the frontmatter, facts, replacements, and mentions of other notes' titles), and the notes remain the source of truth. The one reasoning about the search is the agent you already use; if you want a ready answer with checked citations, turn on [`ask`](./guias/respostas-com-modelo.md), which is optional.
 
 ## Do I need GitHub?
 
@@ -14,6 +14,8 @@ No. Any git remote works: GitHub, GitLab, Bitbucket, Gitea, Codeberg, your own s
 ## Does my data go to any server?
 
 Only to the git remote you configured, when you (or an agent) run the sync. Cabeção has no server of its own, no account, and no telemetry. What an agent reads from the brain becomes part of the conversation with your client's AI model, like any other text. Details in [Security and privacy](./seguranca.md).
+
+The only exception is optional: if you turn on [answers with a language model](./guias/respostas-com-modelo.md) (`cabecao llm on`), each `ask` sends passages from your notes to the provider you chose (or to a server on your machine, such as Ollama). It comes off; private notes (`private: true`, the `private` or `private/...` tag, or `#private` in the body), their names and passages with secrets never leave, and an agent neither sees nor chooses the provider.
 
 ## Does it work without Obsidian?
 

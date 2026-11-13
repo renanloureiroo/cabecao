@@ -116,6 +116,7 @@ In Claude Code, the plugin brings everything together (bundled server, briefing 
 - Memory with a lifecycle: handoff, resolved duplicates, `lint`, `consolidate` (also with an agent on its own), `forget`
 - `undo` per operation or session; secret scanner; rules only with your explicit request
 - Obsidian with one command (`obsidian setup`); `upgrade` and `uninstall`
+- Answers with checked citations (`ask`), optional: off by default, from the provider you turn on in the terminal
 
 What comes next is in [Coming soon](https://renanloureiroo.github.io/cabecao/en/em-breve).
 

@@ -13,6 +13,20 @@ export const EXAMPLES: Readonly<Record<string, readonly string[]>> = {
   doctor: ['cabecao doctor', 'cabecao doctor --offline'],
   sync: ['cabecao sync', 'cabecao sync --detach'],
   schedule: ['cabecao schedule on', 'cabecao schedule on --interval 60', 'cabecao schedule status'],
+  ask: [
+    'cabecao ask "que fila o Atlas usa hoje?"',
+    'cabecao ask "quem liderava o Atlas?" --as-of 2026-03-01',
+    'cabecao ask "o que decidimos sobre filas?" --show-context',
+  ],
+  llm: [
+    'cabecao llm on',
+    'cabecao llm on --provider gemini',
+    'cabecao llm on --provider ollama --model llama3.2',
+    'cabecao llm status',
+    'cabecao llm test',
+    'cabecao llm off',
+    'cabecao llm policy --allow agent',
+  ],
   search: [
     'cabecao search "fila de mensagens"',
     'cabecao search "quem lidera o atlas" --as-of 2026-03-01',
@@ -43,7 +57,12 @@ export const EXAMPLES: Readonly<Record<string, readonly string[]>> = {
   consolidate: ['cabecao consolidate', 'cabecao consolidate --finish <id>', 'cabecao consolidate --run --dry-run'],
   embeddings: ['cabecao embeddings status', 'cabecao embeddings on', 'cabecao embeddings off'],
   compact: ['cabecao compact', 'cabecao compact --prune'],
-  eval: ['cabecao eval perguntas.jsonl', 'cabecao eval perguntas.jsonl --alpha 0.4 --alpha 0.6'],
+  eval: [
+    'cabecao eval perguntas.jsonl',
+    'cabecao eval perguntas.jsonl --alpha 0.4 --alpha 0.6',
+    'cabecao eval --answers respostas.jsonl',
+    'cabecao eval --answers respostas.jsonl --provider claude-code,openai',
+  ],
   reindex: ['cabecao reindex', 'cabecao reindex --full'],
   obsidian: ['cabecao obsidian setup --dry-run', 'cabecao obsidian setup', 'cabecao obsidian clipper > clipper.json'],
   export: [
@@ -70,7 +89,7 @@ export const EXAMPLES: Readonly<Record<string, readonly string[]>> = {
 export const GROUPS: readonly { readonly title: string; readonly commands: readonly string[] }[] = [
   {
     title: 'Uso diário',
-    commands: ['status', 'sync', 'search', 'recall', 'read', 'remember', 'handoff', 'undo'],
+    commands: ['status', 'sync', 'search', 'ask', 'recall', 'read', 'remember', 'handoff', 'undo'],
   },
   {
     title: 'Configuração',
@@ -81,6 +100,7 @@ export const GROUPS: readonly { readonly title: string; readonly commands: reado
       'install-skills',
       'schedule',
       'embeddings',
+      'llm',
       'obsidian',
       'upgrade',
       'uninstall',

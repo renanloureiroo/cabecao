@@ -37,6 +37,8 @@ const COMMANDS = [
   'obsidian',
   'export',
   'upgrade',
+  'ask',
+  'llm',
   'install-skills',
   'uninstall',
 ];

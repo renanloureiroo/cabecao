@@ -200,6 +200,121 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/search.ts'),
   },
   {
+    name: 'ask',
+    summary: 'Resposta com citações conferidas, gerada pelo provedor que você ativou (opcional)',
+    usage: [
+      'ask "<pergunta>" [--scope <escopo>] [--type <tipo>...] [--as-of <data>] [--limit <n>] [--verbose] [--show-context]',
+    ],
+    options: {
+      scope: { type: 'string', valueName: 'escopo', description: '"global" ou "project:<nome>" (que inclui o global)' },
+      type: {
+        type: 'string',
+        multiple: true,
+        valueName: 'tipo',
+        description: 'Só notas deste tipo (repita, ou separe por vírgula)',
+      },
+      'as-of': { type: 'string', valueName: 'data', description: 'Data AAAA-MM-DD da validade (padrão: hoje)' },
+      limit: {
+        type: 'string',
+        valueName: 'n',
+        description: 'Máximo de notas usadas como fonte, de 1 a 20 (padrão: 10)',
+      },
+      verbose: { type: 'boolean', description: 'Mostra provedor, modelo, tokens, custo e tempo (só para você)' },
+      'show-context': {
+        type: 'boolean',
+        description: 'Mostra exatamente o que seria enviado ao provedor, sem enviar nada',
+      },
+    },
+    details: [
+      'Busca no cérebro como o "search", manda os trechos ao provedor que você ativou com "cabecao llm on" e confere',
+      'cada citação: o trecho citado tem de existir e a citação literal tem de estar nele. A afirmação sem citação',
+      'conferida é descartada; sem nenhuma válida, a resposta vira "o cérebro não tem isso".',
+      'Opcional e desligado por padrão: sem provedor, mostra os trechos achados e como ativar (nada sai da máquina).',
+      'Nunca são enviados: notas privadas (e o nome delas), arquivos de controle e trechos em que o scanner acusa segredo.',
+      '',
+      'Código de saída: 0 respondeu (o status diz se com pouco apoio ou se o cérebro não tem isso); 5 nenhum provedor',
+      'gerou a resposta (vêm os trechos achados); 2 erro de uso. Com --json, o mesmo objeto que a tool "ask" devolve.',
+    ].join('\n'),
+    load: () => import('./commands/ask.ts'),
+  },
+  {
+    name: 'llm',
+    summary: 'Provedor das respostas do "ask": ativar, desligar, ver, testar, apagar (opcional)',
+    usage: [
+      'llm on [--provider <provedor>] [--model <modelo>] [--base-url <url>] [--key-env <VARIÁVEL>] [--store keychain|file]',
+      'llm off',
+      'llm status',
+      'llm test [--provider <provedor>]',
+      'llm remove <provedor>',
+      'llm policy [--allow none|agent|any] [--exclude-path <glob>...] [--exclude-type <tipo>...] [--exclude-trust <nível>...] [--clear]',
+    ],
+    options: {
+      allow: {
+        type: 'string',
+        valueName: 'nível',
+        description: 'Com policy: none (nunca envia), agent (só o agente instalado) ou any (sem restrição)',
+      },
+      'exclude-path': {
+        type: 'string',
+        multiple: true,
+        valueName: 'glob',
+        description: 'Com policy: caminhos que nunca saem (repita, ou separe por vírgula)',
+      },
+      'exclude-type': {
+        type: 'string',
+        multiple: true,
+        valueName: 'tipo',
+        description: 'Com policy: tipos de nota que nunca saem',
+      },
+      'exclude-trust': {
+        type: 'string',
+        multiple: true,
+        valueName: 'nível',
+        description: 'Com policy: níveis de trust que nunca saem (low, medium, high)',
+      },
+      clear: { type: 'boolean', description: 'Com policy: tira a política do cérebro' },
+      provider: {
+        type: 'string',
+        valueName: 'provedor',
+        description: 'claude-code, anthropic, openai, gemini, openrouter, groq, ollama, lmstudio ou compatible',
+      },
+      model: {
+        type: 'string',
+        valueName: 'modelo',
+        description: 'Modelo (padrão: o mais barato com saída estruturada)',
+      },
+      'base-url': {
+        type: 'string',
+        valueName: 'url',
+        description: 'Endereço de um serviço compatível com a API da OpenAI (https, ou http em localhost)',
+      },
+      'key-env': {
+        type: 'string',
+        valueName: 'VARIÁVEL',
+        description: 'Lê a chave desta variável de ambiente em vez de guardá-la',
+      },
+      store: {
+        type: 'string',
+        valueName: 'onde',
+        description: 'Onde guardar a chave colada: keychain (cofre do sistema, padrão) ou file (arquivo 0600)',
+      },
+    },
+    details: [
+      'Desligado por padrão: nada sai da máquina até você rodar "cabecao llm on" num terminal, ver o que passa a sair',
+      'e para onde, e confirmar. Um agente não ativa, não troca e não lê a chave. off desliga sem apagar a chave; remove',
+      'apaga o provedor e a chave guardada. A chave fica no cofre do sistema (Keychain, Secret Service ou DPAPI) ou num',
+      'arquivo 0600, nunca no cérebro nem no llm.json. O Antigravity instalado não é oferecido: os termos dele não',
+      'permitem chamá-lo de outro aplicativo nos planos pessoais; use a API do Gemini.',
+      '',
+      'policy mostra ou muda a política de envio deste cérebro (llm_policy no .cabecao.json, que vai para o git). Ela só',
+      'restringe: quem libera um provedor é sempre esta máquina. Um agente não muda a política, nem com confirmação.',
+      'A configuração (llm.json) fica na pasta padrão do seu usuário. Desviada por CABECAO_CONFIG_DIR (ou HOME,',
+      'XDG_CONFIG_HOME), vale só para você no terminal: para um agente, as respostas ficam desligadas. Para um agente,',
+      'o status diz só se as respostas estão ligadas.',
+    ].join('\n'),
+    load: () => import('./commands/llm.ts'),
+  },
+  {
     name: 'graph',
     summary: 'Vizinhos de uma nota no grafo',
     usage: ['graph "<nota>" [--depth 1|2] [--type <tipo>...] [--as-of <data>]'],
@@ -284,8 +399,21 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'eval',
     summary: 'Mede a busca com as suas perguntas',
-    usage: ['eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]'],
+    usage: [
+      'eval <perguntas.jsonl> [--alpha <α>...] [--k <n>]',
+      'eval --answers <perguntas.jsonl> [--provider <id>...]',
+    ],
     options: {
+      answers: {
+        type: 'boolean',
+        description: 'Mede as respostas do "ask" (citações conferidas e recusas) com o provedor ativado',
+      },
+      provider: {
+        type: 'string',
+        multiple: true,
+        valueName: 'id',
+        description: 'Com --answers: um relatório por provedor (repita, ou separe por vírgula)',
+      },
       alpha: {
         type: 'string',
         multiple: true,
@@ -299,6 +427,10 @@ export const COMMANDS: readonly CommandSpec[] = [
       '"expected" aceita o id ou o caminho da nota, ou uma lista. Compara só palavra-chave, só vetor e a fusão com',
       'cada α, e imprime MRR, nDCG, recall e acerto na 1ª posição, por tipo de pergunta, com o intervalo de',
       'confiança da diferença contra a palavra-chave. Sem a busca por significado, mede só a palavra-chave.',
+      '',
+      'Com --answers, mede as respostas do "ask" (precisa de "cabecao llm on"): citações válidas, afirmações sem apoio,',
+      'fonte certa citada e recusas. Para perguntas sem resposta no cérebro, use {"query": "...", "answerable": false}.',
+      'Cada pergunta é uma chamada ao provedor (custa).',
     ].join('\n'),
     load: () => import('./commands/eval.ts'),
   },
@@ -708,6 +840,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       'sem --allow-elevated, também regra, arquivo de controle, raw/ e trust: high (não há usuário para confirmar).',
     ].join('\n'),
     ownsStdout: true,
+    alwaysAgent: true,
     load: () => import('./commands/mcp.ts'),
   },
   {

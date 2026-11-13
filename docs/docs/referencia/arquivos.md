@@ -31,6 +31,32 @@ Onde fica a pasta:
 
 O `init` cria o arquivo. Se ele quebrar, apague-o e rode `cabecao init` de novo: num cérebro que já existe, o `init` só grava o nome da máquina.
 
+## Provedor de respostas: `llm.json`
+
+Só existe se você ativou as [respostas com um modelo de linguagem](../guias/respostas-com-modelo.md) (`cabecao llm on`). Fica na pasta de configuração padrão do seu usuário (`~/.config/cabecao`; no Windows, `%APPDATA%\cabecao`), com permissão `0600`, e **nunca guarda a chave**, só onde ela está. Desviada por variável de ambiente, vale só para você no terminal, nunca para um agente (veja [Onde fica a configuração](../guias/respostas-com-modelo.md#onde-fica-a-configuração)):
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "providers": {
+    "anthropic": { "kind": "http", "preset": "anthropic", "model": "claude-haiku-5-5", "key": "keychain", "consented_at": "2026-11-13T12:00:00.000Z", "consent": "9f2c…" },
+    "claude-code": { "kind": "agent", "agent": "claude-code", "model": null, "consented_at": "2026-11-13T12:05:00.000Z", "consent": "41ab…" }
+  },
+  "roles": { "answer": ["anthropic", "claude-code"] },
+  "limits": { "context_tokens": 3000, "max_output_tokens": 2048, "timeout_ms": 60000, "max_calls_per_hour": 30, "max_calls_per_session": 20 }
+}
+```
+
+| Campo | O que é |
+| --- | --- |
+| `enabled` | `false` depois de `cabecao llm off`: nada sai, e o resto continua |
+| `providers` | Cada provedor: `kind` (`http` ou `agent`), `preset` ou `agent`, `model`, `base_url` (só em `compatible`, `ollama` e `lmstudio`; conferido a cada leitura), `key` (`env:NOME`, `keychain`, `file` ou `none`), `consented_at` e `consent` (a sua confirmação, assinada com o segredo local; sem ela, ou se destino, modelo ou chave mudarem, o provedor não é usado) |
+| `roles.answer` | A ordem de uso: se o primeiro não estiver disponível ou falhar, o seguinte responde |
+| `limits` | Contexto por pergunta (500 a 8000 tokens), saída e tempo limite de cada chamada; o teto de gasto: `max_calls_per_hour` (padrão 30) e `max_calls_per_session` (padrão 20, por sessão do servidor MCP) |
+
+Junto dele: `llm-consent.key` (o segredo que assina as confirmações, `0600`), `ask-usage.json` (as horas das perguntas recentes, para o teto por hora, com a trava `ask-usage.lock`), `ask.log` (uma linha por pergunta: o status, as contagens e o tempo, sem trechos do cérebro e sem chave), e, quando é o caso: `credentials.json` (chaves guardadas com `--store file`, ou num Linux sem `secret-tool`; permissão `0600`) e, no Windows, `credentials.dpapi.json` (as chaves cifradas com a DPAPI do seu usuário). O `ask.log` fica aqui, e não na pasta de cache, porque a pasta de cache segue o ambiente de quem roda (um agente a apontaria para onde quisesse). No Claude Code, o provedor guarda também `binary`: o caminho real do `claude` confirmado. O `cabecao uninstall` apaga tudo isso, e as chaves no cofre do sistema.
+
 ## O cérebro
 
 A pasta do cérebro (padrão `~/cabecao`) é um repositório git comum. A estrutura está em [Estrutura do cérebro](../conceitos/estrutura.md).

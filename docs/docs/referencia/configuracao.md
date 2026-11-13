@@ -30,6 +30,7 @@ O `.cabecao.json` fica na raiz do cérebro. Ele marca a pasta como cérebro do C
 | `relations` | lista de nomes | `[]` | Relações tipadas suas, além das seis fixas |
 | `commit` | objeto | ausente | O modelo do assunto dos commits |
 | `embedding` | objeto | ausente | Reservado para a busca por significado, [em breve](../em-breve.md). Hoje não tem efeito |
+| `llm_policy` | objeto | ausente (sem restrição) | O que um provedor de respostas do `ask` pode receber deste cérebro. Veja [Política por cérebro](../guias/respostas-com-modelo.md#política-por-cérebro) |
 
 Chaves que o Cabeção não conhece são mantidas quando ele regrava o arquivo.
 
@@ -74,6 +75,18 @@ Marcadores de `message`:
 `dateFormat` usa os marcadores do Moment.js (`YYYY`, `MM`, `DD`, `HH`, `mm`, `ss`, `SSS`, `dddd`, `MMMM`...) e aceita texto literal entre colchetes, como `[às] HH:mm`. Os nomes de mês e de dia saem em inglês.
 
 O corpo e os rodapés (`Cabecao-Op`, `Cabecao-Session`...) não mudam: o `undo` depende deles. Veja [Commits e undo](../conceitos/commits-e-undo.md).
+
+### llm_policy
+
+Vale em todas as máquinas do cérebro e só restringe: o provedor em si é escolhido em cada máquina, com `cabecao llm on`.
+
+```json
+{
+  "llm_policy": { "allow": "agent", "exclude_paths": ["memory/private/**"], "exclude_types": [], "exclude_trust": ["low"] }
+}
+```
+
+`allow` é `"any"` (padrão), `"agent"` (só o agente instalado) ou `"none"` (nunca chama provedor). Um `llm_policy` inválido não quebra o cérebro: ele fecha o envio (nada sai) e o `doctor` diz o que corrigir. A política só restringe (quem libera um provedor é a máquina), só você a muda (`cabecao llm policy`, no terminal) e um agente não a altera, nem com confirmação.
 
 ## Quando o arquivo quebra
 

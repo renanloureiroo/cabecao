@@ -53,6 +53,7 @@ export type { LintFinding, LintInput, LintOutput, LintRule, LintSeverity } from 
 export { CONFIRMABLE_TYPES, DEFAULT_LINT_LIMIT, LINT_RULES, MAX_LINT_LIMIT, UNCONFIRMED_AFTER_DAYS } from './lint.ts';
 export type { MapGraphEdge, MapGraphInput, MapGraphNote, MapGraphOutput } from './map.ts';
 export { DEFAULT_MAP_LIMIT, MAX_MAP_LIMIT } from './map.ts';
+export type { PrivateNote } from './private-notes.ts';
 export type {
   BacklinkOutput,
   ConflictOutput,

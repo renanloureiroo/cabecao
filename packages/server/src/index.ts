@@ -13,4 +13,6 @@ export { buildServer, serverInfo } from './server.ts';
 export type { StdioServerOptions } from './stdio.ts';
 export { runStdioServer } from './stdio.ts';
 export type { ServerRuntime, SyncRunner } from './tools.ts';
-export { TOOL_NAMES } from './tools.ts';
+export { ASK_TOOL_NAME, TOOL_NAMES } from './tools.ts';
+export type { AskRunner } from './tools-ask.ts';
+export { ASK_INSTRUCTIONS, askInput, askOutput } from './tools-ask.ts';

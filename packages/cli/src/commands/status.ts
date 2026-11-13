@@ -2,6 +2,8 @@ import type { StatusOutput } from '@cabecao/core';
 import { checkTemplate, schemaState, templateUpdatable } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { stableBin } from '../install-client/launch.ts';
+import type { LlmSummary } from '../llm/describe.ts';
+import { agentSummary, llmSummary } from '../llm/describe.ts';
 import { gatherOptional, optionalSteps, optionalText } from '../optional.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
@@ -98,11 +100,38 @@ export function statusText(status: StatusOutput): string {
   return lines.join('\n');
 }
 
+/** A linha do provedor de respostas (opcional), depois da busca por significado. */
+export function askLine(summary: LlmSummary | ReturnType<typeof agentSummary>): string {
+  if (!('label' in summary)) {
+    return `Respostas (ask): ${summary.state === 'on' ? 'ligadas' : 'desligadas'}`;
+  }
+  switch (summary.state) {
+    case 'none':
+      return 'Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)';
+    case 'invalid':
+      return `Respostas (ask): configuração inválida (${summary.problem ?? '?'}); "cabecao llm on" refaz`;
+    case 'off':
+      return `Respostas (ask): desligadas nesta máquina (${summary.label}; "cabecao llm on" religa)`;
+    default:
+      return `Respostas (ask): ${summary.label} · modelo ${summary.model} · ${summary.leaves_machine === true ? `trechos saem da máquina para ${summary.destination}` : 'roda nesta máquina'}`;
+  }
+}
+
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   const root = await resolveBrain(ctx);
   const status = await withBrain(ctx, root, (brain) => brain.status());
+  const text = statusText(status);
+  // a linha do ask (opcional) vai antes de "Problemas"/"Saúde"
+  const full = await llmSummary(ctx).catch(() => null);
+  // um agente sabe só se as respostas estão ligadas: nada de provedor, modelo ou destino
+  const ask = full === null ? null : ctx.actor.actor === 'human' ? full : agentSummary(full);
+  const body = text.split('\n');
+  if (ask !== null) {
+    const at = body.findIndex((line) => line === 'Problemas:' || line.startsWith('Saúde:'));
+    body.splice(at === -1 ? body.length : at, 0, askLine(ask));
+  }
   // Avisos (conflitos, sync com erro) não mudam o código de saída: o comando funcionou e mostrou o estado.
-  const lines = [statusText(status)];
+  const lines = [body.join('\n')];
   const schema = await schemaState(root);
   if (schema !== null && schema.pending > 0) {
     lines.push(
@@ -125,6 +154,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   return {
     data: {
       ...status,
+      ...(ask === null ? {} : { ask }),
       optional,
       upgrade: {
         schema_version: schema?.version ?? null,

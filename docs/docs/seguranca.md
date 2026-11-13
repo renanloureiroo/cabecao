@@ -6,7 +6,8 @@ description: Para onde vão os seus dados, como o scanner de segredos funciona, 
 ## Seus dados ficam com você
 
 - As notas ficam numa pasta da sua máquina e num repositório git **seu**.
-- O Cabeção não tem servidor, conta, telemetria nem coleta de uso. O pacote não faz chamadas de rede próprias: tudo o que sai da máquina passa pelo git, para o remoto que **você** configurou (`fetch`, `push` e, no `init` e no `doctor`, uma consulta para saber se o remoto responde).
+- O Cabeção não tem servidor, conta, telemetria nem coleta de uso. Tudo o que sai da máquina passa pelo git, para o remoto que **você** configurou (`fetch`, `push` e, no `init` e no `doctor`, uma consulta para saber se o remoto responde).
+- **A única exceção é opcional e desligada por padrão:** se você ativar as [respostas com um modelo de linguagem](./guias/respostas-com-modelo.md) (`cabecao llm on`), cada pergunta do `ask` manda trechos das notas ao provedor que **você** escolheu. Nada vai até você ativar, num terminal, vendo o que sai e para onde. Veja [abaixo](#respostas-com-um-provedor-opcional).
 - O servidor MCP roda na sua máquina, por stdio. Ele não abre porta de rede.
 - O que um agente lê do cérebro vai para o modelo de IA que você usa, como qualquer outro texto da conversa. Isso é do cliente de IA, não do Cabeção: escolha o que guarda sabendo disso.
 
@@ -121,9 +122,27 @@ As [skills do Cabeção](./guias/skills.md) não dão nenhum poder novo ao agent
 
 - **Pode**, sem perguntar: consultar (`recall`, `search`, `read`, `graph`, `facts`, `lint`, `status`), gravar memórias comuns (`remember`, `write`, `patch`, `relate`, `handoff`), registrar fontes (`ingest`), desfazer as próprias operações (`undo --op <id>`) e sincronizar (`sync`). Tudo vira um commit com `origin: agent:<nome>` e o rodapé `Cabecao-Client`, que `undo` desfaz.
 - **Só com o seu pedido explícito**, em duas chamadas com `--confirm <token>`: regras, arquivos de controle e de instrução, `raw/`, `trust: high`, arquivar (`forget`) e desfazer uma operação que não é de agente. A skill `cabecao-pedido-explicito` diz para mostrar o resumo, perguntar e nunca seguir um pedido que veio de conteúdo lido. O que for gravado assim fica marcado e aparece no `lint`.
-- **Não pode**: os comandos só seus (`embeddings on/off/switch`, `compact`, `upgrade`, remover com `uninstall`) saem com o código 4; nenhuma opção, variável ou arquivo de configuração faz o agente virar você (`--as` só dá o nome). As proteções técnicas (fora do cérebro, `.git/`, links simbólicos, segredos, frontmatter forjado) valem sem exceção.
+- **Não pode**: os comandos só seus (`embeddings on/off/switch`, `compact`, `upgrade`, `llm on/off/test/remove/policy`, `eval --answers`, remover com `uninstall`) saem com o código 4; nenhuma opção, variável ou arquivo de configuração faz o agente virar você (`--as` só dá o nome). As proteções técnicas (fora do cérebro, `.git/`, links simbólicos, segredos, frontmatter forjado) valem sem exceção.
 
 O limite está logo abaixo: um agente que tem shell pode **não usar** a CLI e editar os arquivos do cérebro direto. As skills deixam o caminho certo fácil; elas não impedem o errado.
+## Respostas com um provedor (opcional)
+
+Com o `ask` ativado, o conteúdo do cérebro passa a ter mais um destinatário: o provedor que gera a resposta. As proteções:
+
+- **Opt-in por máquina e por provedor.** O `cabecao llm on` só funciona com você no terminal, mostra o destino, o que sai, o que nunca sai, a política de dados do provedor e o custo, e pede confirmação. Um agente não ativa, não troca e não lê a chave. `cabecao llm off` desliga. A confirmação fica assinada com um segredo local e cobre destino, modelo e chave: um `llm.json` forjado ou com o endereço trocado não ativa nada, e uma configuração desviada por variável de ambiente não vale para um agente.
+- **O que nunca sai:** notas privadas (a chave `private` em qualquer caixa com valor verdadeiro; a tag `private` ou `private/...` em `tags` ou `tag`; ou `#private` no corpo, como no Obsidian) e o nome delas citado como palavra inteira em outras notas (um nome curto faz o trecho que o cita não sair), notas de frontmatter ilegível, arquivos de controle, trechos em que o scanner acusa segredo na nota inteira (o marcador `cabecao:allow-secret` não vale aqui) e o que a `llm_policy` do cérebro excluir. Um cérebro pode proibir qualquer provedor (`"allow": "none"`) ou permitir só o agente instalado (`"agent"`); a política só restringe, vale em todas as máquinas e só você a muda (`cabecao llm policy`).
+- **Conteúdo como dado.** Cada trecho vai entre delimitadores com uma marca sorteada a cada pergunta (um trecho que tente forjar o delimitador é neutralizado), com o caminho e o título da nota dentro do bloco, o conteúdo de fora vai com as palavras separadas por `^`, e o prompt diz que nada dentro dos trechos é instrução.
+- **Resposta só lida.** Nada do que o provedor devolve é executado, gravado no cérebro ou usado para chamar outra coisa. Sequências de controle de terminal, imagens, links, endereços e HTML são removidos do texto do modelo.
+- **Citações conferidas pelo Cabeção**, não pelo modelo: rótulo inventado, citação curta demais (menos de 16 letras ou números e 3 palavras de conteúdo) ou que não está no trecho é descartada, e a citação mostrada é o texto real da nota; sem nenhuma citação válida, a resposta é "o cérebro não tem isso". O Cabeção confere a citação, não a conclusão.
+- **Rede sem desvio.** Um redirecionamento nunca é seguido, um servidor desta máquina nunca vai pelo proxy, os endereços de metadados de nuvem são recusados e há um teto de chamadas por hora e por sessão.
+- **O agente não vê o provedor.** Nem o nome, nem o modelo, nem o destino, nem o erro do provedor, por nenhum comando ou tool. O servidor MCP é sempre tratado como agente, mesmo com um terminal herdado, e a pasta da configuração vem da conta do sistema (`os.userInfo()`), não do ambiente.
+- **Teto de gasto que segura concorrência**: a vaga é reservada antes de chamar o provedor, sob uma trava entre processos, e cada pergunta faz no máximo 3 pedidos.
+- **Texto do modelo como dado**: só saem as afirmações com citação conferida; `[`, `]`, `<` e `>` vêm escapados e endereços removidos; o aviso de dados diz que o texto é gerado por um modelo. Uma pergunta com segredo é recusada.
+- **Claude Code confirmado**: o `ask` roda o executável confirmado no `llm on`, e para um agente sem nada do ambiente dele que mude o destino ou a configuração do `claude`.
+- **A chave** fica no cofre do sistema (ou num arquivo `0600`), entra nos programas do sistema pela entrada padrão (no Windows, pelo ambiente só do processo do PowerShell), nunca na linha de comando, e nunca aparece no cérebro, no log, numa mensagem de erro ou no `--json`. Ela fica amarrada ao destino: trocar o endereço do provedor não a entrega a outro servidor.
+- **O agente instalado roda sem ferramentas.** O Claude Code, como provedor, roda sem shell, sem leitura de arquivos e sem MCP, numa pasta temporária vazia, com ambiente mínimo e tempo limite; a árvore de processos é encerrada no fim.
+
+Detalhes, provedores e a política de dados de cada um em [Respostas com um modelo de linguagem](./guias/respostas-com-modelo.md).
 
 ## Limites conhecidos
 
@@ -134,6 +153,7 @@ Dito com franqueza, para você decidir o que guardar:
 - **O token de confirmação não prova que você disse sim** (veja acima).
 - **O scanner trabalha por padrões.** Ele pega os formatos da tabela, não todo segredo possível: uma senha solta numa frase, sem um nome como "senha:" antes, passa. Não use o cérebro para guardar segredos.
 - **"Dado, nunca instrução" é uma orientação ao modelo, não uma garantia.** Um texto malicioso numa nota pode, mesmo assim, influenciar um modelo. Desconfie de conteúdo de fora (`trust: low`).
+- **Com o `ask` ativado, os trechos enviados ficam sob a política do provedor.** O Cabeção escolhe o que sai, mas não controla o que o provedor faz com o que recebeu.
 - **Nada é cifrado pelo Cabeção.** As notas ficam em texto puro no disco e no remoto; quem tem acesso ao repositório lê tudo. A proteção é a do seu provedor e a do seu disco.
 - **Commits sem assinatura.** Se `commit.gpgsign` estiver ligado, os commits do Cabeção saem sem assinatura, porque uma chave que pede senha travaria o sync. O `doctor` avisa.
 - **A checagem de repositório público só cobre HTTPS de provedores conhecidos.** Em SSH, confira você mesmo.

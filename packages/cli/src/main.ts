@@ -1,5 +1,6 @@
 import { closeSync, openSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { systemExec } from './exec.ts';
 import { execute } from './router.ts';
 import type { CliIo, CommandSpec, ControllingTerminal, Exec, StdinLimits } from './types.ts';
@@ -36,6 +37,9 @@ export async function run(argv: readonly string[], options: RunOptions = {}): Pr
       platform: process.platform,
       execPath: process.execPath,
       exec: noExec,
+      // como biblioteca (testes), a configuração do provedor de respostas nunca é a real da máquina: sem uma pasta
+      // pedida, uma que não existe (nada configurado)
+      llmConfigDir: join(tmpdir(), `cabecao-run-sem-llm-${process.pid}`),
       ...io,
       argv,
       stdout: { write: (chunk) => out.push(chunk) },
@@ -77,11 +81,75 @@ function hasControllingTerminal(platform: NodeJS.Platform): boolean {
 }
 
 /**
+ * Pergunta sem eco (uma chave de API), direto no terminal controlador, em modo cru, caractere a caractere: Enter
+ * termina, Backspace apaga, Ctrl+C ou Ctrl+D cancelam (devolve `null`). Nada do que é digitado aparece na tela.
+ */
+async function terminalSecret(platform: NodeJS.Platform, question: string): Promise<string | null> {
+  const { input: inPath, output: outPath } = terminalPaths(platform);
+  const tty = await import('node:tty');
+  let input: InstanceType<typeof tty.ReadStream> | undefined;
+  let output: InstanceType<typeof tty.WriteStream> | undefined;
+  try {
+    input = new tty.ReadStream(openSync(inPath, 'r'));
+    output = new tty.WriteStream(openSync(outPath, 'w'));
+  } catch {
+    input?.destroy();
+    return null;
+  }
+  const read = input;
+  const write = output;
+  write.write(question);
+  return new Promise((resolve) => {
+    let value = '';
+    const finish = (result: string | null): void => {
+      read.off('data', onData);
+      read.setRawMode(false);
+      write.write('\n');
+      read.destroy();
+      write.destroy();
+      resolve(result);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      for (const char of chunk.toString('utf8')) {
+        if (char === '\r' || char === '\n') {
+          finish(value.trim());
+          return;
+        }
+        if (char === '\u0003' || char === '\u0004') {
+          finish(null);
+          return;
+        }
+        if (char === '\u007f' || char === '\b') value = value.slice(0, -1);
+        else if (char >= ' ') value += char;
+      }
+    };
+    read.setRawMode(true);
+    read.on('data', onData);
+  });
+}
+
+/** Ctrl+C vira cancelamento enquanto o comando quiser (o `ask` encerra o provedor e sai). */
+function watchInterrupt(): { signal: AbortSignal; dispose(): void } {
+  const controller = new AbortController();
+  const onSignal = (): void => controller.abort(new Error('interrompido'));
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      process.off('SIGINT', onSignal);
+      process.off('SIGTERM', onSignal);
+    },
+  };
+}
+
+/**
  * Pergunta direto no terminal controlador, uma linha, sem passar pelo stdin (que pode ser um pipe com o conteúdo de
  * uma nota, ou um agente). `node:readline` e `node:tty` só são carregados quando um comando pergunta algo.
  */
 function controllingTerminal(platform: NodeJS.Platform): ControllingTerminal {
   return {
+    promptSecret: (question) => terminalSecret(platform, question),
     async prompt(question) {
       const { input: inPath, output: outPath } = terminalPaths(platform);
       const [{ createInterface }, tty] = await Promise.all([import('node:readline/promises'), import('node:tty')]);
@@ -146,6 +214,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     exec: systemExec,
     readStdin: processStdin,
     exit: flushAndExit,
+    watchInterrupt,
     ...(hasControllingTerminal(process.platform) ? { terminal: controllingTerminal(process.platform) } : {}),
   });
 }

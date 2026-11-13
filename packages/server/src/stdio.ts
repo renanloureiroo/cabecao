@@ -10,6 +10,7 @@ import { createBrainProvider } from './brains.ts';
 import { LineLimiter, MAX_MESSAGE_BYTES } from './line-limit.ts';
 import { buildServer } from './server.ts';
 import type { ServerRuntime, SyncRunner } from './tools.ts';
+import type { AskRunner } from './tools-ask.ts';
 
 export interface StdioServerOptions {
   /** Pasta do cérebro. */
@@ -20,6 +21,8 @@ export interface StdioServerOptions {
   machine?: string;
   /** Quando presente, a tool `sync` usa isto (a CLI roda o sync em processo separado); senão, roda no próprio processo. */
   syncRunner?: SyncRunner;
+  /** Respostas geradas: só com provedor ativo nesta máquina (a CLI decide); sem isto, a tool `ask` não aparece. */
+  ask?: AskRunner;
   /** Runtime de embeddings (a CLI injeta). O modelo carrega na primeira busca que precisa dele, nunca na subida. */
   embeddings?: EmbeddingProvider;
   /**
@@ -94,6 +97,8 @@ export function runStdioServer(options: StdioServerOptions): Promise<void> {
     }),
     // sem ninguém olhando, o sync passa pelo cérebro, que o recusa (o processo separado não conhece as travas)
     ...(options.syncRunner === undefined || options.unattended !== undefined ? {} : { syncRunner: options.syncRunner }),
+    // sem ninguém olhando (consolidação), a tool `ask` não existe: ela chamaria um provedor de fora
+    ...(options.ask === undefined || options.unattended !== undefined ? {} : { ask: options.ask }),
     log: stderrLog,
   };
   // Mensagem grande demais: o transporte do SDK fecharia a conexão em silêncio (e o processo sairia com 0). O

@@ -25,5 +25,6 @@ These experience changes have already been evaluated, but need a decision before
 - **More agents in `consolidate --run`**: GitHub Copilot CLI and OpenCode have options to restrict tools, but have not been tested yet.
 - **Delete for good** (`cabecao purge`): remove a note from the git history, for the rare case of something that should never have been there. Today `forget` archives, and the archived note stays in git.
 - **Graph explorer inside Claude**, to browse notes and relations in a window of the conversation.
+- **More from the answer provider** ([`ask`](./guias/respostas-com-modelo.md) itself arrives in the next version): topic summaries and consolidation help written by the provider, always under the same restrictions as an agent; a model that runs embedded, with no server; and semantic search with Ollama.
 
 Want to follow along or share your opinion? Open an [issue](https://github.com/renanloureiroo/cabecao/issues).

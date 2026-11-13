@@ -41,6 +41,10 @@ export const COMMAND_ACCESS: Readonly<Record<string, AccessSpec>> = {
     why: 'prepara e fecha consolidação; --run roda sem terminal (agendado), mas --allow-forget e --allow-elevated só o humano passa',
   },
   undo: { access: 'memory', why: 'desfaz; operação do usuário ou começo do id: agente só com confirmação' },
+  ask: {
+    access: 'memory',
+    why: 'só lê o cérebro; manda trechos só ao provedor que o usuário ativou, que o agente não escolhe nem vê',
+  },
   // administração que roda sem terminal por desenho
   init: { access: 'admin', why: 'prepara a máquina; roda em scripts' },
   status: { access: 'admin', why: 'só lê o estado' },
@@ -71,6 +75,11 @@ export const COMMAND_ACCESS: Readonly<Record<string, AccessSpec>> = {
   embeddings: {
     access: 'human',
     why: 'instala o runtime, baixa modelo e muda o .cabecao.json; status só lê',
+    subcommands: { status: 'admin' },
+  },
+  llm: {
+    access: 'human',
+    why: 'ativa, troca e apaga o provedor de respostas e a chave, e o test gasta com o provedor; status só lê',
     subcommands: { status: 'admin' },
   },
   compact: { access: 'human', why: 'reescreve a branch de índice numa geração nova e pode apagar no remoto' },

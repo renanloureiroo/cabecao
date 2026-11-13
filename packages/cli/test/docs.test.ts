@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOL_NAMES } from '@cabecao/server';
+import { ASK_TOOL_NAME, TOOL_NAMES } from '@cabecao/server';
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/commands.ts';
 import { CLIENT_IDS, CLIENTS } from '../src/install-client/clients.ts';
@@ -29,6 +29,8 @@ const CURRENT = [
 ];
 
 describe('documentação em dia com o código', () => {
+  // `TOOL_NAMES` são as tools sempre anunciadas; a `ask` só aparece com um provedor de respostas ativado na máquina, então
+  // a contagem da documentação é a das sempre anunciadas, e a `ask` tem de estar documentada como condicional.
   it('toda contagem de tools é a do servidor', () => {
     const wrong: string[] = [];
     for (const file of CURRENT) {
@@ -43,10 +45,16 @@ describe('documentação em dia com o código', () => {
     for (const file of ['docs/docs/referencia/mcp.md', `${EN}/referencia/mcp.md`]) {
       const sections = [...read(file).matchAll(/^## ([a-z_]+)$/gm)].map((match) => match[1]);
       expect(
-        TOOL_NAMES.filter((tool) => !sections.includes(tool)),
+        [...TOOL_NAMES, ASK_TOOL_NAME].filter((tool) => !sections.includes(tool)),
         file,
       ).toEqual([]);
     }
+    expect(TOOL_NAMES).not.toContain(ASK_TOOL_NAME);
+    // a linha da `ask` na tabela diz que ela só aparece com o provedor ativado
+    expect(read('docs/docs/referencia/mcp.md')).toMatch(/\| \[`ask`\]\(#ask\) \|[^\n]*Só aparece com `cabecao llm on`/);
+    expect(read(`${EN}/referencia/mcp.md`)).toMatch(
+      /\| \[`ask`\]\(#ask\) \|[^\n]*Only shows up after `cabecao llm on`/,
+    );
   });
 
   it('a referência da CLI (nos dois idiomas) e o README do npm citam todos os comandos', () => {

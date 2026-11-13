@@ -8,12 +8,14 @@ export function hello(): string {
   return `${PRODUCT_NAME}: núcleo carregado`;
 }
 
+export * from './ask/index.ts';
 export * from './brain/index.ts';
 export * from './db/index.ts';
 export * from './embeddings/index.ts';
 export * from './git/index.ts';
 export * from './indexstore/index.ts';
 export * from './init/index.ts';
+export * from './llm/index.ts';
 export * from './markdown/index.ts';
 export * from './migrate/index.ts';
 export * from './obsidian/index.ts';

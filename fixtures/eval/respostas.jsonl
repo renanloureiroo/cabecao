@@ -1,0 +1,8 @@
+{"id": "fila-hoje", "query": "Que fila o Projeto Atlas usa hoje?", "expected": ["memory/facts/fato-atlas-usa-sqs.md", "wiki/decisions/usar-sqs-para-filas.md"]}
+{"id": "lider", "query": "Quem lidera o Projeto Atlas?", "expected": ["memory/facts/fato-bruno-lidera-atlas.md", "wiki/entities/Bruno Tavares.md"]}
+{"id": "testes", "query": "O que fazer antes de rodar os testes de integração do Atlas?", "expected": "memory/gotchas/testes-de-integracao-sem-limpar-o-banco.md"}
+{"id": "release", "query": "Como publicar uma nova versão do Atlas?", "expected": "memory/procedures/publicar-nova-versao-do-atlas.md"}
+{"id": "idempotencia", "query": "O que é idempotência?", "expected": "wiki/concepts/Idempotência.md"}
+{"id": "idioma", "query": "Em que idioma as respostas devem ser escritas?", "expected": "memory/preferences/respostas-em-portugues.md"}
+{"id": "sem-orcamento", "query": "Qual é o orçamento anual de marketing da Lumen?", "answerable": false}
+{"id": "sem-frontend", "query": "Que framework o frontend do Atlas usa?", "answerable": false}

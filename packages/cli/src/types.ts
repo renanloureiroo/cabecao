@@ -1,4 +1,5 @@
 import type { ResolvedActor } from './actor.ts';
+import type { CredentialRunner } from './llm/credentials.ts';
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
@@ -31,6 +32,8 @@ export type Exec = (file: string, args: readonly string[], options?: ExecOptions
 export interface ControllingTerminal {
   /** Pergunta e devolve a resposta (sem a quebra de linha), ou `null` se não deu para perguntar. */
   prompt(question: string): Promise<string | null>;
+  /** Como `prompt`, mas sem mostrar o que é digitado (uma chave de API). */
+  promptSecret?(question: string): Promise<string | null>;
 }
 
 /** Tudo o que a CLI enxerga do processo. É passado por parâmetro: nenhum comando lê `process` direto. */
@@ -56,6 +59,19 @@ export interface CliIo {
    * sinal de agente no ambiente; `actor.ts`). Nos testes, é injetado: sem ele, quem roda é um agente.
    */
   terminal?: ControllingTerminal | undefined;
+  /**
+   * Pasta da configuração do provedor de respostas (`llm.json`, chaves em arquivo, segredo das confirmações). Só os
+   * TESTES passam isto (chamando a CLI como biblioteca); o programa instalado usa a pasta padrão do usuário do sistema
+   * (desviada por variável de ambiente, só para o usuário no terminal; `llm/describe.ts`).
+   */
+  llmConfigDir?: string | undefined;
+  /** Executor dos programas do cofre de chaves (`security`, `secret-tool`, PowerShell). Só os testes trocam. */
+  credentialRunner?: CredentialRunner | undefined;
+  /**
+   * Passa a tratar Ctrl+C (SIGINT/SIGTERM) como cancelamento: o sinal devolvido aborta, e `dispose` devolve o
+   * comportamento normal. Só os comandos longos e canceláveis usam (o `ask`); nos testes, não existe.
+   */
+  watchInterrupt?: (() => { signal: AbortSignal; dispose(): void }) | undefined;
   /**
    * Lê a entrada padrão até o fim, com teto de tamanho e de tempo (`stdin.ts`). Devolve `null` quando a entrada é um
    * terminal, passa do teto ou não termina no prazo. Usam: os modos de hook (o Claude Code manda um JSON por ali) e
@@ -108,6 +124,8 @@ export interface CommandContext extends CliIo {
    * um agente nunca recebe pergunta.
    */
   prompt?: ((question: string) => Promise<string | null>) | undefined;
+  /** Como `prompt`, sem eco (uma chave de API). Também só para o usuário num terminal. */
+  promptSecret?: ((question: string) => Promise<string | null>) | undefined;
 }
 
 export interface CommandResult {
@@ -143,5 +161,10 @@ export interface CommandSpec {
    * nem o JSON de `--json`, nem o de erro. Mensagens e erros vão só para stderr.
    */
   ownsStdout?: boolean;
+  /**
+   * Quem usa o comando é SEMPRE um agente, haja o terminal que houver: o `mcp` atende o cliente de IA, e o terminal
+   * controlador herdado de um cliente de terminal não faz dele o usuário (revisão adversária, 2ª rodada, A).
+   */
+  alwaysAgent?: boolean;
   load: () => Promise<CommandModule>;
 }
