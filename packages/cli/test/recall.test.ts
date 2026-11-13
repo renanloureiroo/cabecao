@@ -8,7 +8,7 @@ import { DATA_NOTICE } from '@cabecao/core';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { runRecall } from '../src/commands/recall.ts';
 import { HOOK_CONTEXT_MAX_CHARS, neutralize, renderHookBriefing } from '../src/hook/briefing.ts';
-import { hookBrain, parseHookInput, PLUGIN_BRAIN_ENV } from '../src/hook/input.ts';
+import { hookBrain, PLUGIN_BRAIN_ENV, parseHookInput } from '../src/hook/input.ts';
 import { projectSlug } from '../src/hook/project.ts';
 import { readLimited } from '../src/stdin.ts';
 import type { CommandContext } from '../src/types.ts';
@@ -56,7 +56,9 @@ describe('recall no terminal', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(result.stdout).toContain('Regras do usuário');
     expect(result.stdout).toContain('Nunca commitar segredos');
 
-    const json = parseJson(await m.cabecao(['recall', 'filas', '--scope', 'project:atlas', '--brain', brain, '--json']));
+    const json = parseJson(
+      await m.cabecao(['recall', 'filas', '--scope', 'project:atlas', '--brain', brain, '--json']),
+    );
     expect(json).toMatchObject({ ok: true, command: 'recall' });
     expect(json.data.scope).toBe('project:atlas');
     expect(json.data.data_notice).toBe(DATA_NOTICE);
@@ -100,9 +102,8 @@ describe('recall --hook', { timeout: TEST_TIMEOUT_MS }, () => {
 
   it('pasta sem notas do projeto fica só com o global; sem nada no escopo, cai para todos', async () => {
     const other = await projectDir('Outro Projeto');
-    const global = hookJson(
-      (await m.cabecao(['recall', '--hook', '--brain', brain], stdinOf({ cwd: other }))).stdout,
-    ).hookSpecificOutput.additionalContext;
+    const global = hookJson((await m.cabecao(['recall', '--hook', '--brain', brain], stdinOf({ cwd: other }))).stdout)
+      .hookSpecificOutput.additionalContext;
     expect(global).toContain('Escopo: project:outro-projeto');
     expect(global).toContain('Nunca commitar segredos');
     expect(global).not.toContain('## Último handoff');
@@ -212,9 +213,9 @@ describe('recall --hook', { timeout: TEST_TIMEOUT_MS }, () => {
     const env = { ...m.env, [PLUGIN_BRAIN_ENV]: brain };
     const result = await m.cabecao(['recall', '--hook'], { env, ...stdinOf({}) });
     expect(hookJson(result.stdout).hookSpecificOutput.additionalContext).toContain('Nunca commitar segredos');
-    expect(hookBrain({ env: { [PLUGIN_BRAIN_ENV]: '${user_config.brain_dir}' }, cwd: '/', brain: undefined })).toBe(
-      undefined,
-    );
+    // o texto que sobraria se o Claude Code não substituísse a opção não vira pasta
+    const placeholder = ['$', '{user_config.brain_dir}'].join('');
+    expect(hookBrain({ env: { [PLUGIN_BRAIN_ENV]: placeholder }, cwd: '/', brain: undefined })).toBe(undefined);
     expect(hookBrain({ env: { [PLUGIN_BRAIN_ENV]: brain }, cwd: '/', brain: '/outro' })).toBe('/outro');
   });
 });
@@ -234,9 +235,9 @@ describe('peças puras do hook', () => {
   });
 
   it('o leitor da entrada respeita o teto de bytes e o prazo', async () => {
-    expect(await readLimited(Readable.from([Buffer.from('{"a":'), Buffer.from('1}')]), { maxBytes: 100, timeoutMs: 1000 })).toBe(
-      '{"a":1}',
-    );
+    expect(
+      await readLimited(Readable.from([Buffer.from('{"a":'), Buffer.from('1}')]), { maxBytes: 100, timeoutMs: 1000 }),
+    ).toBe('{"a":1}');
     expect(await readLimited(Readable.from([Buffer.alloc(200)]), { maxBytes: 100, timeoutMs: 1000 })).toBeNull();
     const never = new PassThrough();
     expect(await readLimited(never, { maxBytes: 100, timeoutMs: 30 })).toBeNull();

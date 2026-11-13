@@ -23,7 +23,8 @@ function fakeBin(delayMs: number): string {
       "import { join } from 'node:path';",
       "const root = process.argv[process.argv.indexOf('--brain') + 1];",
       `setTimeout(() => {`,
-      "  appendFileSync(join(root, '.cabecao', 'logs', 'sync.log'), `sync falso terminou pid=${process.pid} args=${process.argv.slice(2).join(' ')}\\n`);",
+      "  const line = 'sync falso terminou pid=' + process.pid + ' args=' + process.argv.slice(2).join(' ') + '\\n';",
+      "  appendFileSync(join(root, '.cabecao', 'logs', 'sync.log'), line);",
       `}, ${delayMs});`,
       '',
     ].join('\n'),
@@ -129,7 +130,10 @@ describe('sync em segundo plano', { timeout: TEST_TIMEOUT_MS }, () => {
   });
 
   it('--hook nunca falha: sem cérebro ou com uma pasta que não é cérebro, sai com 0 e não cria nada', async () => {
-    const none = await m.cabecao(['sync', '--hook'], { binPath: fakeBin(0), readStdin: async () => '{"reason":"other"}' });
+    const none = await m.cabecao(['sync', '--hook'], {
+      binPath: fakeBin(0),
+      readStdin: async () => '{"reason":"other"}',
+    });
     expect(none).toMatchObject({ code: 0, stdout: '' });
     expect(none.stderr).toContain('cabecao sync --hook: nenhum cérebro configurado');
 
@@ -174,8 +178,8 @@ describe('sync em segundo plano', { timeout: TEST_TIMEOUT_MS }, () => {
 
   it('opções que não combinam com --detach são erro de uso', async () => {
     expect((await m.cabecao(['sync', '--detach', '--log', '--brain', brain])).code).toBe(2);
-    expect((await m.cabecao(['sync', '--detach', '--session', '01ARZ3NDEKTSV4RRFFQ69G5FAV', '--brain', brain])).code).toBe(
-      2,
-    );
+    expect(
+      (await m.cabecao(['sync', '--detach', '--session', '01ARZ3NDEKTSV4RRFFQ69G5FAV', '--brain', brain])).code,
+    ).toBe(2);
   });
 });
