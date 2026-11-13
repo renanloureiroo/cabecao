@@ -50,6 +50,34 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/status.ts'),
   },
   {
+    name: 'recall',
+    summary: 'Briefing do cérebro para uma tarefa (e para o início de sessão do Claude Code)',
+    usage: ['recall "<tarefa>" [--scope <escopo>] [--budget <tokens>]', 'recall --hook'],
+    options: {
+      scope: {
+        type: 'string',
+        valueName: 'escopo',
+        description: '"global" ou "project:<nome>" (que inclui também o global); padrão: todos',
+      },
+      budget: { type: 'string', valueName: 'tokens', description: 'Orçamento aproximado do briefing (padrão: 2000)' },
+      hook: {
+        type: 'boolean',
+        description: 'Modo hook do Claude Code: lê o JSON da sessão no stdin e devolve o JSON do SessionStart',
+      },
+    },
+    details: [
+      'Mostra o que o agente recebe no início de uma tarefa: suas regras, o último handoff, preferências, armadilhas',
+      'e as memórias que casam com a tarefa, nessa ordem de prioridade, e um session_handle novo. Só lê.',
+      '',
+      '--hook é o que o plugin do Claude Code roda quando uma sessão começa: deriva o escopo da pasta do projeto,',
+      'põe as regras de uso e o briefing (marcado como dado, abaixo de 10 mil caracteres) em',
+      'hookSpecificOutput.additionalContext e sai sempre com 0. Sem cérebro, com o banco ocupado ou em qualquer erro, a',
+      'saída é {} e o motivo vai para o stderr: a sessão começa normalmente.',
+    ].join('\n'),
+    ownsStdout: true,
+    load: () => import('./commands/recall.ts'),
+  },
+  {
     name: 'doctor',
     summary: 'Diagnóstico com a correção sugerida para cada problema',
     usage: ['doctor [--offline]'],
