@@ -10,6 +10,7 @@ import {
   segmentKeys,
   withIndexLock,
 } from './context.ts';
+import { type IndexRef, listIndexRefs, lsTree } from './git.ts';
 import {
   computeView,
   encodeChunks,
@@ -350,13 +351,27 @@ export async function writeIndexFile(
   data: Uint8Array | string | null,
   options: WriteIndexFileOptions = {},
 ): Promise<WriteResult> {
-  const normalized = normalizeDerivedPath(path);
+  return writeIndexFiles(root, [[path, data]], options);
+}
+
+/**
+ * Como {@link writeIndexFile}, para vários arquivos num commit só (o grafo exportado são dois arquivos que mudam
+ * juntos). Sem mudança em nenhum deles, não faz commit.
+ */
+export async function writeIndexFiles(
+  root: string,
+  files: Iterable<readonly [string, Uint8Array | string | null]>,
+  options: WriteIndexFileOptions = {},
+): Promise<WriteResult> {
+  const changes = new Map<string, Uint8Array | null>();
+  for (const [path, data] of files) {
+    changes.set(normalizeDerivedPath(path), typeof data === 'string' ? Buffer.from(data, 'utf8') : data);
+  }
   const ctx = makeContext(root, options);
   await assertRepo(ctx);
-  const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
   return withIndexLock(ctx, async () =>
     writeView(ctx, await computeView(ctx), {
-      files: new Map([[normalized, bytes]]),
+      files: changes,
       ...(options.contentCommit === undefined ? {} : { contentCommit: options.contentCommit }),
     }),
   );
@@ -375,4 +390,31 @@ export async function readIndexFile(root: string, path: string, options: IndexOp
 export async function readIndexManifest(root: string, options: IndexOptions = {}): Promise<IndexManifest | null> {
   const bytes = await readIndexFile(root, MANIFEST_PATH, options);
   return bytes ? parseManifest(bytes) : null;
+}
+
+/**
+ * Referências do índice (branches locais `cabecao/index[-n]` e as de acompanhamento dos remotos), sem ler árvore
+ * nenhuma. Lista vazia: o cérebro nunca teve branch de índice.
+ */
+export async function listIndexBranches(root: string, options: IndexOptions = {}): Promise<readonly IndexRef[]> {
+  return listIndexRefs(makeContext(root, options).git);
+}
+
+/** Tamanho, em bytes, dos arquivos da árvore de um commit do índice (segmentos, grafo e manifesto). */
+export async function indexTreeBytes(root: string, commit: string, options: IndexOptions = {}): Promise<number> {
+  let total = 0;
+  for (const item of (await lsTree(makeContext(root, options).git, commit)).values()) total += Math.max(0, item.size);
+  return total;
+}
+
+/** Manifesto gravado num commit (ou referência) do índice; `null` se não houver ou não for legível. */
+export async function indexManifestAt(
+  root: string,
+  commitish: string,
+  options: IndexOptions = {},
+): Promise<IndexManifest | null> {
+  const ctx = makeContext(root, options);
+  const spec = `${commitish}:${MANIFEST_PATH}`;
+  const blob = (await readObjects(ctx.git, [spec])).get(spec);
+  return blob ? parseManifest(blob) : null;
 }

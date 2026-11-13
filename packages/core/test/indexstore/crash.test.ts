@@ -76,7 +76,7 @@ describe('indexstore: morte súbita', { timeout: TEST_TIMEOUT_MS * 3 }, () => {
     // nenhum índice temporário do git sobrou (os do morto são limpos na escrita seguinte)
     const scratch = join(dir, '.cabecao', 'tmp', 'indexstore');
     expect(existsSync(scratch) ? readdirSync(scratch) : []).toEqual([]);
-    expect(existsSync(join(dir, '.cabecao', 'locks', 'index.lock'))).toBe(false);
+    expect(existsSync(join(dir, '.cabecao', 'locks', 'index-branch.lock'))).toBe(false);
   });
 
   it('compactIndex morto em cada passo: nenhum vetor some e a geração fica coerente', async ({ onTestFinished }) => {

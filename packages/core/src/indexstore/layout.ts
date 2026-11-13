@@ -136,7 +136,8 @@ export function indexLayout(root: string): IndexLayout {
   const cabecao = join(root, '.cabecao');
   return {
     cacheDir: join(cabecao, 'index'),
-    lock: join(cabecao, 'locks', 'index.lock'),
+    // nome próprio: `index.lock` é a trava das varreduras do banco local (`db/open.ts`)
+    lock: join(cabecao, 'locks', 'index-branch.lock'),
     scratchDir: join(cabecao, 'tmp', 'indexstore'),
   };
 }
