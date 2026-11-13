@@ -60,7 +60,7 @@ const RELATION_NAME_RE = /^[a-z][a-z0-9_]{0,63}$/;
 const LINK_UNSAFE_RE = /[[\]|#^\n]/;
 
 /** Wikilink mais curto que, escrito em `fromPath`, resolve para `to`: o nome do arquivo, senão o caminho sem `.md`. */
-function linkFor(paths: readonly string[], fromPath: string, to: IndexedNote): string {
+export function linkFor(paths: readonly string[], fromPath: string, to: Pick<IndexedNote, 'path'>): string {
   const index = buildLinkIndex(paths);
   const withoutExt = to.path.replace(/\.md$/i, '');
   const stem = withoutExt.slice(withoutExt.lastIndexOf('/') + 1);

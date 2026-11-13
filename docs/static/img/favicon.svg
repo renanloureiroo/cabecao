@@ -1,18 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <title>Cabeção</title>
-  <!-- Ícone simplificado para 16 e 32 px: o arco e a nota lembrada. Segue o tema do sistema. -->
-  <style>
-    .ink { stroke: #1C3D8F; }
-    .dot { fill: #1C3D8F; }
-    .spark { fill: #D92E45; }
-    @media (prefers-color-scheme: dark) {
-      .ink { stroke: #A9C1FF; }
-      .dot { fill: #A9C1FF; }
-      .spark { fill: #FF7385; }
-    }
-  </style>
-  <path class="ink" d="M24.2 8.6A10.5 10.5 0 1 0 24.2 23.4" fill="none" stroke-width="5" stroke-linecap="round"/>
-  <circle class="dot" cx="24.2" cy="8.6" r="3.2"/>
-  <circle class="dot" cx="24.2" cy="23.4" r="3.2"/>
-  <circle class="spark" cx="15.5" cy="16" r="3.6"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" role="img" aria-label="Cabeção"><style>.t{fill:#14121c}.h{fill:#fff1e8}@media (prefers-color-scheme: dark){.t{fill:#fff1e8}.h{fill:#14121c}}</style><g shape-rendering="crispEdges"><rect class="t" width="16" height="16" rx="3.52"/><path class="h" d="M4 3h7v1h-7zM3 4h9v1h-9zM2 5h3v1h-3zM10 5h3v1h-3zM2 6h2v1h-2zM12 6h2v1h-2zM2 7h2v1h-2zM12 7h2v1h-2zM2 8h2v1h-2zM2 9h2v1h-2zM11 9h3v1h-3zM2 10h3v1h-3zM10 10h2v1h-2zM3 11h8v1h-8zM4 12h4v1h-4zM4 13h4v1h-4z"/><path fill="#d1202f" d="M6 9h4v1h-4zM6 10h4v1h-4z"/></g></svg>

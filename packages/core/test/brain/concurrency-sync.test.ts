@@ -111,7 +111,7 @@ describe('sync entre duas máquinas', { timeout: TEST_TIMEOUT_MS }, () => {
     const hits = (await brainB.search({ query: 'zebrasync' })).hits;
     expect(hits.map((hit) => hit.path)).toEqual([written.path]);
     expect(hits[0]).toMatchObject({ origin: 'agent:teste', trust: 'medium' });
-    expect((await brainB.read({ path: written.path })).note.content).toContain('reduz custo');
+    expect((await brainB.read({ path: String(written.path) })).note.content).toContain('reduz custo');
 
     // e o undo feito em B desfaz a operação feita em A
     const undone = await brainB.undo({ op: written.op });

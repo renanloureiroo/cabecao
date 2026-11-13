@@ -160,7 +160,7 @@ describe('C1: agente nunca cria nem atribui type: rule', { timeout: TEST_TIMEOUT
     fm = (await brain.read({ path: created.path })).frontmatter;
     expect(fm).toMatchObject({ origin: 'agent:claude-code', trust: 'medium' });
     const remembered = await brain.remember({ type: 'gotcha', title: 'Lembrada', content: 'z' });
-    expect((await brain.read({ path: remembered.path })).frontmatter).toMatchObject({
+    expect((await brain.read({ path: String(remembered.path) })).frontmatter).toMatchObject({
       origin: 'agent:claude-code',
       trust: 'medium',
     });
@@ -225,7 +225,7 @@ describe('A1: undo só alcança operações, com o ULID inteiro (agente) e só a
     }
     const result = await a.undo({ session: s1 });
     expect(result.undone.map((item) => item.changes)).toEqual([['add gotcha: Da sessão 1']]);
-    expect(await readText(dir, other.path)).toContain('bbb');
+    expect(await readText(dir, String(other.path))).toContain('bbb');
   });
 
   it('um agente não desfaz operação da CLI; sem argumento, desfaz a última operação de agente que vale', async () => {
