@@ -7,7 +7,7 @@
   <a href="README.en.md">English</a> · <strong>Português</strong>
 </p>
 
-> **Status: 🚧 marco 1 implementado e em revisão; nada publicado no npm ainda.** A CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), o sync por git, a busca por palavra-chave e o servidor MCP com 9 tools existem na branch `feat/m1-nucleo` e têm 1.181 testes, mais um teste de ponta a ponta com duas máquinas. **Ainda não foram validados** provedores git reais (GitHub, GitLab, Bitbucket, Gitea), SSH e gerenciadores de credencial, commits assinados nem clientes MCP reais (Claude Code, Claude Desktop, Codex, Cursor). O marco 3 (grafo e validade no tempo: tools `graph`, `facts` e `relate`, `as_of` e notas relacionadas na busca, menções sem link, comandos `graph` e `facts`) está implementado e em revisão na branch `feat/m3-grafo`. Busca por significado e plugin são dos marcos 2 e 4. Cada decisão de arquitetura foi testada em uma prova de conceito antes de entrar no plano; veja as [evidências](docs/11-evidencias.md) e o [roadmap](docs/10-roadmap.md).
+> **Status: 🚧 beta.** Publicado no npm como [`cabecao@beta`](https://www.npmjs.com/package/cabecao). Comandos e formatos ainda podem mudar antes da 1.0.
 
 ---
 
@@ -76,22 +76,7 @@ Requisitos: Node.js 22.16 ou superior (recomendado: 24) e git 2.38 ou superior.
 
 ## Documentação
 
-| Documento | Conteúdo |
-|---|---|
-| [01 · Visão](docs/01-visao.md) | Problema, objetivos, o que fica de fora |
-| [02 · Arquitetura](docs/02-arquitetura.md) | Componentes, processos e escolhas técnicas |
-| [03 · Modelo de dados](docs/03-modelo-de-dados.md) | Estrutura do cérebro, frontmatter, índice local |
-| [04 · Sincronização](docs/04-sincronizacao.md) | Como conteúdo, embeddings e grafo sincronizam por git |
-| [05 · Servidor MCP](docs/05-mcp.md) | Tools, confirmações, compatibilidade de protocolo |
-| [06 · Busca e grafo](docs/06-busca-e-grafo.md) | Busca híbrida, validade temporal, grafo |
-| [07 · Ciclo de vida e segurança](docs/07-ciclo-de-vida-e-seguranca.md) | Captura, manutenção, desfazer, segredos |
-| [08 · Instalação e operação](docs/08-instalacao-e-operacao.md) | Instalar, usar, atualizar, diagnosticar |
-| [09 · Guia do Obsidian](docs/09-obsidian.md) | Visualizar e navegar o cérebro |
-| [10 · Roadmap](docs/10-roadmap.md) | Marcos e entregas |
-| [11 · Evidências](docs/11-evidencias.md) | O que cada prova de conceito testou e concluiu |
-| [12 · Padrão de commits](docs/12-commits.md) | Formato dos commits automáticos |
-| [13 · Desenvolvimento, CI e publicação](docs/13-publicacao.md) | Como rodar o projeto, o que o CI confere e como publicar no npm |
-| [ADRs](docs/adr/) | Registro das decisões de arquitetura |
+O site de documentação está sendo escrito. Até ele ser publicado, `cabecao --help` e `cabecao <comando> --help` descrevem cada comando.
 
 ## Contribuindo
 
