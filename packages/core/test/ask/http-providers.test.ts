@@ -387,3 +387,103 @@ describe('endereço base e redação', () => {
     expect(text).not.toMatch(/sk-ant-api03-abc|AIzaSy|abc\.def\.ghi/);
   });
 });
+
+// Regressões da revisão adversária (PR #20): M4 redirecionamento, M2 novas tentativas de rede, chave inválida no
+// cabeçalho, endereços que nunca são provedor e a redação de ecos da chave.
+describe('revisão adversária: rede', () => {
+  async function sink(): Promise<{ base: string; hits: string[]; close: () => Promise<void> }> {
+    const hits: string[] = [];
+    const other = createServer((req, res) => {
+      hits.push(`${req.method} ${req.url}`);
+      res.writeHead(200);
+      res.end('{}');
+    });
+    await new Promise<void>((resolve) => other.listen(0, '127.0.0.1', resolve));
+    const port = (other.address() as AddressInfo).port;
+    return {
+      base: `http://127.0.0.1:${port}`,
+      hits,
+      close: () => {
+        other.closeAllConnections();
+        return new Promise((resolve) => other.close(() => resolve()));
+      },
+    };
+  }
+
+  async function stop(): Promise<void> {
+    server?.closeAllConnections();
+    await new Promise<void>((resolve) => (server === null ? resolve() : server.close(() => resolve())));
+    server = null;
+  }
+
+  for (const preset of ['anthropic', 'openai'] as const) {
+    it(`${preset}: um redirecionamento não é seguido (a chave e os trechos não vão a outro host; prova p4)`, async () => {
+      const thief = await sink();
+      try {
+        const { base, seen } = await serve((_req, res) => {
+          res.writeHead(307, { location: `${thief.base}/roubado` });
+          res.end();
+        });
+        const error = await failure(provider(preset, base).generate(request({ user: 'Pergunta: trecho-do-cerebro' })));
+        expect(thief.hits).toEqual([]);
+        expect(seen).toHaveLength(1);
+        expect(error.retryable).toBe(false);
+        expect(error.message).not.toContain(KEY);
+      } finally {
+        await thief.close();
+      }
+    });
+  }
+
+  it('conexão que cai: no máximo uma nova tentativa de rede (M2)', async () => {
+    const { base, seen } = await serve((_req, res) => res.socket?.destroy());
+    const error = await failure(provider('openai', base, { retries: 5 }).generate(request()));
+    expect(error.kind).toBe('network');
+    expect(seen.length).toBeLessThanOrEqual(2);
+  });
+
+  it('chave com quebra de linha, controle ou acento: not_authenticated sem ir à rede, sem a chave na mensagem (p15)', async () => {
+    for (const key of ['abcDEF123456\nXYZ78', 'abcDEF123456\u0000X', 'chave-com-acento-çã']) {
+      for (const preset of ['anthropic', 'openai'] as const) {
+        const { base, seen } = await serve((_req, res) => res.end('{}'));
+        const error = await failure(provider(preset, base, { key }).generate(request()));
+        expect(error.kind, `${preset} ${JSON.stringify(key)}`).toBe('not_authenticated');
+        expect(seen).toHaveLength(0);
+        expect(error.message).not.toContain(key.slice(0, 12));
+        await stop();
+      }
+    }
+  });
+
+  it('endereço de metadados, de enlace ou "qualquer" nunca é provedor (prova p13)', () => {
+    for (const bad of [
+      'https://169.254.169.254',
+      'http://0.0.0.0:11434',
+      'http://[fe80::1]:11434',
+      'http://[::]:11434',
+      'http://localhost.evil.com',
+      'http://127.0.0.1@evil.com',
+      'https://x.example/v1?key=a',
+    ]) {
+      expect(() => validateBaseUrl(bad), bad).toThrow();
+    }
+  });
+
+  it('ecos da chave em base64, codificada em URL ou cortada são redigidos (prova p5)', () => {
+    const key = 'sk-proj-CHAVEFALSA0123456789abcdef';
+    const echoes = [
+      `k=${Buffer.from(key).toString('base64')}`,
+      `k=${encodeURIComponent(key)}`,
+      `key=[x] ${key.slice(12)}`,
+      `chave ${key.slice(5, 25)} recusada`,
+      encodeURIComponent(key).split('').join(' '),
+    ];
+    for (const echo of echoes) {
+      const out = redact(echo, [key]);
+      expect(out, echo).toContain('[chave omitida]');
+      expect(out).not.toContain(key.slice(12, 24));
+      expect(out).not.toContain(Buffer.from(key).toString('base64'));
+      expect(out.replace(/\s/g, '')).not.toContain(key.slice(8, 20));
+    }
+  });
+});
