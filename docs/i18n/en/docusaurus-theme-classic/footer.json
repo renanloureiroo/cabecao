@@ -32,7 +32,7 @@
     "description": "The label of footer link with label=Issues linking to https://github.com/renanloureiroo/cabecao/issues"
   },
   "copyright": {
-    "message": "Cabeção is free software, under the MIT license.",
+    "message": "A project by Renan Loureiro. Free software, under the MIT license.",
     "description": "The footer copyright"
   }
 }
