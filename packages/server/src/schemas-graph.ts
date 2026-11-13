@@ -3,7 +3,16 @@
 // é do núcleo. A saída espelha a do núcleo e é conferida em tempo de compilação em `checks.ts`.
 import { MAX_FACTS_LIMIT, MAX_GRAPH_LIMIT } from '@cabecao/core';
 import * as z from 'zod';
-import { dataItemShape, dataNotice, INPUT_LIMITS, sessionHandle, shortText, text, writeOutput } from './schemas.ts';
+import {
+  confirmToken,
+  dataItemShape,
+  dataNotice,
+  INPUT_LIMITS,
+  sessionHandle,
+  shortText,
+  text,
+  writeOutput,
+} from './schemas.ts';
 import { asOfInput, graphNodeShape, validity } from './schemas-node.ts';
 
 const noteRef = (what: string) =>
@@ -101,6 +110,7 @@ export const relateInput = z.object({
     ),
   to: noteRef('Target note (must exist)'),
   session_handle: sessionHandle,
+  confirm_token: confirmToken,
 });
 
 export const relateOutput = writeOutput.extend({

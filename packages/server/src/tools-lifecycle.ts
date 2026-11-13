@@ -2,7 +2,7 @@
 // Cascas finas sobre o núcleo, como as de `tools.ts`: a forma da entrada é conferida pelo Zod e as regras (restrições
 // de agente, caminho dentro do cérebro, `confirm_token`, ponto de restauração) são do núcleo. A exceção é a
 // elicitação do `forget`, que é do protocolo: o servidor pergunta direto ao usuário quando o cliente declara suporte.
-import type { Brain, ForgetInput, ForgetOutput } from '@cabecao/core';
+import type { Brain, ConfirmOptions, ForgetInput, ForgetOutput } from '@cabecao/core';
 import type {
   CallToolResult,
   InputRequiredResult,
@@ -91,7 +91,7 @@ const CONFIRM_SCHEMA = z.object({ confirm: z.boolean() });
  * O cliente declarou elicitação: pelo envelope `_meta` de cada requisição (geração 2026-07-28) ou no `initialize`
  * (2025-11-25).
  */
-function clientElicits(server: McpServer, ctx: ServerContext): boolean {
+export function clientElicits(server: McpServer, ctx: ServerContext): boolean {
   const envelope = ctx.mcpReq.envelope as Record<string, unknown> | undefined;
   const caps = (envelope?.[CLIENT_CAPABILITIES_META_KEY] ?? server.server.getClientCapabilities()) as
     | { elicitation?: unknown }
@@ -171,6 +171,73 @@ export function registerForgetTool(server: McpServer, brainOf: BrainOf, log: (me
       }
     },
   );
+}
+
+/** Resposta de uma escrita que pode pedir confirmação (decisão 37). */
+type Confirmable = object & { readonly status?: string; readonly summary?: string };
+
+/**
+ * Ação elevada (decisão 37: regra, arquivo de controle, `raw/`, `trust: high`, undo de operação do usuário), com a
+ * mesma confirmação híbrida do `forget`:
+ * - com `confirm_token`, ou num cliente sem elicitação: o núcleo decide (executa, ou devolve `confirmation_required`
+ *   com o resumo e o token);
+ * - num cliente com elicitação: a primeira chamada ao núcleo devolve o resumo (sem gravar nada, se a ação for
+ *   elevada) e o servidor pergunta direto ao usuário. `accept` com `confirm: true` executa como confirmado pelo
+ *   usuário; `decline` não executa; `cancel` (ninguém respondeu) cai no fluxo do token.
+ * Uma ação que não é elevada roda direto na primeira chamada, como sempre.
+ */
+export async function runConfirmable(
+  server: McpServer,
+  ctx: ServerContext,
+  brainOf: BrainOf,
+  log: (message: string) => void,
+  hasToken: boolean,
+  operation: (brain: Brain, options: ConfirmOptions) => Promise<Confirmable>,
+): Promise<CallToolResult | InputRequiredResult> {
+  const call = async (options: ConfirmOptions = {}): Promise<CallToolResult> => {
+    try {
+      return okResult(await operation(await brainOf(ctx), options));
+    } catch (error) {
+      return errorResult(toToolError(error, log));
+    }
+  };
+  if (hasToken || !clientElicits(server, ctx)) return call();
+  const view = inputResponse(ctx.mcpReq.inputResponses, 'confirm');
+  if (view.kind === 'missing') {
+    let preview: Confirmable;
+    try {
+      preview = await operation(await brainOf(ctx), {});
+    } catch (error) {
+      return errorResult(toToolError(error, log));
+    }
+    if (preview.status !== 'confirmation_required') return okResult(preview);
+    return inputRequired({
+      inputRequests: {
+        confirm: inputRequired.elicit({
+          message: `Cabeção: um agente pediu esta ação, que exige o seu pedido explícito. ${preview.summary ?? ''}`,
+          requestedSchema: {
+            type: 'object',
+            properties: { confirm: { type: 'boolean', title: 'Eu pedi isto: pode fazer' } },
+            required: ['confirm'],
+          },
+        }),
+      },
+    });
+  }
+  if (view.kind === 'elicit' && view.action === 'cancel') return call();
+  const accepted = acceptedContent(ctx.mcpReq.inputResponses, 'confirm', CONFIRM_SCHEMA);
+  if (accepted?.confirm === true) return call({ userConfirmed: true });
+  try {
+    const preview = await operation(await brainOf(ctx), {});
+    const { confirm_token: _token, token_expires_at: _expires, ...rest } = preview as Record<string, unknown>;
+    return okResult({
+      ...rest,
+      ...(preview.status === 'confirmation_required' ? { status: 'declined' } : {}),
+      next_step: 'O usuário recusou; nada foi feito. Não insista sem que ele peça.',
+    });
+  } catch (error) {
+    return errorResult(toToolError(error, log));
+  }
 }
 
 /** `consolidate`, registrada logo depois de `sync`. */

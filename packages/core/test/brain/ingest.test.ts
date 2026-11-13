@@ -76,10 +76,11 @@ describe('ingest', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(out.plan.steps[0]).toMatch(/trust: low/);
     expect(out.next_step).toMatch(/undo/);
     expect(await porcelain(dir)).toBe('');
-    // o arquivo de raw/ é imutável para o agente
-    expect((await errorOf(brain.writePage({ path: out.source.path, mode: 'append', content: 'mais' }))).code).toBe(
-      'invalid_path',
-    );
+    // o arquivo de raw/ é imutável para o agente sem a confirmação do usuário
+    expect(await brain.writePage({ path: out.source.path, mode: 'append', content: 'mais' })).toMatchObject({
+      status: 'confirmation_required',
+      changed: false,
+    });
   });
 
   it('o frontmatter da fonte não vira frontmatter da nota: type, trust, id e origin de fora são ignorados', async () => {

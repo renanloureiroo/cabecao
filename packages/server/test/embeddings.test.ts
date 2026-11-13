@@ -105,14 +105,14 @@ describe('servidor MCP e embeddings', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(String((searched.warnings as string[])[0])).toMatch(/não foi carregado/);
     const status = toolOutput(await server.client.call('status'));
     expect(status.embeddings).toMatchObject({ configured: true, runtime: 'not_injected' });
-    // e nenhuma tool muda o modelo: o .cabecao.json é recusado para escrita de agente
+    // e nenhuma tool muda o modelo: o .cabecao.json só se altera com confirmação, e a seção embedding nunca
     const refused = await server.client.call('write_page', {
       path: '.cabecao.json',
       mode: 'overwrite',
-      frontmatter: {},
-      content: '{}',
+      content: JSON.stringify({ schemaVersion: 1, noteDirs: ['wiki', 'memory', 'raw'], indexMd: 'index.md' }),
     });
-    expect(toolError(refused).code).toMatch(/invalid_path|unsafe_path/);
+    expect(toolError(refused).code).toBe('invalid_argument');
+    expect(toolError(refused).message).toMatch(/embedding/);
     await server.stop();
   });
 });

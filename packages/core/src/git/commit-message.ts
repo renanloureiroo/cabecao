@@ -47,6 +47,11 @@ export interface CommitTrailersInput {
   client: string;
   /** Em commits de `undo`: a operação desfeita, ou várias. */
   reverts?: string | readonly string[];
+  /**
+   * Ação de agente confirmada pelo usuário (decisão 37): `user-token` (o agente mandou o `confirm_token`) ou `user`
+   * (o usuário respondeu à pergunta do cliente).
+   */
+  approved?: string;
 }
 
 export interface CommitMessageInput {
@@ -74,6 +79,8 @@ export interface CommitTrailers {
   machine?: string;
   client?: string;
   reverts: string[];
+  /** `Cabecao-Approved`: a ação foi confirmada pelo usuário. */
+  approved?: string;
 }
 
 const MONTHS = [
@@ -243,6 +250,9 @@ export function formatCommitMessage(input: CommitMessageInput): string {
     `Cabecao-Machine: ${machine}`,
     `Cabecao-Client: ${trailerValue('Cabecao-Client', trailers.client)}`,
     ...reverts.map((op) => `Cabecao-Reverts: ${trailerValue('Cabecao-Reverts', op)}`),
+    ...(trailers.approved === undefined
+      ? []
+      : [`Cabecao-Approved: ${trailerValue('Cabecao-Approved', trailers.approved)}`]),
   ];
   return `${[subject, ...(body.length > 0 ? [body.join('\n')] : []), footer.join('\n')].join('\n\n')}\n`;
 }
@@ -280,6 +290,9 @@ export function parseCommitTrailers(message: string): CommitTrailers {
         break;
       case 'reverts':
         trailers.reverts.push(value);
+        break;
+      case 'approved':
+        trailers.approved = value;
         break;
     }
   }

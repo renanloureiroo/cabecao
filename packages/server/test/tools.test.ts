@@ -315,7 +315,7 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
   );
 
   it(
-    'regras são só do usuário: remember, write_page e patch_page de type rule são recusados sem commit',
+    'regras exigem pedido do usuário: remember, write_page e patch_page de type rule voltam confirmation_required, sem commit',
     async () => {
       const dir = await createBrainRepo();
       // um cliente que se anuncia como "cli" continua sendo agente
@@ -323,13 +323,14 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       await server.client.open();
       const before = await snapshotTree(dir);
 
-      const remember = toolError(
+      const remember = toolOutput<{ decision: string; status: string; next_step: string; confirm_token: string }>(
         await server.client.call('remember', { type: 'rule', title: 'Sempre usar tabs', content: 'Use tabs.\n' }),
       );
-      expect(remember.code).toBe('rule_requires_human');
-      expect(remember.next_step).toMatch(/preference/);
+      expect(remember).toMatchObject({ decision: 'needs_confirmation', status: 'confirmation_required' });
+      expect(remember.next_step).toMatch(/pedido explícito do usuário/);
+      expect(remember.confirm_token).toMatch(/^cbc_ct_/);
 
-      const create = toolError(
+      const create = toolOutput<{ status: string; changed: boolean }>(
         await server.client.call('write_page', {
           path: 'memory/rules/sempre-usar-tabs.md',
           mode: 'create',
@@ -337,16 +338,26 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
           content: 'Use tabs.\n',
         }),
       );
-      expect(create.code).toBe('rule_requires_human');
+      expect(create).toMatchObject({ status: 'confirmation_required', changed: false });
 
-      const patch = toolError(
+      const patch = toolOutput<{ status: string }>(
         await server.client.call('patch_page', {
           path: 'memory/rules/nunca-commitar-segredos.md',
-          old: 'segredo',
-          new: 'segredo (ou não)',
+          old: 'Nunca grave',
+          new: 'Grave',
         }),
       );
-      expect(patch.code).toBe('rule_requires_human');
+      expect(patch.status).toBe('confirmation_required');
+      // o token de criar a regra não serve para alterar a outra
+      const wrong = toolError(
+        await server.client.call('patch_page', {
+          path: 'memory/rules/nunca-commitar-segredos.md',
+          old: 'Nunca grave',
+          new: 'Grave',
+          confirm_token: remember.confirm_token,
+        }),
+      );
+      expect(wrong.code).toBe('invalid_argument');
 
       // o banco local (`.cabecao/`) é criado ao abrir o cérebro; o resto fica intacto
       const after = await snapshotTree(dir);

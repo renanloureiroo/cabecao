@@ -115,6 +115,8 @@ export const CANONICAL_FIELDS = [
   'trust',
   'origin',
   'edited_by',
+  'approved_by',
+  'approved_at',
   'created',
   'updated',
   'confirmed',
@@ -150,6 +152,8 @@ const PAGE_FIELDS: NoteTypeFields = {
     'tags',
     'sources',
     'edited_by',
+    'approved_by',
+    'approved_at',
     'confirmed',
     'valid_from',
     'valid_until',
@@ -168,6 +172,8 @@ const FACT_FIELDS: NoteTypeFields = {
     'tags',
     'sources',
     'edited_by',
+    'approved_by',
+    'approved_at',
     'confirmed',
     'valid_until',
     'supersedes',
@@ -196,6 +202,8 @@ export type NoteIssueCode =
   | 'invalid_origin'
   /** `edited_by` não é `agent:<cliente>`. */
   | 'invalid_edited_by'
+  /** `approved_by` não é `user`. */
+  | 'invalid_approved_by'
   | 'invalid_date'
   | 'invalid_date_range'
   | 'invalid_list'
@@ -224,6 +232,14 @@ const ISO_DATE_RE =
   /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const SCOPE_RE = /^(?:global|project:[\w-]+)$/;
 const ORIGIN_RE = /^(?:human|agent:[\w.-]+|ingest:[\w.-]+)$/;
+/**
+ * A nota foi gravada (ou alterada) por um agente com a confirmação do usuário (decisão 37): `approved_by: user`. Só o
+ * Cabeção grava o campo, no fluxo confirmado; o que vier do agente no frontmatter é ignorado.
+ */
+export function isApprovedByUser(frontmatter: Readonly<Record<string, unknown>>): boolean {
+  return frontmatter.approved_by === 'user';
+}
+
 /** `edited_by`: o último agente que alterou uma nota do usuário (`agent:<cliente>`). */
 const EDITED_BY_RE = /^agent:[\w.-]+$/;
 const PREDICATE_RE = /^[a-z][a-z0-9_]*$/;
@@ -328,13 +344,16 @@ export function validateNote(note: ValidateNoteInput, config?: RelationsConfig):
   }
   if (present(fm.origin) && !isValidOrigin(fm.origin)) {
     add('error', 'invalid_origin', 'origin', '"origin" deveria ser "human", "agent:<cliente>" ou "ingest:<fonte>"');
-  } else if (type === 'rule' && present(fm.origin) && fm.origin !== 'human') {
+  } else if (type === 'rule' && present(fm.origin) && fm.origin !== 'human' && !isApprovedByUser(fm)) {
     add(
       'error',
       'rule_origin_not_human',
       'origin',
-      'regras (type: rule) só o usuário cria: "origin" deveria ser "human"',
+      'regras (type: rule) são do usuário: "origin" deveria ser "human", ou a regra precisa da aprovação dele ("approved_by: user", gravado pelo Cabeção quando o usuário confirma)',
     );
+  }
+  if (present(fm.approved_by) && fm.approved_by !== 'user') {
+    add('warning', 'invalid_approved_by', 'approved_by', '"approved_by" deveria ser "user"');
   }
 
   if (present(fm.edited_by) && !(typeof fm.edited_by === 'string' && EDITED_BY_RE.test(fm.edited_by))) {

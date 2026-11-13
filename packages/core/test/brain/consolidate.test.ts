@@ -100,20 +100,15 @@ describe('consolidate', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(await porcelain(dir)).toBe('');
 
     const id = started.consolidation_id;
-    // a consolidação não abre exceção para regras
-    expect(
-      (
-        await errorOf(
-          agent.writePage({
-            path: 'memory/rules/idempotencia.md',
-            mode: 'create',
-            frontmatter: { type: 'preference', title: 'x' },
-            content: 'x',
-            session_handle: id,
-          }),
-        )
-      ).code,
-    ).toBe('rule_requires_human');
+    // a consolidação não abre exceção para regras: sem a confirmação do usuário, nada é gravado
+    const rule = await agent.writePage({
+      path: 'memory/rules/idempotencia.md',
+      mode: 'create',
+      frontmatter: { type: 'preference', title: 'x' },
+      content: 'x',
+      session_handle: id,
+    });
+    expect(rule).toMatchObject({ status: 'confirmation_required', changed: false, commit: null });
     await consolidationWrites(agent, id);
     const writtenTree = await git(dir, ['rev-parse', 'HEAD^{tree}']);
 
