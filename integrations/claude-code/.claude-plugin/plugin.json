@@ -1,0 +1,22 @@
+{
+  "name": "cabecao",
+  "version": "0.1.0-beta.1",
+  "displayName": "Cabeção",
+  "description": "Segundo cérebro pessoal em Markdown e git: o servidor MCP do Cabeção embutido (sem npx), o briefing do cérebro no início de cada sessão, o sync em segundo plano no fim e uma skill de referência.",
+  "author": {
+    "name": "Renan Pereira Loureiro",
+    "url": "https://github.com/renanloureiroo"
+  },
+  "homepage": "https://github.com/renanloureiroo/cabecao",
+  "repository": "https://github.com/renanloureiroo/cabecao",
+  "license": "MIT",
+  "keywords": ["second-brain", "segundo-cerebro", "memory", "mcp", "markdown", "git", "obsidian"],
+  "userConfig": {
+    "brain_dir": {
+      "type": "directory",
+      "title": "Pasta do cérebro",
+      "description": "Pasta do seu cérebro do Cabeção. Deixe vazio para usar o cérebro padrão desta máquina (o que o \"cabecao init\" gravou).",
+      "required": false
+    }
+  }
+}

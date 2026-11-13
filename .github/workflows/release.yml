@@ -151,9 +151,12 @@ jobs:
           node-version: "24"
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
-      # Roda `changeset version` e empurra o resultado pela API do GitHub. O título ganha " (beta)" no pré-lançamento.
+      # Roda `pnpm version-packages` (`changeset version` e, com a versão nova, `pnpm build:plugin`, que copia o bundle
+      # para o plugin do Claude Code em integrations/claude-code/server) e empurra o resultado pela API do GitHub. O
+      # título ganha " (beta)" no pré-lançamento.
       - uses: changesets/action/version@v2
         with:
+          script: pnpm version-packages
           commit-message: "chore: Version Packages"
 
   ci-version-pr:

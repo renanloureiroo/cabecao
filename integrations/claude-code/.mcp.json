@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cabecao": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server/cabecao.mjs", "mcp"],
+      "env": {
+        "CABECAO_BRAIN": "${user_config.brain_dir}"
+      }
+    }
+  }
+}
