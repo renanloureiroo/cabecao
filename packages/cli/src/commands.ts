@@ -459,6 +459,30 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/export.ts'),
   },
   {
+    name: 'upgrade',
+    summary: 'Aplica as migrações do esquema do cérebro (e, com --template, atualiza o modelo)',
+    usage: ['upgrade [--dry-run]', 'upgrade --template [--dry-run] [--yes]'],
+    options: {
+      'dry-run': { type: 'boolean', description: 'Mostra o que mudaria; não grava' },
+      template: {
+        type: 'boolean',
+        description: 'Atualiza o modelo do cérebro (AGENTS.md, CLAUDE.md, .gitignore, .gitattributes)',
+      },
+      yes: { type: 'boolean', description: 'Com --template: troca também os arquivos que você editou, sem perguntar' },
+    },
+    details: [
+      'Migrações: se o esquema do cérebro (schemaVersion do .cabecao.json) é anterior ao deste Cabeção, cria um ponto',
+      'de restauração (a tag local cabecao/restore/<data>-upgrade) e aplica as migrações em ordem, um commit por',
+      'migração. Só roda com o cérebro limpo e sincronizado (rode "cabecao sync" antes) e recusa um cérebro de esquema',
+      'mais novo ("atualize o Cabeção"). Já atualizado, não faz nada.',
+      '',
+      '--template: compara o AGENTS.md e o CLAUDE.md com o modelo desta versão. Um arquivo igual ao modelo de uma',
+      'versão anterior é trocado; um que você editou mostra a diferença e pergunta (sem terminal, fica como está e o',
+      'modelo novo vai para .cabecao/template/). No .gitignore e no .gitattributes, só acrescenta as linhas que faltam.',
+    ].join('\n'),
+    load: () => import('./commands/upgrade.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],
