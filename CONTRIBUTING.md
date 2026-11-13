@@ -9,11 +9,11 @@ O Cabeção está em beta e publicado no npm (`cabecao@beta`). O que ele faz hoj
 
 ## Convenções
 - **Commits do projeto:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/) (`feat:`, `fix:`, `docs:`, `chore:`...). Os commits que o Cabeção faz no repositório de um cérebro têm um [padrão próprio](https://renanloureiroo.github.io/cabecao/conceitos/commits-e-undo/).
-- **Idioma:** documentação em português, com a versão em inglês no mesmo site (`website/src/content/docs/en/`); código, identificadores e schema em inglês.
+- **Idioma:** documentação em português, com a versão em inglês no mesmo site (`docs/i18n/en/`); código, identificadores e schema em inglês.
 - **Código:** TypeScript estrito, pnpm, testes com Vitest, lint e formatação com Biome.
 - **Changeset:** PR que muda o produto leva um changeset (`pnpm changeset`, marcando o pacote `cabecao`); é ele que gera a versão nova e a entrada no changelog. O fluxo está no [README da pasta `.changeset`](.changeset/README.md).
 - **Antes de abrir um PR:** `pnpm install`, depois `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke && pnpm e2e`.
-- **Site de documentação:** fica em `website/` (Astro Starlight). `pnpm docs:dev` abre o site localmente e `pnpm docs:build` constrói e confere os links. Mudou um comando ou uma tool? Atualize a página nos dois idiomas.
+- **Site de documentação:** fica em `docs/` (Docusaurus): as páginas em português em `docs/docs/` e as em inglês em `docs/i18n/en/`. `pnpm docs:dev` abre o site localmente e `pnpm docs:build` constrói os dois idiomas e falha com link ou âncora quebrada. Mudou um comando ou uma tool? Atualize a página nos dois idiomas.
 - **Dados de teste:** use o cérebro de exemplo em [`fixtures/vault`](fixtures/README.md), que só tem dados inventados.
 
 ## Segurança
