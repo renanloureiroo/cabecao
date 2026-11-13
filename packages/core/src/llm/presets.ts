@@ -188,8 +188,8 @@ export const HTTP_PRESETS: Readonly<Record<HttpPresetId, HttpPreset>> = {
     stream: true,
     streamUsage: false,
     extraBody: {},
-    warning:
-      'Modelos "-cloud" do Ollama rodam nos servidores do ollama.com mesmo chamados por localhost: com eles, o conteúdo sai da máquina.',
+    // o aviso dos modelos "-cloud" (que rodam no ollama.com mesmo chamados por localhost) sai só para eles, no `llm on`
+    warning: null,
   },
   lmstudio: {
     id: 'lmstudio',

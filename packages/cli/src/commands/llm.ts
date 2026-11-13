@@ -139,7 +139,7 @@ function disclosure(id: string, entry: ProviderEntry, config: LlmConfig): string
   lines.push(
     '',
     costLine(entry, config),
-    `Para desligar: cabecao llm off. Para apagar a chave: cabecao llm remove ${id}.`,
+    `Para desligar: cabecao llm off. Para apagar ${entry.kind === 'http' && entry.key !== 'none' ? 'a chave e o provedor' : 'o provedor'}: cabecao llm remove ${id}.`,
   );
   return lines.join('\n');
 }
@@ -311,7 +311,7 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
     } else if (preset.warning !== null) ctx.stderr.write(`\nAtenção: ${preset.warning}\n`);
     if (preset.id === 'ollama' && isOllamaCloudModel(model)) {
       ctx.stderr.write(
-        `Atenção: "${model}" é um modelo de nuvem do Ollama: o conteúdo sai da máquina para o ollama.com.\n`,
+        `\nAtenção: "${model}" é um modelo de nuvem do Ollama: roda nos servidores do ollama.com mesmo chamado por localhost, e o conteúdo sai da máquina.\n`,
       );
     }
     entry = {
@@ -362,7 +362,9 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
     `Respostas ativadas com ${d.label} (modelo ${d.model}).`,
     ...(where === '' ? [] : [where]),
     ...(keyNote === null ? [] : [`Aviso: ${keyNote}.`]),
-    test.ok ? `Teste: funcionou em ${(test.ms / 1000).toFixed(1)} s.` : `Teste: falhou (${test.message}). ${test.fix}`,
+    test.ok
+      ? `Teste: funcionou em ${(test.ms / 1000).toFixed(1).replace('.', ',')} s.`
+      : `Teste: falhou (${test.message}). ${test.fix}`,
     'Pergunte com: cabecao ask "o que decidimos sobre ...?"',
     'Nos agentes, a tool "ask" aparece na próxima sessão (reinicie o cliente de IA).',
   ];
@@ -502,7 +504,7 @@ async function runTest(ctx: CommandContext): Promise<CommandResult> {
   const test = await testProvider(ctx, machine, id, entry);
   const d = describeEntry(entry);
   const text = test.ok
-    ? `${d.label} (modelo ${d.model}) respondeu em ${(test.ms / 1000).toFixed(1)} s: ${test.message}. Nenhum conteúdo do cérebro foi enviado.`
+    ? `${d.label} (modelo ${d.model}) respondeu em ${(test.ms / 1000).toFixed(1).replace('.', ',')} s: ${test.message}. Nenhum conteúdo do cérebro foi enviado.`
     : `${d.label} (modelo ${d.model}) falhou: ${test.message}\n${test.fix}`;
   return { code: test.ok ? 0 : 1, data: { provider: id, ...test }, text };
 }
