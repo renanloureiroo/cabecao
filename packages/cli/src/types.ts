@@ -1,4 +1,5 @@
 import type { ResolvedActor } from './actor.ts';
+import type { CredentialRunner } from './llm/credentials.ts';
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
@@ -60,10 +61,12 @@ export interface CliIo {
   terminal?: ControllingTerminal | undefined;
   /**
    * Pasta da configuração do provedor de respostas (`llm.json`, chaves em arquivo, segredo das confirmações). Só os
-   * TESTES passam isto (chamando a CLI como biblioteca); o programa instalado usa sempre a pasta padrão do usuário do
-   * sistema, sem variável de ambiente (`llm/describe.ts`), para um agente não conseguir apontá-la para outro lugar.
+   * TESTES passam isto (chamando a CLI como biblioteca); o programa instalado usa a pasta padrão do usuário do sistema
+   * (desviada por variável de ambiente, só para o usuário no terminal; `llm/describe.ts`).
    */
   llmConfigDir?: string | undefined;
+  /** Executor dos programas do cofre de chaves (`security`, `secret-tool`, PowerShell). Só os testes trocam. */
+  credentialRunner?: CredentialRunner | undefined;
   /**
    * Passa a tratar Ctrl+C (SIGINT/SIGTERM) como cancelamento: o sinal devolvido aborta, e `dispose` devolve o
    * comportamento normal. Só os comandos longos e canceláveis usam (o `ask`); nos testes, não existe.

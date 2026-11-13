@@ -103,6 +103,7 @@ export function buildProvider(
     });
   }
   const preset = HTTP_PRESETS[entry.preset];
+  const runner = options.credentialRunner ?? io.credentialRunner;
   return createHttpProvider({
     id,
     preset,
@@ -115,7 +116,7 @@ export function buildProvider(
           env: io.env,
           platform: io.platform,
           configDir: machine.configDir,
-          ...(options.credentialRunner === undefined ? {} : { runner: options.credentialRunner }),
+          ...(runner === undefined ? {} : { runner }),
         },
         credentialAccount(id, entry),
         entry.key,

@@ -70,7 +70,12 @@ const yes = (answer: string | null, byDefault: boolean): boolean => {
 };
 
 function credentialIo(ctx: CommandContext, machine: LlmMachine): CredentialIo {
-  return { env: ctx.env, platform: ctx.platform, configDir: machine.configDir };
+  return {
+    env: ctx.env,
+    platform: ctx.platform,
+    configDir: machine.configDir,
+    ...(ctx.credentialRunner === undefined ? {} : { runner: ctx.credentialRunner }),
+  };
 }
 
 async function save(machine: LlmMachine, config: LlmConfig): Promise<void> {

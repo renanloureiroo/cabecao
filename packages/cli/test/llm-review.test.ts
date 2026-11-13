@@ -334,3 +334,44 @@ describe('M2: um servidor desta máquina nunca vai pelo proxy', () => {
     expect(loopbackMayBeProxied({}, null)).toBe(false);
   });
 });
+
+describe('uninstall leva o provedor de respostas junto', { timeout: TEST_TIMEOUT_MS }, () => {
+  it.skipIf(process.platform === 'win32')(
+    'apaga a chave no cofre (executor falso) e o llm.json; o cérebro fica',
+    async () => {
+      const m = machine();
+      const dir = await brainRepo();
+      const api = await compatibleServer();
+      const bin = freshDir('path-cofre');
+      writeFileSync(join(bin, 'secret-tool'), '#!/bin/sh\nexit 0\n');
+      chmodSync(join(bin, 'secret-tool'), 0o755);
+      const vault = new Map<string, string>();
+      const calls: string[] = [];
+      const credentialRunner: CredentialRunner = async (_file, args, options) => {
+        const account = args[args.indexOf('account') + 1] ?? '';
+        calls.push(`${args[0]} ${account}`);
+        if (args[0] === 'store') vault.set(account, options.stdin.trim());
+        if (args[0] === 'lookup') return { code: 0, stdout: vault.get(account) ?? '', stderr: '' };
+        if (args[0] === 'clear') vault.delete(account);
+        return { code: 0, stdout: '', stderr: '' };
+      };
+      const linux = { platform: 'linux' as const, env: { ...m.env, PATH: bin }, credentialRunner };
+      const on = await m.cabecao(
+        ['llm', 'on', '--provider', 'compatible', '--base-url', api.base, '--model', 'm', '--store', 'keychain'],
+        { ...linux, ...TERMINAL },
+      );
+      expect(on.code, on.stderr).toBe(0);
+      expect([...vault.values()]).toEqual([KEY]);
+      const shown = await m.cabecao(['uninstall', '--dry-run'], { ...linux, ...QUIET });
+      expect(shown.stdout).toContain('respostas (ask)');
+      expect(shown.stdout).toContain('compatible');
+      const done = await m.cabecao(['uninstall'], { ...linux, terminal: { prompt: async () => 's' } });
+      expect(done.code, done.stdout + done.stderr).toBe(0);
+      expect(vault.size).toBe(0);
+      expect(calls.some((call) => call.startsWith('clear compatible@'))).toBe(true);
+      expect(() => statSync(join(m.configDir, 'llm.json'))).toThrow();
+      expect(() => statSync(join(m.configDir, 'llm-consent.key'))).toThrow();
+      expect(statSync(join(dir, '.cabecao.json')).isFile()).toBe(true);
+    },
+  );
+});

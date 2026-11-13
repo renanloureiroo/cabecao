@@ -25,7 +25,7 @@ import {
 import { dirContext } from '../dirs.ts';
 import type { CliIo } from '../types.ts';
 
-export type LlmIo = Pick<CliIo, 'env' | 'platform' | 'homedir' | 'llmConfigDir'> & {
+export type LlmIo = Pick<CliIo, 'env' | 'platform' | 'homedir' | 'llmConfigDir' | 'credentialRunner'> & {
   /** Quem roda (o roteador resolve; sem isso, como no servidor MCP, é um agente). */
   readonly actor?: { readonly actor: 'human' | 'agent' };
 };
