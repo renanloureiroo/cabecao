@@ -25,7 +25,7 @@ Que o Cabeção funciona e está publicado, mas ainda pode mudar antes da versã
 
 ## Quais clientes de IA funcionam?
 
-Qualquer cliente que fale MCP por stdio. O `install-client` registra o servidor sozinho no Claude Code, Claude Desktop, Codex, Cursor, VS Code e Gemini CLI. Para outro cliente, `cabecao install-client --print` mostra a configuração para copiar.
+Qualquer cliente que fale MCP por stdio. O `install-client` registra o servidor sozinho no Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity e Gemini CLI. Para outro cliente, `cabecao install-client --print` mostra a configuração para copiar.
 
 ## O agente vai encher o cérebro de bobagem?
 

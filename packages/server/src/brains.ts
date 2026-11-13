@@ -7,6 +7,130 @@
 import type { Brain, EmbeddingProvider } from '@cabecao/core';
 import { BrainError, openBrain } from '@cabecao/core';
 
+/**
+ * Modo sem ninguém olhando (`cabecao mcp --consolidation <id>`, que o `cabecao consolidate --run` usa): o servidor fica
+ * preso a uma consolidação já iniciada pela CLI.
+ */
+export interface UnattendedOptions {
+  /** O `consolidation_id`: vira o `session_handle` de TODA escrita, qualquer que seja o que o agente mandar. */
+  readonly consolidationId: string;
+  /** Libera o `forget` (arquivar memória sem ninguém olhando só com opção explícita do usuário). */
+  readonly allowForget: boolean;
+  /**
+   * Libera as ações que exigem o pedido explícito do usuário (decisão 37: regra, arquivo de controle, `raw/`,
+   * `trust: high`), só com a opção explícita `--allow-elevated`. Sem ela, essas ações ficam indisponíveis: sem ninguém
+   * olhando, não há usuário para confirmar, e o agente não pode percorrer sozinho o fluxo do token.
+   */
+  readonly allowElevated?: boolean;
+}
+
+/** Métodos que gravam e recebem `session_handle`: no modo sem ninguém olhando, a sessão é a da consolidação. */
+const SESSION_WRITES = new Set(['remember', 'writePage', 'patchPage', 'relate', 'forget']);
+
+/** Escritas que podem pedir confirmação (decisão 37); `undo` já fica bloqueado e `forget` tem a própria opção. */
+const CONFIRMABLE = new Set(['remember', 'writePage', 'patchPage', 'relate']);
+
+function elevatedUnavailable(): BrainError {
+  return new BrainError(
+    'human_only',
+    'numa consolidação automática (sem ninguém olhando) não há usuário para confirmar: regra, arquivo de controle ou de instrução, alteração em raw/ e trust: high ficam indisponíveis',
+    {
+      nextStep:
+        'Não faça esta alteração. Se algo merecer virar regra, proponha numa nota type: synthesis em wiki/syntheses/ e cite no resumo final; o usuário decide. (Só com --allow-elevated, opção do usuário no comando, essas ações ficam liberadas.)',
+    },
+  );
+}
+
+/** Bloqueados sem ninguém olhando: enviar ao remoto, desfazer, passar bastão, trazer conteúdo de fora. */
+const UNATTENDED_BLOCKED: Readonly<Record<string, string>> = {
+  sync: 'sync (enviar ao remoto fica para você, depois de conferir)',
+  undo: 'undo (quem desfaz é você, com "cabecao undo")',
+  handoffSave: 'handoff_save (uma consolidação não deixa recado para a próxima sessão)',
+  ingest: 'ingest (uma consolidação não traz conteúdo de fora)',
+};
+
+function blocked(what: string): BrainError {
+  return new BrainError('human_only', `numa consolidação automática (sem ninguém olhando) não há ${what}`, {
+    nextStep:
+      'Siga só com recall, search, read, graph, facts, lint, remember, write_page, patch_page e relate, e termine com consolidate finish.',
+  });
+}
+
+/**
+ * O cérebro com as travas do modo sem ninguém olhando. As restrições de agente do núcleo continuam todas (o cérebro é
+ * aberto com `actor: 'agent'`); isto só tira o que não cabe numa consolidação sem supervisão e prende a sessão.
+ */
+export function unattendedBrain(brain: Brain, options: UnattendedOptions): Brain {
+  const id = options.consolidationId;
+  return new Proxy(brain, {
+    get(target, key, receiver) {
+      const value = Reflect.get(target, key, receiver) as unknown;
+      if (typeof key !== 'string' || typeof value !== 'function') return value;
+      const method = value as (...args: unknown[]) => unknown;
+      const what = UNATTENDED_BLOCKED[key];
+      if (what !== undefined) return () => Promise.reject(blocked(what));
+      if (key === 'forget' && !options.allowForget) {
+        return () =>
+          Promise.reject(
+            new BrainError(
+              'human_only',
+              'numa consolidação automática, forget fica bloqueado: arquivar memória sem ninguém olhando só com --allow-forget',
+              {
+                nextStep: 'Deixe a nota como está e cite-a no resumo final; o usuário decide se arquiva.',
+              },
+            ),
+          );
+      }
+      if (key === 'consolidate') {
+        return (input: unknown) => {
+          const record = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>;
+          if (record.action !== 'finish') {
+            return Promise.reject(
+              new BrainError(
+                'human_only',
+                `esta consolidação já começou (consolidation_id "${id}"): não chame start de novo`,
+                {
+                  nextStep: `Termine com consolidate({ action: "finish", consolidation_id: "${id}" }).`,
+                },
+              ),
+            );
+          }
+          const given = typeof record.consolidation_id === 'string' ? record.consolidation_id.trim().toUpperCase() : '';
+          if (given !== id) {
+            return Promise.reject(
+              new BrainError('invalid_argument', `o consolidation_id desta consolidação é "${id}"`, {
+                nextStep: `Chame consolidate({ action: "finish", consolidation_id: "${id}" }).`,
+              }),
+            );
+          }
+          return method.call(target, input);
+        };
+      }
+      if (CONFIRMABLE.has(key) && options.allowElevated !== true) {
+        // sem a opção do usuário, a ação elevada não acontece: nem pelo token (o agente não o recebe, e um token
+        // trazido de fora é recusado), nem pela confirmação direta
+        return async (input: unknown, confirm?: unknown) => {
+          const record = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>;
+          const userConfirmed = (confirm as { userConfirmed?: unknown } | undefined)?.userConfirmed === true;
+          if (record.confirm_token !== undefined || userConfirmed) throw elevatedUnavailable();
+          const out = (await method.call(target, { ...record, session_handle: id })) as { status?: unknown };
+          if (out?.status === 'confirmation_required') throw elevatedUnavailable();
+          return out;
+        };
+      }
+      if (SESSION_WRITES.has(key)) {
+        return (input: unknown, ...rest: unknown[]) =>
+          method.call(
+            target,
+            { ...(typeof input === 'object' && input !== null ? input : {}), session_handle: id },
+            ...rest,
+          );
+      }
+      return method.bind(target);
+    },
+  });
+}
+
 export interface BrainProviderOptions {
   /** Pasta do cérebro. */
   readonly root: string;
@@ -18,6 +142,8 @@ export interface BrainProviderOptions {
    * busca que precisa dele, nunca na subida do servidor.
    */
   readonly embeddings?: EmbeddingProvider;
+  /** Modo sem ninguém olhando, preso a uma consolidação (`cabecao consolidate --run`). */
+  readonly unattended?: UnattendedOptions;
 }
 
 export interface BrainProvider {
@@ -41,6 +167,7 @@ export function createBrainProvider(options: BrainProviderOptions): BrainProvide
       }
       let brain = opened.get(client);
       if (brain === undefined) {
+        const unattended = options.unattended;
         brain = openBrain(options.root, {
           client,
           // nenhum cliente MCP escreve como o usuário: `type: rule` é recusado e `trust: high` é rebaixado
@@ -48,7 +175,7 @@ export function createBrainProvider(options: BrainProviderOptions): BrainProvide
           ...(options.machine === undefined ? {} : { machine: options.machine }),
           ...(options.now === undefined ? {} : { now: options.now }),
           ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
-        });
+        }).then((opened) => (unattended === undefined ? opened : unattendedBrain(opened, unattended)));
         const pending = brain;
         opened.set(client, pending);
         pending.catch(() => {

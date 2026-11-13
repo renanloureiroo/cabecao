@@ -101,7 +101,7 @@ That one saves `origin: human` and `trust: high`, like a rule you wrote in Obsid
 | `forget` | Asks at the terminal, or `--yes` | Always two calls: the first returns the summary and the token, the second archives with `--confirm`; `--yes` is refused (code 4) |
 | `undo` | Any operation, by the beginning of the id (8 characters or more) | Without confirmation, only its own agent operations, by the full id; the rest with `--confirm` |
 | `ingest <file>` | Reads any file of yours | Only reads files inside the brain; outside text goes through standard input (`cabecao ingest - --title ...`), as the tool's `content`, with `trust: low` |
-| `consolidate` | Prepares and finishes | The same as the tool: finishes the consolidation by id; its writes follow the agent rules |
+| `consolidate` | Prepares and finishes; `--run` with `--allow-forget` or `--allow-elevated` | The same as the tool: finishes the consolidation by id; `--run` runs (scheduled, for example), but `--allow-forget` and `--allow-elevated` are refused (code 4) |
 
 ## Edge cases
 
