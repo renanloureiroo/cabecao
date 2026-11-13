@@ -1,4 +1,4 @@
-// `.cabecao.json`: o único arquivo de configuração versionado do cérebro (docs/03-modelo-de-dados.md).
+// `.cabecao.json`: o único arquivo de configuração versionado do cérebro.
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isSafeRelativePath, normalizeNfc, toPosixPath, writeFileAtomic } from '../util/index.ts';
@@ -29,7 +29,7 @@ export interface EmbeddingConfig {
   readonly [key: string]: unknown;
 }
 
-/** Modelo do assunto dos commits (docs/12-commits.md). Os padrões ficam em `git/commit-message.ts`. */
+/** Modelo do assunto dos commits. Os padrões ficam em `git/commit-message.ts`. */
 export interface CommitConfig {
   readonly message?: string;
   readonly dateFormat?: string;

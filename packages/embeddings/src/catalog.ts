@@ -1,15 +1,15 @@
 /**
- * Catálogo das sugestões testadas (docs/06-busca-e-grafo.md, "Sugestões testadas").
+ * Catálogo das sugestões testadas.
  *
  * Origem de cada dado, para ninguém precisar adivinhar:
- * - repositório, arquivo ONNX (com o `_data` externo), dimensões, agregação e prefixos: `spikes/11-embeddings-eval/
- *   lib/models.mjs` (conferidos no model card) e os arquivos de fato carregados, registrados em
- *   `spikes/11-embeddings-eval/out/emb/<chave>.json` (`onnxFiles`, `onnxMB`, `tokenizerMB`);
- * - normalização L2: `embed.mjs` do mesmo spike normaliza sempre (`normalize: true` / `.normalize(2, -1)`);
- * - limite de tokens: `embed.mjs` usa `max_length: 2048` para os modelos que devolvem `sentence_embedding` (Gemma);
+ * - repositório, arquivo ONNX (com o `_data` externo), dimensões, agregação e prefixos: a prova de
+ *   conceito dos modelos de embeddings (conferidos no model card) e os arquivos de fato carregados nela
+ *   (`onnxFiles`, `onnxMB`, `tokenizerMB`);
+ * - normalização L2: a mesma prova normaliza sempre (`normalize: true` / `.normalize(2, -1)`);
+ * - limite de tokens: ela usa `max_length: 2048` para os modelos que devolvem `sentence_embedding` (Gemma);
  *   nos demais o pipeline trunca no `model_max_length` do `tokenizer_config.json` (por isso `maxTokens` fica vazio);
- * - MRR@10 e R@1 só de paráfrase no conjunto sintético: `spikes/11-embeddings-eval/RESULTS.md`, apêndice A;
- * - licença e gating: apêndice D do mesmo arquivo e docs/06.
+ * - MRR@10 e R@1 só de paráfrase no conjunto sintético: resultados da mesma prova;
+ * - licença e gating: o model card de cada modelo.
  *
  * O que os spikes NÃO registram e por isso fica sem valor: a revisão (commit) de cada repositório no Hugging Face. Os
  * arquivos são baixados de `main`.

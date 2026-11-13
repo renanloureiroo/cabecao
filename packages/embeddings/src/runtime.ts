@@ -33,7 +33,7 @@ export type RuntimeBackend = 'native' | 'wasm';
  * Versões fixadas. As do nativo são as que o `@huggingface/transformers` 4.3.2 instalou nas 15 combinações de
  * sistema e Node do spike 14 (`onnxruntime-node` 1.30.0, `@huggingface/tokenizers` 0.2.0); o transformers.js em si
  * fica de fora (470 MB, e a sessão ONNX direta dá os mesmos vetores: spike 11, seção 9). As do WebAssembly são as do
- * caminho que funcionou nas 15 combinações e no Alpine (`spikes/14-platform/matrix/04-embeddings/wasm-only`).
+ * caminho que funcionou nas 15 combinações e no Alpine.
  */
 export const RUNTIME_PACKAGES: Readonly<Record<RuntimeBackend, Readonly<Record<string, string>>>> = {
   native: { 'onnxruntime-node': '1.30.0', '@huggingface/tokenizers': '0.2.0' },

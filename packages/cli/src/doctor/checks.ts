@@ -1,4 +1,4 @@
-// Verificações do `doctor` (docs/08-instalacao-e-operacao.md, "O que o doctor verifica"). Cada uma é uma função pura:
+// Verificações do `doctor`. Cada uma é uma função pura:
 // recebe os fatos já coletados (`facts.ts` faz a parte que lê disco, git e rede) e devolve o resultado com a correção
 // sugerida. Assim cada regra é testável sem montar um cérebro de verdade.
 import type { ClientId } from '../install-client/clients.ts';

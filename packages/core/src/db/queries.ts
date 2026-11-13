@@ -1,4 +1,4 @@
-// Consultas de apoio às tools `read`, `recall` e `status` (docs/05-mcp.md).
+// Consultas de apoio às tools `read`, `recall` e `status`.
 import type { SQLInputValue } from 'node:sqlite';
 import { normalizeRelPath } from '../vault/index.ts';
 import type { EdgeOrigin } from './extract.ts';

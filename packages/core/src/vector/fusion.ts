@@ -1,5 +1,4 @@
-// Fusão convexa com cobertura (doc 06, "Fusão"; decisão 11), portada de `convexCov` em
-// `spikes/11-embeddings-eval/lib/search.mjs`:
+// Fusão convexa com cobertura, a mesma fórmula medida na prova de conceito dos modelos de embeddings:
 //
 //   score = α · minmax(cosseno) + (1 − α) · min(1, bm25 / Σ idf dos termos da pergunta)      α = 0,5
 //

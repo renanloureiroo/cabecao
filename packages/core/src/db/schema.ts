@@ -1,4 +1,4 @@
-// Esquema do banco local (docs/03-modelo-de-dados.md, "Banco local"). O banco é uma visão materializada do
+// Esquema do banco local. O banco é uma visão materializada do
 // Markdown: apagar e refazer é sempre seguro, então mudança de esquema é reconstrução, nunca migração.
 import type { DatabaseSync } from './sqlite.ts';
 

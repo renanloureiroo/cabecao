@@ -1,5 +1,5 @@
 /**
- * Modelo de um cérebro novo (docs/03-modelo-de-dados.md).
+ * Modelo de um cérebro novo.
  *
  * O pacote publicado é um bundle sem arquivos soltos, então o modelo vive aqui, no código. A pasta
  * `templates/vault/` do repositório guarda exatamente os mesmos bytes, para quem quiser ver o resultado sem rodar
@@ -84,8 +84,8 @@ ${LOG_MD} merge=union
 `;
 
 /**
- * Regras de uso do cérebro para qualquer agente. Coerente com as instruções do servidor (docs/05-mcp.md) e com o
- * ciclo de vida (docs/07-ciclo-de-vida-e-seguranca.md). O conteúdo fica no idioma do usuário (decisão 28).
+ * Regras de uso do cérebro para qualquer agente. Coerente com as instruções do servidor e com o
+ * ciclo de vida da memória. O conteúdo fica no idioma do usuário.
  */
 export const AGENTS_MD_CONTENT = `# Regras deste cérebro
 

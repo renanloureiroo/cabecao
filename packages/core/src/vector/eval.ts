@@ -1,5 +1,5 @@
-// Métricas do `cabecao eval` (doc 06, "Limites desta medição"), portadas de `metrics`, `subset` e `bootDiff` em
-// `spikes/11-embeddings-eval/lib/search.mjs`. Relevância binária: cada nota esperada vale 1.
+// Métricas do `cabecao eval`, portadas da prova de conceito que comparou os modelos de
+// embeddings. Relevância binária: cada nota esperada vale 1.
 //
 // - acerto@1: a primeira posição é uma nota esperada.
 // - MRR@k: 1 / posição da primeira nota esperada nas k primeiras (0 se nenhuma).
