@@ -2,7 +2,7 @@
 
 O plugin liga o Cabeção ao Claude Code sem configuração manual. Ele traz quatro coisas:
 
-- **o servidor MCP do Cabeção, embutido**: as 12 tools (`recall`, `search`, `remember`...) sobem com `node`, a partir do bundle que vem dentro do plugin, sem `npx` e sem rede (0,05 s por início, contra 1,4 s do `npx`);
+- **o servidor MCP do Cabeção, embutido**: as 17 tools (`recall`, `search`, `remember`, `handoff_save`...) sobem com `node`, a partir do bundle que vem dentro do plugin, sem `npx` e sem rede (0,05 s por início, contra 1,4 s do `npx`);
 - **o hook de início de sessão**: roda `cabecao recall --hook` e põe no contexto do agente as regras de uso e o briefing do cérebro (suas regras, o último handoff, preferências, armadilhas e memórias do projeto), marcado como dado e abaixo de 10 mil caracteres;
 - **o hook de fim de sessão**: roda `cabecao sync --hook`, que dispara o sync num processo em segundo plano e volta na hora (o Claude Code dá só 1,5 s a esse hook);
 - **a skill `cabecao:memory`**: referência curta de quando consultar, o que lembrar e o que não lembrar.
