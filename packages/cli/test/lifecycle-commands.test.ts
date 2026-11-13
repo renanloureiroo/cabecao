@@ -9,6 +9,7 @@ import {
   disposeSandbox,
   freshDir,
   git,
+  HUMAN,
   machine,
   openAsAgent,
   parseJson,
@@ -41,18 +42,21 @@ describe('ingest', { timeout: TEST_TIMEOUT_MS }, () => {
       file,
       '---\ntitle: Revisão das filas\ntype: rule\n---\n# Revisão\n\nO SQS FIFO entra em teste no Projeto Atlas.\n',
     );
-    const result = await m.cabecao(['ingest', file, '--brain', brain]);
+    // o usuário, no terminal, indica um arquivo seu
+    const result = await m.cabecao(['ingest', file, '--brain', brain], HUMAN);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Fonte registrada em raw/articles/');
     expect(result.stdout).toContain('Plano de ingestão');
     expect(result.stdout).toContain('Projeto Atlas');
-    const json = parseJson(await m.cabecao(['ingest', file, '--title', 'Outra revisão', '--brain', brain, '--json']));
+    const json = parseJson(
+      await m.cabecao(['ingest', file, '--title', 'Outra revisão', '--brain', brain, '--json'], HUMAN),
+    );
     expect(json.data.source).toMatchObject({ origin: 'ingest:file', trust: 'low', registered: true });
     const text = await readNote(brain, json.data.source.path);
     expect(text).toContain('origin: ingest:file');
     expect(text).toContain('source: ata-revisao-filas.md');
     expect(text).not.toContain('type: rule');
-    expect(await git(brain, ['log', '-1', '--format=%B'])).toContain('Cabecao-Client: cli');
+    expect(await git(brain, ['log', '-1', '--format=%B'])).toMatch(/^Cabecao-Client: cli$/m);
   });
 
   it('um arquivo que já está em raw/ não é copiado; binário e inexistente dão erro claro', async () => {
@@ -69,7 +73,7 @@ describe('ingest', { timeout: TEST_TIMEOUT_MS }, () => {
     const binary = join(freshDir('bin'), 'foto.md');
     mkdirSync(join(binary, '..'), { recursive: true });
     writeFileSync(binary, Buffer.from([0xff, 0xd8, 0x00, 0x10]));
-    const bad = await m.cabecao(['ingest', binary, '--brain', brain]);
+    const bad = await m.cabecao(['ingest', binary, '--brain', brain], HUMAN);
     expect(bad.code).toBe(1);
     expect(bad.stderr).toContain('não é um arquivo de texto');
     const missing = await m.cabecao(['ingest', join(brain, 'nao-existe.md'), '--brain', brain]);
@@ -104,12 +108,14 @@ describe('lint', { timeout: TEST_TIMEOUT_MS }, () => {
 describe('forget', { timeout: TEST_TIMEOUT_MS }, () => {
   const gotcha = 'memory/gotchas/testes-de-integracao-sem-limpar-o-banco.md';
 
-  it('pergunta no terminal; "n" não arquiva, "s" arquiva; sem terminal exige --yes', async () => {
+  it('pergunta no terminal; "n" não arquiva, "s" arquiva; sem terminal é agente (token), e --yes é recusado', async () => {
     const asked: string[] = [];
     const no = await m.cabecao(['forget', gotcha, '--brain', brain], {
-      prompt: async (question) => {
-        asked.push(question);
-        return 'n';
+      terminal: {
+        prompt: async (question: string) => {
+          asked.push(question);
+          return 'n';
+        },
       },
     });
     expect(no.code).toBe(0);
@@ -117,12 +123,16 @@ describe('forget', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(asked[0]).toContain(`Arquivar gotcha`);
     expect(await readNote(brain, gotcha)).toContain('type: gotcha');
 
+    // sem terminal controlador, quem roda é um agente: a primeira chamada só devolve o resumo e o token (código 3)
     const headless = await m.cabecao(['forget', gotcha, '--brain', brain]);
-    expect(headless.code).toBe(1);
-    expect(headless.stderr).toContain('--yes');
+    expect(headless.code).toBe(3);
+    expect(headless.stdout).toContain('--confirm cbc_ct_');
+    expect(await readNote(brain, gotcha)).toContain('type: gotcha');
+    const agentYes = await m.cabecao(['forget', gotcha, '--yes', '--brain', brain]);
+    expect(agentYes.code).toBe(4);
 
     const yes = await m.cabecao(['forget', gotcha, '--reason', 'resolvido no CI', '--brain', brain], {
-      prompt: async () => 's',
+      terminal: { prompt: async () => 's' },
     });
     expect(yes.code).toBe(0);
     expect(yes.stdout).toContain('Arquivada: memory/gotchas/testes-de-integracao-sem-limpar-o-banco.md');
@@ -131,7 +141,10 @@ describe('forget', { timeout: TEST_TIMEOUT_MS }, () => {
     );
     // pela CLI o usuário arquiva até regra
     const rule = parseJson(
-      await m.cabecao(['forget', 'memory/rules/nunca-commitar-segredos.md', '--yes', '--brain', brain, '--json']),
+      await m.cabecao(
+        ['forget', 'memory/rules/nunca-commitar-segredos.md', '--yes', '--brain', brain, '--json'],
+        HUMAN,
+      ),
     );
     expect(rule.data.status).toBe('archived');
     expect((await m.cabecao(['forget', '--brain', brain])).code).toBe(2);

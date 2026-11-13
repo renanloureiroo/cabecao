@@ -1,3 +1,5 @@
+import type { ResolvedActor } from './actor.ts';
+
 export type Env = Readonly<Record<string, string | undefined>>;
 
 /** Onde a CLI escreve. `process.stdout` serve; nos testes é um acumulador de texto. */
@@ -21,6 +23,18 @@ export interface ExecOptions {
 /** Roda um programa externo sem shell. É injetado para que nenhum teste execute programa de verdade. */
 export type Exec = (file: string, args: readonly string[], options?: ExecOptions) => Promise<ExecResult>;
 
+/**
+ * O terminal que CONTROLA o processo (no POSIX, `/dev/tty`; no Windows, o console `CONIN$`/`CONOUT$`), que existe
+ * mesmo com o stdin ou o stdout redirecionados. A pergunta é lida e escrita direto nele, nunca pelo stdin: funciona
+ * com a entrada vindo de um pipe, e um agente não responde mandando texto pelo stdin.
+ */
+export interface ControllingTerminal {
+  /** Pergunta e devolve a resposta (sem a quebra de linha), ou `null` se não deu para perguntar. */
+  prompt(question: string): Promise<string | null>;
+  /** Como `prompt`, mas sem mostrar o que é digitado (uma chave de API). */
+  promptSecret?(question: string): Promise<string | null>;
+}
+
 /** Tudo o que a CLI enxerga do processo. É passado por parâmetro: nenhum comando lê `process` direto. */
 export interface CliIo {
   /** Argumentos depois do nome do programa (`process.argv.slice(2)`). */
@@ -38,15 +52,10 @@ export interface CliIo {
   binPath?: string | undefined;
   exec: Exec;
   /**
-   * Pergunta ao usuário e devolve a resposta (sem a quebra de linha), ou `null` se não há terminal interativo. Só
-   * existe quando a entrada e a saída são um terminal; nos testes, é injetada.
+   * O terminal controlador do processo, quando há um (é ele que faz o processo contar como humano, se não houver
+   * sinal de agente no ambiente; `actor.ts`). Nos testes, é injetado: sem ele, quem roda é um agente.
    */
-  prompt?: ((question: string) => Promise<string | null>) | undefined;
-  /**
-   * Como `prompt`, mas sem mostrar o que é digitado (uma chave de API). Só existe com terminal interativo; nos testes,
-   * é injetada.
-   */
-  promptSecret?: ((question: string) => Promise<string | null>) | undefined;
+  terminal?: ControllingTerminal | undefined;
   /**
    * Passa a tratar Ctrl+C (SIGINT/SIGTERM) como cancelamento: o sinal devolvido aborta, e `dispose` devolve o
    * comportamento normal. Só os comandos longos e canceláveis usam (o `ask`); nos testes, não existe.
@@ -54,8 +63,8 @@ export interface CliIo {
   watchInterrupt?: (() => { signal: AbortSignal; dispose(): void }) | undefined;
   /**
    * Lê a entrada padrão até o fim, com teto de tamanho e de tempo (`stdin.ts`). Devolve `null` quando a entrada é um
-   * terminal, passa do teto ou não termina no prazo. Só os modos de hook usam (o Claude Code manda um JSON por ali);
-   * nos testes, é injetada.
+   * terminal, passa do teto ou não termina no prazo. Usam: os modos de hook (o Claude Code manda um JSON por ali) e
+   * os comandos que recebem conteúdo (`remember`, `write`, `patch`, `--json-input`); nos testes, é injetada.
    */
   readStdin?: ((limits: StdinLimits) => Promise<string | null>) | undefined;
   /**
@@ -97,6 +106,15 @@ export interface CommandContext extends CliIo {
    */
   brain: string | undefined;
   version: string;
+  /** Quem roda: resolvido uma vez pelo roteador (`actor.ts`). */
+  actor: ResolvedActor;
+  /**
+   * Pergunta no terminal controlador. Só existe quando quem roda é o usuário num terminal (`actor.actor === 'human'`):
+   * um agente nunca recebe pergunta.
+   */
+  prompt?: ((question: string) => Promise<string | null>) | undefined;
+  /** Como `prompt`, sem eco (uma chave de API). Também só para o usuário num terminal. */
+  promptSecret?: ((question: string) => Promise<string | null>) | undefined;
 }
 
 export interface CommandResult {

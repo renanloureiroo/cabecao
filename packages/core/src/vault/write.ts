@@ -231,7 +231,7 @@ export async function createNote(
         `origem inválida (${JSON.stringify(input.origin)}): use "human", "agent:<cliente>" ou "ingest:<fonte>"`,
       );
     }
-    if (input.type === 'rule' && input.origin !== 'human') {
+    if (input.type === 'rule' && input.origin !== 'human' && input.frontmatter?.approved_by !== 'user') {
       throw new VaultError(
         'rule_requires_human',
         'regras (type: rule) só o usuário cria; um agente não pode gravá-las',

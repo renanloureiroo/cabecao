@@ -55,4 +55,6 @@ This is the order of authority when two sources disagree:
 
 ## Rules are yours only
 
-A note only counts as a rule in `recall` when it is in `memory/rules/` **and** has `origin: human`. An agent cannot save `type: rule` (it gets the `rule_requires_human` error) or write to `memory/rules/`. How to create your own is covered in [Create rules](../guias/regras.md).
+A note only counts as a rule in `recall` when it is in `memory/rules/` **and** is yours: `origin: human`, or saved by an agent with your confirmation (`approved_by: user`, a mark only Cabeção writes, in the confirmed flow). An agent "rule" without the mark stays out. An agent only saves a rule with your explicit request; see [Create rules](../guias/regras.md).
+
+When an agent does something with your confirmation, the note gets `approved_by: user` and `approved_at`, and the commit gets the `Cabecao-Approved` trailer. The provenance stays the agent's (`origin: agent:<client>`); nothing becomes `origin: human`.

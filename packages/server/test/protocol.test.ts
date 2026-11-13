@@ -109,8 +109,9 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       expect(byName.get('patch_page')?.inputSchema.required?.sort()).toEqual(['new', 'old', 'path']);
       expect(Object.keys(byName.get('remember')?.inputSchema.properties ?? {})).toContain('session_handle');
       // a lista inteira ocupa contexto do agente: fica de olho no tamanho. Medido: 36.741 caracteres com as 12 tools
-      // dos marcos 1 a 3 e 52.373 com as 17 do marco 4 (a média por tool ficou em cerca de 3,1 mil nos dois)
-      expect(JSON.stringify(tools).length).toBeLessThan(55_000);
+      // dos marcos 1 a 3, 52.373 com as 17 do marco 4 e cerca de 56 mil com a confirmação da decisão 37 (confirm_token
+      // em 5 tools e os campos da confirmação nas saídas)
+      expect(JSON.stringify(tools).length).toBeLessThan(58_000);
       await server.stop();
     },
     TEST_TIMEOUT_MS,

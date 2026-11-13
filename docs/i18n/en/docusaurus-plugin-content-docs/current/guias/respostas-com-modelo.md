@@ -52,7 +52,7 @@ Pergunte com: cabecao ask "o que decidimos sobre ...?"
 Nos agentes, a tool "ask" aparece na próxima sessão (reinicie o cliente de IA).
 ```
 
-Turning it on and switching providers is **up to you, in the terminal**: without an interactive terminal, or when running inside an agent, `llm on` refuses. An agent does not turn it on, switch it or read the key, neither through the CLI nor through a tool.
+Turning it on, off, testing and deleting are **up to you, in the terminal**: without a controlling terminal, or when run by an agent, `llm` refuses with exit code 4 (see [Who is human and who is an agent](./humano-e-agente.md)); only `llm status` runs for everyone. An agent does not turn it on, switch it, test it or read the key, neither through the CLI nor through a tool, not even with a confirmation token. `cabecao ask` is a memory command: an agent may ask.
 
 ### Providers
 

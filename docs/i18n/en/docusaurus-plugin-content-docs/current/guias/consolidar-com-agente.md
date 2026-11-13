@@ -79,9 +79,12 @@ It cannot:
 
 - run commands, read or edit files by other means, or reach the network (each agent with the options in the table below);
 - create or change rules (`memory/rules/`): a rule can only be **proposed**, in a note in `wiki/syntheses/`;
-- write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `index.md`, `log.md`, or outside the brain;
+- write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `log.md`, and the other control files, change `raw/` sources, or save `trust: high`. In a session of yours, these actions happen with your explicit request, confirmed ([Who is human and who is an agent in the CLI](./humano-e-agente.md)); here there is nobody to confirm, so they are unavailable, not even with the token, unless you pass `--allow-elevated`;
+- write to `index.md` or outside the brain;
 - push to the remote (`sync`), undo (`undo`), leave a note for the next session (`handoff_save`), or bring in outside content (`ingest`);
 - archive notes (`forget`), unless you pass `--allow-forget`;
+
+Only you pass `--allow-forget` and `--allow-elevated`, at your terminal: a process without a controlling terminal (a schedule, another agent) that tries them exits with code 4. Without them, `--run` also runs without a terminal (scheduled), and counts as an agent;
 - write outside the consolidation's session: every write carries its id, which is why `undo --session` reaches everything.
 
 The usual agent restrictions still apply; these come on top. How each agent is contained:

@@ -4,9 +4,10 @@
 import type { IndexedNote } from '../db/index.ts';
 import { brokenLinks, listNotes, nameKey, queryFacts, validityOf } from '../db/index.ts';
 import { connection } from '../db/open.ts';
+import { parseCommitTrailers, runGit } from '../git/index.ts';
 import type { ConflictCopy } from '../sync/index.ts';
 import { listConflicts } from '../sync/index.ts';
-import { validateNote } from '../vault/index.ts';
+import { isApprovedByUser, LOG_MD, validateNote } from '../vault/index.ts';
 import type { BrainContext } from './context.ts';
 import { today, withFreshIndex } from './context.ts';
 import type { DataEnvelope } from './envelope.ts';
@@ -24,6 +25,7 @@ export const LINT_RULES = [
   'unconfirmed_memory',
   'unlinked_mention',
   'orphan_note',
+  'agent_approved',
 ] as const;
 export type LintRule = (typeof LINT_RULES)[number];
 export type LintSeverity = 'error' | 'warning' | 'info';
@@ -77,6 +79,41 @@ function daysBetween(from: string, to: string): number {
   return Number.isNaN(a) || Number.isNaN(b) ? 0 : Math.round((b - a) / 86_400_000);
 }
 
+interface ApprovedCommit {
+  readonly op: string | undefined;
+  readonly client: string | undefined;
+  readonly date: string;
+  readonly paths: readonly string[];
+}
+
+/** Quantos commits recentes a regra `agent_approved` lê do histórico. */
+const APPROVED_HISTORY = 500;
+
+/** Commits com o rodapé `Cabecao-Approved` (ações de agente confirmadas), do mais novo ao mais antigo. */
+async function approvedChanges(ctx: BrainContext): Promise<ApprovedCommit[]> {
+  try {
+    const { exitCode, stdout } = await runGit(
+      ['log', `-n${APPROVED_HISTORY}`, '--grep=^Cabecao-Approved:', '--format=%x1e%cI%x1f%B%x1f', '--name-only', '-z'],
+      { cwd: ctx.root, allowFailure: true },
+    );
+    if (exitCode !== 0) return [];
+    const out: ApprovedCommit[] = [];
+    for (const record of stdout.split('\x1e')) {
+      const [date = '', body = '', names = ''] = record.split('\x1f');
+      const trailers = parseCommitTrailers(body);
+      if (trailers.approved === undefined) continue;
+      const paths = names
+        .split('\0')
+        .map((name) => name.trim())
+        .filter((name) => name !== '');
+      out.push({ op: trailers.op, client: trailers.client, date, paths });
+    }
+    return out;
+  } catch {
+    return []; // sem git legível, o status já avisa
+  }
+}
+
 /** As regras pedidas, conferidas. */
 function rulesOf(value: unknown): Set<LintRule> {
   if (value === undefined || value === null) return new Set(LINT_RULES);
@@ -105,6 +142,9 @@ export async function lint(ctx: BrainContext, input: LintInput = {}): Promise<Li
       conflicts = []; // sem git legível, o status já avisa
     }
   }
+
+  let approvedCommits: ApprovedCommit[] = [];
+  if (rules.has('agent_approved')) approvedCommits = await approvedChanges(ctx);
 
   const { findings, checked } = await withFreshIndex(ctx, () => {
     const out: LintFinding[] = [];
@@ -277,6 +317,41 @@ export async function lint(ctx: BrainContext, input: LintInput = {}): Promise<Li
           fix: 'Ligue a nota ao que ela trata (relate ou um [[link]] no texto), ou arquive com forget se não serve mais.',
           related: [],
         });
+      }
+    }
+    if (rules.has('agent_approved')) {
+      // a rede de segurança da decisão 37: o que um agente gravou com a confirmação do usuário, para ele revisar
+      const reported = new Set<string>();
+      for (const note of listNotes(ctx.index, { orderBy: 'path', includeArchived: false })) {
+        if (!isApprovedByUser(note.frontmatter) || !(note.origin ?? '').startsWith('agent:')) continue;
+        if (!inScope(note)) continue;
+        reported.add(note.path);
+        const when = typeof note.frontmatter.approved_at === 'string' ? note.frontmatter.approved_at : '?';
+        const editor = typeof note.frontmatter.edited_by === 'string' ? note.frontmatter.edited_by : note.origin;
+        out.push({
+          rule: 'agent_approved',
+          severity: 'info',
+          path: note.path,
+          line: null,
+          message: `${note.type ?? 'nota'} gravada por ${editor} com a confirmação do usuário (approved_at ${when})${note.type === 'rule' ? '; é servida como regra no recall' : ''}`,
+          fix: 'Revise. Se não foi você quem pediu, desfaça com "cabecao undo --op <id>" (veja "cabecao undo --list") ou arquive com forget.',
+          related: [],
+        });
+      }
+      for (const commit of approvedCommits) {
+        for (const path of commit.paths) {
+          if (reported.has(path) || path === LOG_MD || path === ctx.config.indexMd) continue;
+          reported.add(path);
+          out.push({
+            rule: 'agent_approved',
+            severity: 'info',
+            path,
+            line: null,
+            message: `alterado por ${commit.client === undefined ? 'um agente' : `agent:${commit.client}`} com a confirmação do usuário em ${commit.date.slice(0, 10)} (operação ${commit.op ?? '?'})`,
+            fix: `Revise. Se não foi você quem pediu, desfaça com "cabecao undo --op ${commit.op ?? '<id>'}".`,
+            related: [],
+          });
+        }
       }
     }
     return { findings: out, checked: notes.length };

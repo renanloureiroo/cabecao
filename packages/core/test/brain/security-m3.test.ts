@@ -12,6 +12,7 @@ import {
   disposeSandbox,
   git,
   head,
+  notExecuted,
   openTest,
   porcelain,
   readText,
@@ -34,7 +35,7 @@ async function errorOf(promise: Promise<unknown>): Promise<BrainError> {
 const RULE = 'memory/rules/nunca-commitar-segredos.md';
 
 describe('S1: relate não contorna as restrições de agente', { timeout: TEST_TIMEOUT_MS }, () => {
-  it('regra (pelo título, caminho em outra caixa ou id), raw/, cópia de conflito e arquivo de instrução: recusados', async () => {
+  it('regra (pelo título, caminho em outra caixa ou id), raw/ e arquivo de instrução: só com confirmação; cópia de conflito: recusada', async () => {
     const dir = await createBrainRepo();
     await mkdir(join(dir, 'wiki', 'notas'), { recursive: true });
     await writeFile(join(dir, 'wiki', 'notas', 'AGENTS.md'), '# instruções do usuário\n');
@@ -54,13 +55,15 @@ describe('S1: relate não contorna as restrições de agente', { timeout: TEST_T
       rule.note.id,
       `[[${RULE}]]`,
     ]) {
-      const error = await errorOf(brain.relate({ from, type: 'related_to', to: 'SQS' }));
-      expect(error.code, from).toBe('rule_requires_human');
+      expect(await notExecuted(brain.relate({ from, type: 'related_to', to: 'SQS' })), from).toBe(
+        'confirmation_required',
+      );
     }
-    const raw = await errorOf(
-      brain.relate({ from: 'raw/meetings/2026-05-03-arquitetura.md', type: 'related_to', to: 'SQS' }),
-    );
-    expect(raw.code).toBe('invalid_path');
+    expect(
+      await notExecuted(
+        brain.relate({ from: 'raw/meetings/2026-05-03-arquitetura.md', type: 'related_to', to: 'SQS' }),
+      ),
+    ).toBe('confirmation_required');
     const copy = await errorOf(
       brain.relate({ from: 'wiki/entities/SQS.conflict-maquina-b-20261112-143210.md', type: 'uses', to: 'RabbitMQ' }),
     );
@@ -73,15 +76,16 @@ describe('S1: relate não contorna as restrições de agente', { timeout: TEST_T
       }),
     );
     expect(toCopy.code).toBe('invalid_argument');
-    const instruction = await errorOf(brain.relate({ from: 'wiki/notas/AGENTS.md', type: 'related_to', to: 'SQS' }));
-    expect(instruction.code).toBe('invalid_path');
+    expect(await notExecuted(brain.relate({ from: 'wiki/notas/AGENTS.md', type: 'related_to', to: 'SQS' }))).toBe(
+      'confirmation_required',
+    );
     // arquivos de controle nem são notas: não há o que relacionar
     for (const from of ['index.md', 'log.md', 'CLAUDE.md', '.cabecao.json', '.git/config']) {
       expect((await errorOf(brain.relate({ from, type: 'related_to', to: 'SQS' }))).code, from).toBe('not_found');
     }
-    // "AGENTS.md" como wikilink acha o wiki/notas/AGENTS.md do usuário, que o agente não altera
-    expect((await errorOf(brain.relate({ from: 'AGENTS.md', type: 'related_to', to: 'SQS' }))).code).toBe(
-      'invalid_path',
+    // "AGENTS.md" como wikilink acha o wiki/notas/AGENTS.md do usuário, que o agente só altera com confirmação
+    expect(await notExecuted(brain.relate({ from: 'AGENTS.md', type: 'related_to', to: 'SQS' }))).toBe(
+      'confirmation_required',
     );
     expect(await head(dir)).toBe(sha);
     expect(await porcelain(dir)).toBe('');

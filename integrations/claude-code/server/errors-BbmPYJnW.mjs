@@ -1,0 +1,1 @@
+var e=class extends Error{constructor(e){super(e),this.name=`UsageError`}},t=class extends Error{code;hint;details;constructor(e,t={}){super(e,t.cause===void 0?void 0:{cause:t.cause}),this.name=`CliError`,this.code=t.code,this.hint=t.hint,this.details=t.details}};export{e as n,t};

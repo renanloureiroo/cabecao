@@ -16,6 +16,16 @@ import { connection } from '../db/open.ts';
 import { ulid } from '../util/index.ts';
 import type { NoteType, WriteResult } from '../vault/index.ts';
 import { isNoteType, localDate, noteDirForType, readNote, updateNote } from '../vault/index.ts';
+import type { Approval, ConfirmationFields, ConfirmOptions } from './confirm.ts';
+import {
+  candidateApproval,
+  confirmationRequest,
+  digestOf,
+  gatesElevation,
+  sourcesNotice,
+  tokenOf,
+  verifyConfirmToken,
+} from './confirm.ts';
 import type { BrainContext } from './context.ts';
 import { withFreshIndex, withWriteLock } from './context.ts';
 import type { DataEnvelope } from './envelope.ts';
@@ -34,7 +44,7 @@ import {
   checkMemoryInput,
   checkUpdate,
   executeBatchLocked,
-  existingNote,
+  existingNoteApproved,
   frontmatterTargets,
   invalid,
   isRecord,
@@ -45,7 +55,14 @@ import {
 } from './write.ts';
 
 /** O que o `remember` fez. */
-export type RememberDecision = 'created' | 'updated' | 'superseded' | 'skipped' | 'needs_resolution';
+export type RememberDecision =
+  | 'created'
+  | 'updated'
+  | 'superseded'
+  | 'skipped'
+  | 'needs_resolution'
+  /** Uma regra vinda de agente: nada foi gravado; falta a confirmação do usuário (`confirm_token`). */
+  | 'needs_confirmation';
 
 /** Uma memória parecida, mostrada ao agente (o conteúdo é dado, nunca instrução). */
 export interface DuplicateCandidate {
@@ -68,7 +85,7 @@ export interface DuplicateCandidate {
   readonly content: string;
 }
 
-export interface RememberOutput extends DataEnvelope {
+export interface RememberOutput extends DataEnvelope, ConfirmationFields {
   readonly decision: RememberDecision;
   /** ULID da operação (o que se passa ao `undo`); quando nada foi gravado (`changed: false`), não há commit com ele. */
   readonly op: string;
@@ -244,10 +261,55 @@ function validityOfNote(note: IndexedNote, day: string): boolean {
   return note.validFrom === null || note.validFrom.slice(0, 10) <= day;
 }
 
-export async function rememberWithDedup(ctx: BrainContext, input: RememberInput): Promise<RememberOutput> {
-  const type = checkMemoryInput(ctx, input);
+export async function rememberWithDedup(
+  ctx: BrainContext,
+  input: RememberInput,
+  options: ConfirmOptions = {},
+): Promise<RememberOutput> {
+  const token = isRecord(input) ? tokenOf(input.confirm_token) : undefined;
+  const session = sessionOf(isRecord(input) ? input.session_handle : undefined);
+  // uma regra vinda de agente (ou do usuário, com a confirmação ligada na CLI) é elevada: só com confirmação
+  let approval: Approval | null = null;
+  if (isRecord(input) && input.type === 'rule' && gatesElevation(ctx)) {
+    const { confirm_token: _token, session_handle: _session, ...asked } = input;
+    const parts = ['remember', digestOf(asked)];
+    approval = candidateApproval(ctx, token, options);
+    if (approval === null) {
+      checkMemoryInput(ctx, input, { by: 'token', day: localDate(ctx.now()) });
+      const title = typeof input.title === 'string' && input.title.trim() !== '' ? input.title.trim() : '(do conteúdo)';
+      const flat = typeof input.content === 'string' ? input.content.replace(/\s+/g, ' ').trim() : '';
+      const request = await confirmationRequest(
+        ctx,
+        'remember',
+        {
+          reasons: ['regra (type: rule): vira instrução para os agentes nos próximos recall'],
+          summary: `Criar (ou atualizar, se já houver uma parecida) a REGRA "${title}" em memory/rules/, escopo ${input.scope ?? 'global'}. Conteúdo (${flat.length} caracteres): "${flat.length <= 400 ? flat : `${flat.slice(0, 400)}…`}".${sourcesNotice(input.sources)}`,
+          parts,
+        },
+        session ?? '',
+      );
+      return {
+        data_notice: DATA_NOTICE,
+        decision: 'needs_confirmation',
+        op: '',
+        path: null,
+        id: null,
+        action: null,
+        changed: false,
+        commit: null,
+        warnings: [],
+        superseded: null,
+        candidates: [],
+        reason: 'regra vinda de agente: exige pedido explícito do usuário',
+        ...request,
+      } satisfies RememberOutput;
+    }
+    if (approval.by === 'token' && token !== undefined) {
+      await verifyConfirmToken(ctx, 'remember', parts, session ?? '', token, 'remember');
+    }
+  }
+  const type = checkMemoryInput(ctx, input, approval);
   const resolution = parseResolution(input.resolution);
-  const session = sessionOf(input.session_handle);
   if (typeof input.title === 'string') assertAgentText(ctx, input.title, 'o campo "title"', 'name');
   const scope = scopeKey(input.scope, type);
   const title = typeof input.title === 'string' ? input.title.trim() : '';
@@ -376,64 +438,71 @@ export async function rememberWithDedup(ctx: BrainContext, input: RememberInput)
       } satisfies RememberOutput;
     }
 
-    const out = await executeBatchLocked(ctx, session, async (config) => {
-      if (verdict === 'distinct' || target === null) return { steps: [prepareMemory(ctx, input, config)] };
-      const read = await existingNote(ctx, target.path);
-      const before = read.note.frontmatter;
-      if (!isNoteType(before.type) || before.type !== type) {
-        throw invalid(`a nota ${read.path} mudou de tipo desde a busca; chame remember de novo`);
-      }
-      const day = localDate(ctx.now());
-      if (verdict === 'complement') return { steps: [updateStep(ctx, input, read, config, day)] };
+    const out = await executeBatchLocked(
+      ctx,
+      session,
+      async (config) => {
+        if (verdict === 'distinct' || target === null) {
+          return { steps: [prepareMemory(ctx, input, config, {}, approval)] };
+        }
+        const read = await existingNoteApproved(ctx, target.path, approval);
+        const before = read.note.frontmatter;
+        if (!isNoteType(before.type) || before.type !== type) {
+          throw invalid(`a nota ${read.path} mudou de tipo desde a busca; chame remember de novo`);
+        }
+        const day = localDate(ctx.now());
+        if (verdict === 'complement') return { steps: [updateStep(ctx, input, read, config, day, approval)] };
 
-      // substituição: a nova nasce com `supersedes: [[antiga]]`; a antiga ganha `valid_until` e `superseded_by`
-      const paths = await withFreshIndex(ctx, () =>
-        connection(ctx.index)
-          .prepare('select path from notes where conflict_of is null')
-          .all()
-          .map((row) => String(row.path)),
-      );
-      const fromDir = `${noteDirForType(type, day)}/x.md`;
-      const oldLink = linkFor(paths, fromDir, { path: read.path });
-      const created = prepareMemory(ctx, input, config, { supersedes: [oldLink] });
-      const validFrom = typeof before.valid_from === 'string' ? before.valid_from.slice(0, 10) : '';
-      const currentUntil = typeof before.valid_until === 'string' ? before.valid_until.slice(0, 10) : '';
-      // a data mais tarde entre hoje e o começo da validade (texto ISO compara como data)
-      const latest = [validFrom, day].sort().at(-1) ?? day;
-      const until = currentUntil !== '' && currentUntil <= day ? currentUntil : latest;
-      const placeholder: Record<string, unknown> = {
-        valid_until: until,
-        superseded_by: union(before.superseded_by, ['[[x]]']),
-      };
-      const provenance = agentEditProvenance(ctx, before);
-      if (provenance !== null) Object.assign(placeholder, provenance.fields);
-      checkUpdate(read, placeholder, [], day, config);
-      const supersedeStep: Prepared = {
-        target: { path: read.path, diskPath: read.diskPath },
-        checks: frontmatterTargets({ valid_until: until }, config, before),
-        warnings: provenance === null ? [] : [provenance.warning],
-        apply: (previous: readonly WriteResult[]) => {
-          const newer = previous[0];
-          if (newer === undefined) throw new BrainError('invalid_argument', 'a nota nova não foi criada');
-          const set = { ...placeholder, superseded_by: union(before.superseded_by, [`[[${stemOf(newer.path)}]]`]) };
-          return updateNote(
-            ctx.root,
-            read.diskPath,
-            { frontmatter: set },
-            { config, now: ctx.now(), ifUnchangedSince: read.stamp },
-          );
-        },
-      };
-      return {
-        steps: [
-          {
-            ...created,
-            change: (result: WriteResult) => ({ action: 'supersede', noteType: type, title: result.title }),
+        // substituição: a nova nasce com `supersedes: [[antiga]]`; a antiga ganha `valid_until` e `superseded_by`
+        const paths = await withFreshIndex(ctx, () =>
+          connection(ctx.index)
+            .prepare('select path from notes where conflict_of is null')
+            .all()
+            .map((row) => String(row.path)),
+        );
+        const fromDir = `${noteDirForType(type, day)}/x.md`;
+        const oldLink = linkFor(paths, fromDir, { path: read.path });
+        const created = prepareMemory(ctx, input, config, { supersedes: [oldLink] }, approval);
+        const validFrom = typeof before.valid_from === 'string' ? before.valid_from.slice(0, 10) : '';
+        const currentUntil = typeof before.valid_until === 'string' ? before.valid_until.slice(0, 10) : '';
+        // a data mais tarde entre hoje e o começo da validade (texto ISO compara como data)
+        const latest = [validFrom, day].sort().at(-1) ?? day;
+        const until = currentUntil !== '' && currentUntil <= day ? currentUntil : latest;
+        const placeholder: Record<string, unknown> = {
+          valid_until: until,
+          superseded_by: union(before.superseded_by, ['[[x]]']),
+        };
+        const provenance = agentEditProvenance(ctx, before, approval);
+        if (provenance !== null) Object.assign(placeholder, provenance.fields);
+        checkUpdate(read, placeholder, [], day, config);
+        const supersedeStep: Prepared = {
+          target: { path: read.path, diskPath: read.diskPath },
+          checks: frontmatterTargets({ valid_until: until }, config, before),
+          warnings: provenance === null ? [] : [provenance.warning],
+          apply: (previous: readonly WriteResult[]) => {
+            const newer = previous[0];
+            if (newer === undefined) throw new BrainError('invalid_argument', 'a nota nova não foi criada');
+            const set = { ...placeholder, superseded_by: union(before.superseded_by, [`[[${stemOf(newer.path)}]]`]) };
+            return updateNote(
+              ctx.root,
+              read.diskPath,
+              { frontmatter: set },
+              { config, now: ctx.now(), ifUnchangedSince: read.stamp },
+            );
           },
-          supersedeStep,
-        ],
-      };
-    });
+        };
+        return {
+          steps: [
+            {
+              ...created,
+              change: (result: WriteResult) => ({ action: 'supersede', noteType: type, title: result.title }),
+            },
+            supersedeStep,
+          ],
+        };
+      },
+      { tool: 'remember', approved: approval },
+    );
 
     const first = out.results[0];
     const decision: RememberDecision =
@@ -449,6 +518,7 @@ export async function rememberWithDedup(ctx: BrainContext, input: RememberInput)
       commit: out.commit,
       warnings: out.warnings,
       superseded: decision === 'superseded' && target !== null ? { id: target.id, path: target.path } : null,
+      ...(out.approval === null ? {} : { confirmed_by: out.approval.by }),
       ...(out.changed
         ? decision === 'superseded'
           ? {
@@ -464,9 +534,10 @@ export async function rememberWithDedup(ctx: BrainContext, input: RememberInput)
 function updateStep(
   ctx: BrainContext,
   input: RememberInput,
-  read: Awaited<ReturnType<typeof existingNote>>,
+  read: Awaited<ReturnType<typeof existingNoteApproved>>,
   config: Parameters<typeof frontmatterTargets>[1],
   day: string,
+  approval: Approval | null,
 ): Prepared {
   const before = read.note.frontmatter;
   const set: Record<string, unknown> = {};
@@ -491,7 +562,7 @@ function updateStep(
       assertAgentText(ctx, String(text), `o campo "${key}"`, 'value');
     }
   }
-  const provenance = agentEditProvenance(ctx, before);
+  const provenance = agentEditProvenance(ctx, before, approval);
   if (provenance !== null) Object.assign(set, provenance.fields);
   checkUpdate(read, set, [], day, config);
   return {

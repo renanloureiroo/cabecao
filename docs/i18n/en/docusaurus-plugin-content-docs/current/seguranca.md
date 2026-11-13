@@ -67,23 +67,37 @@ exemplo_de_token: abc123def456ghi789
 
 The marker only works in text that is **yours** (edited in Obsidian or an editor and carried by sync). In text sent by an agent, it is ignored: an agent cannot clear itself by writing the marker.
 
-## What an agent is prevented from doing
+## What an agent only does with your request
 
-Through the MCP tools, an agent:
+Through the MCP tools and through the CLI (which follows the same rules when the one running it is an agent), these actions need your **explicit request, confirmed**: the first call does nothing and returns the exact summary and a short-lived confirmation token; the agent only repeats with the token if you say yes. In a client that can ask (elicitation), the server asks you directly.
 
-- does not create or change rules (`type: rule`, `memory/rules/`);
-- does not write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or other files that AI clients load as instructions, in any folder;
-- does not write to `index.md` or `log.md`, outside the note folders, or outside the brain folder;
-- does not change sources that already exist in `raw/`, or conflict copies;
-- does not choose its own provenance (`origin`, `edited_by`) or give itself `trust: high`;
-- does not write anything that looks like a secret;
-- does not undo your operations;
-- does not archive (`forget`) your rules, sources in `raw/`, or conflict copies, and only archives after a two-call confirmation (or after you answer, when the client asks);
-- does not make `ingest` read files outside the brain: a file of yours goes in through `cabecao ingest`, which is you;
-- does not write rules in a consolidation: at most it proposes one in `wiki/syntheses/`, and the whole consolidation is undone with one `undo`;
-- in a consolidation with nobody watching (`consolidate --run`), also does not push to the remote, undo, leave a handoff, ingest, or archive (see below).
+- create or change rules (`type: rule`, `memory/rules/`);
+- write to `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and other files AI clients load as instructions, in any folder, and to the control files (`log.md`, `README.md`, `.cabecao.json`, `.gitignore`, `.gitattributes`), these last three only if the result is valid and never touching the `embedding` section;
+- change sources that already exist in `raw/`;
+- save `trust: high`;
+- undo one of your operations;
+- archive (`forget`) any note.
 
-When it changes a note of yours, the note gets `edited_by` and its `trust` drops. And every write it makes is a commit that you can undo with `cabecao undo`.
+What is done this way **does not become `origin: human`**: it stays `origin: agent:<client>`, plus `approved_by: user` and `approved_at` in the note and the `Cabecao-Approved` trailer in the commit. Only Cabeção writes these marks; the ones an agent sends in the frontmatter are ignored. The `agent_approved` rule of `cabecao lint` lists everything for you to review.
+
+**The cost, stated plainly:** the token proves the action was intentional and is exactly the one shown (another action, other content, another session, an expired or forged token are refused). It **does not prove you said yes**: in a client without elicitation, the one claiming you asked is the agent. An agent manipulated by some content can make both calls. The safety net is what gets recorded: the identified commit, `cabecao undo`, and the `lint` listing.
+
+## What an agent never does
+
+These are technical protections and hold with or without confirmation:
+
+- write outside the brain folder, in `.git/` or `.cabecao/`, or through a symbolic link;
+- write `index.md` (the catalog is derived from the notes);
+- create a fake conflict copy, or edit one;
+- save something that looks like a secret, in the text, the path, the title, or the frontmatter (the `cabecao:allow-secret` marker does not count for it);
+- forge frontmatter with a BOM or a `---` at the start of the content (the final text is re-read and checked);
+- choose its own provenance (`origin`, `edited_by`, `approved_by`, `approved_at`);
+- exceed the size limits, or use an invalid file name or one with an invisible character;
+- make `ingest` read files outside the brain;
+- change the embeddings model or compact the index branch (that is machine administration, only yours, at the terminal).
+- in a consolidation with nobody watching (`consolidate --run`), also does not push to the remote, undo, leave a handoff, ingest, archive, or do any of the actions that need your request (see below).
+
+When it changes one of your notes without confirmation, the note gets `edited_by` and its `trust` drops. And every write it makes is a commit you undo with `cabecao undo`.
 
 The content the server returns is marked as **data, never instruction**, with the order of authority (you, the rules, `AGENTS.md`, the memories, outside content). See [Provenance and trust](./conceitos/proveniencia.md).
 
@@ -95,7 +109,7 @@ Cabeção does two things without you in front of the screen: the scheduled sync
 - **Only Cabeção's tools.** Each agent runs with shell, file editing, and network denied, and only the Cabeção server's tools allowed. No "skip all permissions" mode is used. An agent that does not allow this restriction in non-interactive mode has no `--run` (today: Cursor Agent, Copilot CLI, and OpenCode; the reasons are in the guide).
 - **Temporary configuration.** The Cabeção server goes into an MCP configuration created for the run, in an empty temporary folder that is also the agent's working directory, deleted at the end. Your clients' configuration is neither read for this nor changed; the agent's login is the one it already has.
 - **Minimal environment.** The agent receives only system, folder, proxy and certificate, git, and Cabeção variables, plus the ones for its own login (`ANTHROPIC_API_KEY` and the like; for Codex, the API key as `CODEX_API_KEY`). Other tokens in your environment are not passed on.
-- **Server tied to the consolidation.** The server the agent starts (`cabecao mcp --consolidation <id>`) writes everything with the consolidation's session and refuses `sync`, `undo`, `handoff_save`, `ingest`, and a second `start`. `forget` too, unless you pass `--allow-forget`: archiving memory with nobody watching only with an explicit option. The usual agent restrictions still apply (rules are yours only, nothing in instruction or control files, nothing outside the brain, secret scanner).
+- **Server tied to the consolidation.** The server the agent starts (`cabecao mcp --consolidation <id>`) writes everything with the consolidation's session and refuses `sync`, `undo`, `handoff_save`, `ingest`, and a second `start`. `forget` too, unless you pass `--allow-forget`: archiving memory with nobody watching only with an explicit option. The actions that need your explicit request (rules, control and instruction files, `raw/`, `trust: high`) are **unavailable**, not even with the token, because nobody is there to confirm; only `--allow-elevated` frees them. Only you pass `--allow-forget` and `--allow-elevated`, at the terminal. The other agent restrictions still apply (nothing outside the brain, secret scanner).
 - **Time limit.** Once the time is up (default: 20 minutes), the agent and everything it started are stopped: the process group on macOS and Linux, the tree with `taskkill /T` on Windows.
 - **Nothing half done.** If the agent does not close the consolidation, what it wrote is undone with a revert commit, and the command exits with `1`. If it closed it, `cabecao undo --session <id>` undoes everything, and the restore point stays on the machine.
 - **Nothing leaves the machine through Cabeção.** The consolidation does not sync; the commit goes to the remote on the next sync. What the agent reads goes to its AI model, as in any session of yours.
@@ -118,15 +132,17 @@ Details, providers and each one's data policy in [Answers with a language model]
 
 ## Known limits
 
-Stated plainly, so you can decide what to store:
+Stated plainly, so you can decide what to keep:
 
-- **The scanner works by patterns.** It catches the formats in the table, not every possible secret: a password loose in a sentence, without a name like "senha:" (password:) before it, gets through. Do not use the brain to store secrets.
-- **The restrictions apply to the MCP tools.** An agent with access to the terminal and the files (Claude Code, for example) can edit the brain folder directly, like any program of yours. `AGENTS.md` asks it to use the tools, and sync runs those edits through the scanner and records them as `manual`, but there is no way to prevent direct writes to disk. Limit the client's file permissions if this matters to you.
+- **An agent with a shell can go around the CLI and the server.** The CLI treats as an agent every process without a controlling terminal or with an agent signal in the environment ([Who is human and who is an agent in the CLI](./guias/humano-e-agente.md)), but an agent that runs commands can fake a terminal (open a pseudo-terminal and clear the variables) or simply edit the brain's files directly, without going through Cabeção. Sync treats that edit as **yours** (`manual`): it goes through the secret scanner, but carries no agent mark. This **cannot be closed from the CLI**. The barrier that holds against a manipulated agent is the **MCP server with the agent without a shell** (or with access to the brain folder denied in the client's permissions).
+- **Agents without a known signal.** For agents that leave no variable in the environment (Aider, GitHub Copilot, Antigravity, and others), the CLI depends on the controlling terminal: if one of them runs commands in a pseudo-terminal, it counts as you.
+- **The confirmation token does not prove you said yes** (see above).
+- **The scanner works by patterns.** It catches the formats in the table, not every possible secret: a password loose in a sentence, without a name like "password:" before it, gets through. Do not use the brain to keep secrets.
 - **"Data, never instruction" is guidance to the model, not a guarantee.** Malicious text in a note can still influence a model. Be wary of outside content (`trust: low`).
 - **With `ask` turned on, the passages sent are under the provider's policy.** Cabeção chooses what leaves, but does not control what the provider does with what it received.
-- **Cabeção encrypts nothing.** Notes are plain text on disk and on the remote; anyone with access to the repository reads everything. The protection is your provider's and your disk's.
+- **Nothing is encrypted by Cabeção.** Notes are plain text on disk and on the remote; whoever has access to the repository reads everything. The protection is your provider's and your disk's.
 - **Unsigned commits.** If `commit.gpgsign` is on, Cabeção's commits go out unsigned, because a key that asks for a passphrase would hang the sync. `doctor` warns about it.
-- **The public repository check only covers HTTPS on known providers.** Over SSH, check it yourself.
+- **The public-repository check only covers HTTPS on known providers.** With SSH, check it yourself.
 
 ## Report a vulnerability
 

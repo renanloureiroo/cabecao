@@ -1,7 +1,8 @@
+import { closeSync, openSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { systemExec } from './exec.ts';
 import { execute } from './router.ts';
-import type { CliIo, CommandSpec, Exec, StdinLimits } from './types.ts';
+import type { CliIo, CommandSpec, ControllingTerminal, Exec, StdinLimits } from './types.ts';
 
 export { VERSION } from './version.ts';
 
@@ -54,35 +55,54 @@ function safeHomedir(): string | undefined {
   }
 }
 
-/** Pergunta no terminal, uma linha. O `node:readline` só é carregado quando um comando pergunta algo. */
-async function terminalPrompt(question: string): Promise<string | null> {
-  const { createInterface } = await import('node:readline/promises');
-  const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: true });
+/** Caminhos do terminal controlador: no POSIX, `/dev/tty`; no Windows, os dois lados do console. */
+function terminalPaths(platform: NodeJS.Platform): { input: string; output: string } {
+  return platform === 'win32'
+    ? { input: '\\\\.\\CONIN$', output: '\\\\.\\CONOUT$' }
+    : { input: '/dev/tty', output: '/dev/tty' };
+}
+
+/**
+ * O processo tem um terminal controlador? Abre e fecha o terminal (no POSIX, `/dev/tty` falha com `ENXIO` quando não
+ * há; é assim que roda o Bash do Claude Code, um cron ou um serviço). Custa uma chamada de sistema.
+ */
+function hasControllingTerminal(platform: NodeJS.Platform): boolean {
+  const { input } = terminalPaths(platform);
   try {
-    return (await rl.question(question)).trim();
+    closeSync(openSync(input, 'r+'));
+    return true;
   } catch {
-    return null;
-  } finally {
-    rl.close();
+    return false;
   }
 }
 
 /**
- * Pergunta no terminal sem eco (para uma chave). Lê em modo cru, caractere a caractere: Enter termina, Backspace
- * apaga, Ctrl+C cancela (devolve `null`). Nada do que foi digitado é escrito na tela.
+ * Pergunta sem eco (uma chave de API), direto no terminal controlador, em modo cru, caractere a caractere: Enter
+ * termina, Backspace apaga, Ctrl+C ou Ctrl+D cancelam (devolve `null`). Nada do que é digitado aparece na tela.
  */
-async function terminalSecret(question: string): Promise<string | null> {
-  const stdin = process.stdin;
-  if (stdin.isTTY !== true) return null;
-  process.stderr.write(question);
+async function terminalSecret(platform: NodeJS.Platform, question: string): Promise<string | null> {
+  const { input: inPath, output: outPath } = terminalPaths(platform);
+  const tty = await import('node:tty');
+  let input: InstanceType<typeof tty.ReadStream> | undefined;
+  let output: InstanceType<typeof tty.WriteStream> | undefined;
+  try {
+    input = new tty.ReadStream(openSync(inPath, 'r'));
+    output = new tty.WriteStream(openSync(outPath, 'w'));
+  } catch {
+    input?.destroy();
+    return null;
+  }
+  const read = input;
+  const write = output;
+  write.write(question);
   return new Promise((resolve) => {
     let value = '';
-    const wasRaw = stdin.isRaw;
     const finish = (result: string | null): void => {
-      stdin.off('data', onData);
-      stdin.setRawMode(wasRaw);
-      stdin.pause();
-      process.stderr.write('\n');
+      read.off('data', onData);
+      read.setRawMode(false);
+      write.write('\n');
+      read.destroy();
+      write.destroy();
       resolve(result);
     };
     const onData = (chunk: Buffer | string): void => {
@@ -99,13 +119,12 @@ async function terminalSecret(question: string): Promise<string | null> {
         else if (char >= ' ') value += char;
       }
     };
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.on('data', onData);
+    read.setRawMode(true);
+    read.on('data', onData);
   });
 }
 
-/** Ctrl+C vira cancelamento enquanto o comando quiser (o `ask` encerra o provedor e sai com 130). */
+/** Ctrl+C vira cancelamento enquanto o comando quiser (o `ask` encerra o provedor e sai). */
 function watchInterrupt(): { signal: AbortSignal; dispose(): void } {
   const controller = new AbortController();
   const onSignal = (): void => controller.abort(new Error('interrompido'));
@@ -116,6 +135,39 @@ function watchInterrupt(): { signal: AbortSignal; dispose(): void } {
     dispose: () => {
       process.off('SIGINT', onSignal);
       process.off('SIGTERM', onSignal);
+    },
+  };
+}
+
+/**
+ * Pergunta direto no terminal controlador, uma linha, sem passar pelo stdin (que pode ser um pipe com o conteúdo de
+ * uma nota, ou um agente). `node:readline` e `node:tty` só são carregados quando um comando pergunta algo.
+ */
+function controllingTerminal(platform: NodeJS.Platform): ControllingTerminal {
+  return {
+    promptSecret: (question) => terminalSecret(platform, question),
+    async prompt(question) {
+      const { input: inPath, output: outPath } = terminalPaths(platform);
+      const [{ createInterface }, tty] = await Promise.all([import('node:readline/promises'), import('node:tty')]);
+      let input: InstanceType<typeof tty.ReadStream> | undefined;
+      let output: InstanceType<typeof tty.WriteStream> | undefined;
+      try {
+        input = new tty.ReadStream(openSync(inPath, 'r'));
+        output = new tty.WriteStream(openSync(outPath, 'w'));
+      } catch {
+        input?.destroy();
+        return null;
+      }
+      const rl = createInterface({ input, output, terminal: true });
+      try {
+        return (await rl.question(question)).trim();
+      } catch {
+        return null;
+      } finally {
+        rl.close();
+        input.destroy();
+        output.destroy();
+      }
     },
   };
 }
@@ -158,8 +210,6 @@ export async function main(argv: readonly string[]): Promise<void> {
     readStdin: processStdin,
     exit: flushAndExit,
     watchInterrupt,
-    ...(process.stdin.isTTY === true && process.stderr.isTTY === true
-      ? { prompt: terminalPrompt, promptSecret: terminalSecret }
-      : {}),
+    ...(hasControllingTerminal(process.platform) ? { terminal: controllingTerminal(process.platform) } : {}),
   });
 }

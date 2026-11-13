@@ -9,15 +9,23 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ANSWER_SCHEMA } from '@cabecao/core';
+import { ANSWER_SCHEMA, cacheDir } from '@cabecao/core';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { runAgentProcess } from '../src/agents/index.ts';
 import { claudeArgs, claudeEnv, createClaudeCodeProvider, parseClaudeOutput } from '../src/llm/claude-code.ts';
 import type { CredentialRunner } from '../src/llm/credentials.ts';
 import { deleteKey, maskKey, readKey, storeKey } from '../src/llm/credentials.ts';
-import { agentMarker } from '../src/llm/human.ts';
 import type { CliResult } from '../src/main.ts';
-import { brainRepo, closeOpened, disposeSandbox, freshDir, machine, parseJson, TEST_TIMEOUT_MS } from './helpers.ts';
+import {
+  brainRepo,
+  closeOpened,
+  disposeSandbox,
+  freshDir,
+  HUMAN,
+  machine,
+  parseJson,
+  TEST_TIMEOUT_MS,
+} from './helpers.ts';
 
 afterAll(async () => {
   await closeOpened();
@@ -149,25 +157,29 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
   it('sem terminal, ou dentro de um agente, recusa ativar e apagar', async () => {
     const m = machine();
     const noTty = await m.cabecao(['llm', 'on', '--provider', 'openai']);
-    expect(noTty.code).toBe(1);
-    expect(noTty.stderr).toContain('precisa de você no terminal');
+    expect(noTty.code).toBe(4);
+    expect(noTty.stderr).toContain('só roda para o usuário, num terminal interativo');
     const inAgent = await m.cabecao(['llm', 'on', '--provider', 'openai'], {
       env: { ...m.env, CLAUDECODE: '1' },
-      prompt: async () => 's',
+      terminal: { prompt: async () => 's' },
     });
-    expect(inAgent.code).toBe(1);
-    expect(inAgent.stderr).toContain('rodando dentro de um agente (CLAUDECODE)');
-    expect((await m.cabecao(['llm', 'remove', 'openai'])).code).toBe(1);
-    expect(agentMarker({ CODEX_SANDBOX: 'seatbelt' })).toBe('CODEX_SANDBOX');
-    expect(agentMarker({})).toBeNull();
+    expect(inAgent.code).toBe(4);
+    expect(inAgent.stderr).toContain('CLAUDECODE');
+    // desligar, testar (gasta) e apagar também são só seus; ver o estado, não
+    for (const sub of [['off'], ['test'], ['remove', 'openai']]) {
+      expect((await m.cabecao(['llm', ...sub])).code, sub.join(' ')).toBe(4);
+    }
+    expect((await m.cabecao(['llm', 'status'])).code).toBe(0);
+    // o ask é de memória: um agente pode perguntar
+    expect((await m.cabecao(['ask', 'x', '--brain', await brainRepo()])).code).toBe(5);
   });
 
   it('Antigravity e Codex não são oferecidos, com o motivo', async () => {
     const m = machine();
-    const agy = await m.cabecao(['llm', 'on', '--provider', 'antigravity'], { prompt: async () => '' });
+    const agy = await m.cabecao(['llm', 'on', '--provider', 'antigravity'], { terminal: { prompt: async () => '' } });
     expect(agy.stderr).toContain('Antigravity');
     expect(agy.stderr).toContain('--provider gemini');
-    const codex = await m.cabecao(['llm', 'on', '--provider', 'codex'], { prompt: async () => '' });
+    const codex = await m.cabecao(['llm', 'on', '--provider', 'codex'], { terminal: { prompt: async () => '' } });
     expect(codex.stderr).toContain('Codex');
   });
 
@@ -179,7 +191,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const results: CliResult[] = [];
     const on = await m.cabecao(
       ['llm', 'on', '--provider', 'compatible', '--base-url', api.base, '--model', 'modelo-local', '--store', 'file'],
-      { prompt: terminal.prompt, promptSecret: async () => KEY },
+      { terminal: { prompt: terminal.prompt, promptSecret: async () => KEY } },
     );
     results.push(on);
     expect(on.code).toBe(0);
@@ -218,14 +230,16 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     expect(parseJson(verbose).data.diagnostics).toMatchObject({ provider: 'compatible', model: 'modelo-local' });
 
     // no terminal: progresso no stderr e cada afirmação conferida sai uma vez só, pelo streaming
-    const tty = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir], { prompt: async () => '' });
+    const tty = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir], {
+      terminal: { prompt: async () => '' },
+    });
     results.push(tty);
     expect(tty.stderr).toContain('gerando a resposta');
     const claimLine = ask.stdout.split('\n')[0] as string;
     expect(tty.stdout.split('\n').filter((line) => line === claimLine)).toHaveLength(1);
     expect(tty.stdout).toContain('Fontes:');
 
-    const status = await m.cabecao(['llm', 'status'], { prompt: async () => '' });
+    const status = await m.cabecao(['llm', 'status'], { terminal: { prompt: async () => '' } });
     results.push(status);
     expect(status.stdout).toContain('ligadas');
     expect(status.stdout).toContain(maskKey(KEY));
@@ -241,7 +255,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     results.push(await m.cabecao(['doctor', '--offline', '--brain', dir]));
     expect(results.at(-1)?.stdout).toContain('Respostas (ask)');
 
-    const off = await m.cabecao(['llm', 'off']);
+    const off = await m.cabecao(['llm', 'off'], { terminal: { prompt: async () => '' } });
     results.push(off);
     expect(off.stdout).toContain('desligadas');
     const after = await m.cabecao(['ask', 'Atlas migrou para SQS?', '--brain', dir, '--json']);
@@ -251,15 +265,16 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     // a chave continua guardada depois do off
     expect(await readFile(join(m.configDir, 'credentials.json'), 'utf8')).toContain(KEY);
 
-    const remove = await m.cabecao(['llm', 'remove', 'compatible'], { prompt: async () => 's' });
+    const remove = await m.cabecao(['llm', 'remove', 'compatible'], { terminal: { prompt: async () => 's' } });
     results.push(remove);
     expect(remove.code).toBe(0);
     expect(() => statSync(join(m.configDir, 'credentials.json'))).toThrow();
 
     // a chave nunca apareceu em saída, log ou arquivo, fora do arquivo protegido (já apagado)
-    expect(everything(results, [m.configDir, join(m.home, '.cache')])).not.toContain(KEY);
+    const cache = cacheDir({ env: m.env, platform: process.platform, homedir: m.home });
+    expect(everything(results, [m.configDir, cache])).not.toContain(KEY);
     // o log do ask não guarda trechos do cérebro
-    const log = readFileSync(join(m.home, '.cache', 'cabecao', 'ask.log'), 'utf8');
+    const log = readFileSync(join(cache, 'ask.log'), 'utf8');
     expect(log).not.toContain('migrou de RabbitMQ');
   });
 
@@ -268,12 +283,12 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const api = await compatibleServer('fail');
     const on = await m.cabecao(
       ['llm', 'on', '--provider', 'compatible', '--base-url', api.base, '--model', 'm', '--store', 'file'],
-      { prompt: async () => 's', promptSecret: async () => KEY },
+      { terminal: { prompt: async () => 's', promptSecret: async () => KEY } },
     );
     expect(on.stdout).toContain('Teste: falhou');
     expect(on.stdout).toContain('recusou a chave');
     expect(`${on.stdout}${on.stderr}`).not.toContain(KEY);
-    const test = await m.cabecao(['llm', 'test', '--json']);
+    const test = await m.cabecao(['llm', 'test', '--json'], { terminal: { prompt: async () => '' } });
     expect(test.code).toBe(1);
     expect(test.stdout).not.toContain(KEY);
   });
@@ -282,22 +297,22 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const m = machine();
     const dir = await brainRepo();
     const questions = fileURLToPath(new URL('../../../fixtures/eval/respostas.jsonl', import.meta.url));
-    const without = await m.cabecao(['eval', '--answers', questions, '--brain', dir]);
+    const without = await m.cabecao(['eval', '--answers', questions, '--brain', dir], HUMAN);
     expect(without.code).toBe(1);
     expect(without.stderr).toContain('cabecao llm on');
     const api = await compatibleServer();
     await m.cabecao(
       ['llm', 'on', '--provider', 'compatible', '--base-url', api.base, '--model', 'm', '--store', 'file'],
-      { prompt: async () => 's', promptSecret: async () => KEY },
+      { terminal: { prompt: async () => 's', promptSecret: async () => KEY } },
     );
-    const result = await m.cabecao(['eval', '--answers', questions, '--brain', dir, '--json']);
+    const result = await m.cabecao(['eval', '--answers', questions, '--brain', dir, '--json'], HUMAN);
     expect(result.code).toBe(0);
     const report = parseJson(result).data;
     expect(report.questions).toBe(8);
     expect(report.unanswerable).toBe(2);
     expect(report.citation_validity.value).toBe(1);
     expect(report.results).toHaveLength(8);
-    const text = await m.cabecao(['eval', '--answers', questions, '--brain', dir, '--provider', 'compatible']);
+    const text = await m.cabecao(['eval', '--answers', questions, '--brain', dir, '--provider', 'compatible'], HUMAN);
     expect(text.stdout).toContain('citações válidas');
     expect(text.stdout).toContain('recusa correta');
   });
@@ -306,10 +321,7 @@ describe('cabecao llm: ativar é com você no terminal', { timeout: TEST_TIMEOUT
     const m = machine();
     const on = await m.cabecao(
       ['llm', 'on', '--provider', 'compatible', '--base-url', 'http://exemplo.com/v1', '--model', 'm'],
-      {
-        prompt: async () => 's',
-        promptSecret: async () => KEY,
-      },
+      { terminal: { prompt: async () => 's', promptSecret: async () => KEY } },
     );
     expect(on.code).toBe(2);
     expect(on.stderr).toContain('https');
@@ -388,6 +400,7 @@ describe('cofre de chaves (executor falso: o cofre real nunca é tocado)', () =>
 
   it.skipIf(process.platform !== 'win32')(
     'Windows: DPAPI de verdade, ida e volta, sem a chave em argumento',
+    { timeout: TEST_TIMEOUT_MS },
     async () => {
       const calls: string[][] = [];
       const { systemRunner } = await import('../src/llm/credentials.ts');

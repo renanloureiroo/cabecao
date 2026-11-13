@@ -122,10 +122,11 @@ function powershell(env: Env): string {
   return `${root}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
 }
 
+// Uma linha da entrada padrão (com a quebra que o Cabeção manda): não depende de o PowerShell ver o fim da entrada.
 const PS_ENCRYPT =
-  '$k = [Console]::In.ReadToEnd().Trim(); ConvertTo-SecureString -String $k -AsPlainText -Force | ConvertFrom-SecureString';
+  '$k = [Console]::In.ReadLine().Trim(); ConvertTo-SecureString -String $k -AsPlainText -Force | ConvertFrom-SecureString';
 const PS_DECRYPT =
-  "$e = [Console]::In.ReadToEnd().Trim(); $s = ConvertTo-SecureString -String $e; [System.Net.NetworkCredential]::new('', $s).Password";
+  "$e = [Console]::In.ReadLine().Trim(); $s = ConvertTo-SecureString -String $e; [System.Net.NetworkCredential]::new('', $s).Password";
 
 /** O cofre do sistema existe e responde nesta máquina? `reason` explica quando não. */
 export async function keychainAvailable(io: CredentialIo): Promise<{ ok: boolean; reason: string; label: string }> {
@@ -185,7 +186,7 @@ async function keychainWrite(io: CredentialIo, id: string, key: string): Promise
   }
   if (io.platform === 'win32') {
     const result = await run(powershell(io.env), ['-NoProfile', '-NonInteractive', '-Command', PS_ENCRYPT], {
-      stdin: key,
+      stdin: `${key}\n`,
       env,
       timeoutMs: RUN_TIMEOUT_MS * 2,
     });
@@ -228,7 +229,7 @@ async function keychainRead(io: CredentialIo, id: string): Promise<string | null
     const encrypted = store.keys[id];
     if (encrypted === undefined) return null;
     const result = await run(powershell(io.env), ['-NoProfile', '-NonInteractive', '-Command', PS_DECRYPT], {
-      stdin: encrypted,
+      stdin: `${encrypted}\n`,
       env,
       timeoutMs: RUN_TIMEOUT_MS * 2,
     });
