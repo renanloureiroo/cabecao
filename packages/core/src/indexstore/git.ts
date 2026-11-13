@@ -168,7 +168,7 @@ export async function updateRef(
   const args =
     next === null
       ? ['-c', 'core.logAllRefUpdates=false', 'update-ref', '-d', ref, ...(expected === null ? [] : [expected])]
-      : ['-c', 'core.logAllRefUpdates=false', 'update-ref', '-m', 'cabecao index', ref, next, expected ?? zero];
+      : ['-c', 'core.logAllRefUpdates=false', 'update-ref', '-m', 'cabecao: index', ref, next, expected ?? zero];
   const result = await git(ctx, args, { allowFailure: true });
   if (result.exitCode === 0) return;
   if (REF_RACE.test(result.stderr)) throw new IndexRefRaceError(ref, result.stderr.trim().split('\n')[0] ?? '');
