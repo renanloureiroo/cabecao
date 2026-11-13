@@ -20,6 +20,7 @@ import type { ResolvedActor } from './actor.ts';
 import { dirContext } from './dirs.ts';
 import { embeddingProvider } from './embeddings.ts';
 import { CliError } from './errors.ts';
+import { systemError } from './syserr.ts';
 import type { CliIo } from './types.ts';
 
 // Este módulo carrega o núcleo: importe-o só de dentro de um comando, nunca do roteador.
@@ -80,6 +81,7 @@ export function toCliError(error: unknown): unknown {
   if (error instanceof CliError) return error;
   if (error instanceof BrainError) {
     return new CliError(error.message, {
+      // o roteador troca a dica de config_schema_too_new pelo comando de atualização desta instalação
       code: error.code,
       ...(error.nextStep === null ? {} : { hint: error.nextStep }),
       ...(Object.keys(error.details).length === 0 ? {} : { details: error.details }),
@@ -88,12 +90,17 @@ export function toCliError(error: unknown): unknown {
   }
   if (error instanceof VaultError && error.code.startsWith('config_')) {
     return new CliError(error.message, {
-      code: error.code === 'config_not_found' ? 'not_a_brain' : 'invalid_config',
+      code:
+        error.code === 'config_not_found'
+          ? 'not_a_brain'
+          : error.code === 'config_schema_too_new'
+            ? 'config_schema_too_new'
+            : 'invalid_config',
       hint:
         error.code === 'config_not_found'
           ? 'Confira o caminho do cérebro ou rode "cabecao init".'
           : error.code === 'config_schema_too_new'
-            ? 'Este cérebro é de uma versão mais nova do Cabeção: atualize com "npx cabecao@latest".'
+            ? 'Este cérebro é de uma versão mais nova do Cabeção: atualize o Cabeção nesta máquina.'
             : INVALID_CONFIG_HINT,
       cause: error,
     });
@@ -115,13 +122,21 @@ export function toCliError(error: unknown): unknown {
     });
   }
   if (error instanceof GitError) {
+    const cause = error.cause as NodeJS.ErrnoException | undefined;
+    if (error.exitCode === null && cause?.code === 'ENOENT' && /PATH/.test(error.message)) {
+      return new CliError('o Cabeção precisa do git e não o achou no PATH', {
+        code: 'git_missing',
+        hint: 'Instale o git: no macOS, "xcode-select --install" (ou "brew install git"); no Linux, pelo gerenciador de pacotes (por exemplo "sudo apt install git"); no Windows, https://git-scm.com. Depois abra um terminal novo e rode o comando de novo.',
+        cause: error,
+      });
+    }
     return new CliError(error.message, {
       code: 'git_failed',
       hint: 'Rode "cabecao doctor" para ver o que há com o repositório.',
       cause: error,
     });
   }
-  return error;
+  return systemError(error) ?? error;
 }
 
 /** Nome com que o usuário aparece nos commits (`Cabecao-Client: cli`) e na proveniência (`origin: human`). */
