@@ -116,6 +116,9 @@ function nextStep(result: SyncResult): string | undefined {
   if (result.status === 'offline')
     return 'As mudanças ficaram em commits locais; rode o sync de novo quando o remoto voltar.';
   if (result.status === 'busy') return 'Outro sync está em andamento; espere ele terminar.';
+  if (result.status === 'error' && result.reason === 'permission') {
+    return 'Libere a escrita na pasta .git do cérebro (o comando está na mensagem acima) e rode o sync de novo; até lá, nada é enviado.';
+  }
   if (result.status === 'error') return 'Rode o sync de novo; se repetir, rode "cabecao doctor".';
   return undefined;
 }

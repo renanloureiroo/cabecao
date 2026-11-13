@@ -7,6 +7,15 @@ import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
 /** O estado do runtime de embeddings nesta máquina, em português (o código técnico fica no `--json`). */
+/** O estado do último sync, em português (o código fica no `--json`). */
+const SYNC_STATUS_TEXT: Readonly<Record<string, string>> = {
+  ok: 'ok',
+  blocked: 'bloqueado',
+  error: 'com erro',
+  offline: 'sem acesso ao remoto',
+  busy: 'outro sync em andamento',
+};
+
 export const RUNTIME_TEXT: Readonly<Record<string, string>> = {
   ready: 'pronta nesta máquina',
   runtime_missing: 'falta instalar nesta máquina ("cabecao embeddings on")',
@@ -40,7 +49,9 @@ function syncLines(status: StatusOutput): string[] {
   );
   const last = sync.last_sync;
   lines.push(
-    last === null ? '  Último sync: nunca' : `  Último sync: ${formatWhen(last.at)}, ${last.status}: ${last.message}`,
+    last === null
+      ? '  Último sync: nunca'
+      : `  Último sync: ${formatWhen(last.at)}, ${SYNC_STATUS_TEXT[last.status] ?? last.status}: ${last.message}`,
   );
   if (sync.running) lines.push('  Um sync está rodando agora.');
   if (sync.remote !== null) {

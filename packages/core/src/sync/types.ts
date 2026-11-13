@@ -49,6 +49,7 @@ export type SyncIntegration = 'none' | 'fast-forward' | 'replay' | 'merge';
  *   `.gitignore` ou dentro de `.cabecao/`). Nada foi aplicado.
  * - `git-operation`: operação do git pela metade, deixada por outro programa.
  * - `detached-head`: HEAD fora de uma branch.
+ * - `permission` (com `status: 'error'`): o git não pôde gravar no repositório (permissão negada, disco só de leitura).
  */
 export type SyncBlockReason =
   | 'secrets'
@@ -56,7 +57,8 @@ export type SyncBlockReason =
   | 'local-file'
   | 'git-operation'
   | 'detached-head'
-  | 'schema-too-new';
+  | 'schema-too-new'
+  | 'permission';
 
 /**
  * Um arquivo (nota, anexo ou configuração) editado nas duas máquinas. Nada foi resolvido em silêncio: as duas
