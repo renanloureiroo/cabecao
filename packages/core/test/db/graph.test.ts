@@ -59,10 +59,11 @@ describe('resolveNodeRef', () => {
     const vault = await openFixture('graph-ambiguous');
     opened.push(vault);
     await mkdir(join(vault.root, 'wiki', 'concepts'), { recursive: true });
-    for (const [file, id] of [
+    const files: readonly (readonly [string, string])[] = [
       ['Fila A.md', '01KZ0000000000000000000021'],
       ['Fila B.md', '01KZ0000000000000000000022'],
-    ]) {
+    ];
+    for (const [file, id] of files) {
       await writeFile(
         join(vault.root, 'wiki', 'concepts', file),
         `---\nid: ${id}\ntype: concept\ntitle: Fila compartilhada\n---\ntexto\n`,
