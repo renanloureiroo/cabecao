@@ -32,6 +32,8 @@ const COMMAND_NAMES = [
   'ingest',
   'forget',
   'consolidate',
+  'ask',
+  'llm',
 ];
 
 function cabecao(args, env = process.env) {
@@ -219,6 +221,18 @@ if (expectUnsupported) {
     );
     const end = spawnSync(process.execPath, [bin, 'sync', '--hook'], { encoding: 'utf8', env, input: '{}' });
     check('sync --hook sem cérebro: código 0, nada em stdout', end.status === 0 && end.stdout === '', end);
+    const llmStatus = cabecao(['llm', 'status', '--json'], env);
+    check(
+      'llm status sem nada configurado: código 0, desligado, nada sai da máquina',
+      llmStatus.code === 0 && JSON.parse(llmStatus.stdout || 'null')?.data?.enabled === false,
+      llmStatus,
+    );
+    const llmOn = cabecao(['llm', 'on', '--provider', 'openai'], env);
+    check(
+      'llm on sem terminal recusa (ativar é com você no terminal), sem stack',
+      llmOn.code === 1 && llmOn.stderr.includes('terminal') && !/\n\s+at /.test(llmOn.stderr),
+      llmOn,
+    );
     const mcpJson = cabecao(['mcp', '--json'], { ...env, CABECAO_BRAIN: join(home, 'não existe') });
     check(
       'mcp com erro não escreve nada no stdout, nem com --json',

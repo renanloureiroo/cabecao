@@ -12,8 +12,8 @@
 // - recusa indevida: das respondíveis, quantas voltaram `not_found`;
 // - tempo e tokens.
 
-import type { AskOptions, AskStatus } from './ask.ts';
-import { ask } from './ask.ts';
+import type { AskOptions, AskStatus } from './engine.ts';
+import { ask } from './engine.ts';
 import type { AskBrain } from './passages.ts';
 
 export interface AnswerQuestion {
