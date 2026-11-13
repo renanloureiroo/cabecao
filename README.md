@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.png">
-    <img src="assets/banner.png" alt="Cabeção" width="640">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/marca/banner-escuro.png">
+    <img src="assets/marca/banner.png" alt="Cabeção: segundo cérebro em Markdown e git, servido por MCP">
   </picture>
 </p>
 
@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao/beta?label=npm%40beta&color=1C3D8F" alt="Versão no npm (beta)"></a>
+  <a href="https://www.npmjs.com/package/cabecao"><img src="https://img.shields.io/npm/v/cabecao/beta?label=npm%40beta&color=14121c" alt="Versão no npm (beta)"></a>
   <a href="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml"><img src="https://github.com/renanloureiroo/cabecao/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/renanloureiroo/cabecao?color=1C3D8F" alt="Licença MIT"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao/beta?color=1C3D8F" alt="Node.js"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/renanloureiroo/cabecao?color=14121c" alt="Licença MIT"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/cabecao/beta?color=14121c" alt="Node.js"></a>
 </p>
 
 <!-- README-I18N:START -->
