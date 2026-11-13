@@ -13,6 +13,8 @@ import { ProviderError } from '../ask/types.ts';
 export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_ERROR_BYTES = 16 * 1024;
 export const DEFAULT_RETRIES = 2;
+/** Falha de conexão (inclusive um proxy que recusa o túnel) é tentada de novo uma vez só. */
+const MAX_NETWORK_RETRIES = 1;
 const MAX_RETRY_DELAY_MS = 20_000;
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
@@ -34,17 +36,43 @@ export interface HttpCall {
 }
 
 /** Tira a credencial (e o que parece credencial) de um texto vindo de fora. */
-export function redact(text: string, secrets: readonly string[]): string {
+const KEY_PATTERNS: readonly [RegExp, string][] = [
+  [/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, '[chave omitida]'],
+  [/\bAIza[0-9A-Za-z_-]{20,}/g, '[chave omitida]'],
+  [/\bgsk_[A-Za-z0-9]{12,}/g, '[chave omitida]'],
+  [/\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [chave omitida]'],
+];
+
+function redactPatterns(text: string): string {
   let out = text;
+  for (const [pattern, replacement] of KEY_PATTERNS) out = out.replace(pattern, replacement);
+  return out;
+}
+
+export function redact(text: string, secrets: readonly string[]): string {
+  // padrões comuns primeiro (antes que a remoção de pedaços quebre o formato e os esconda do padrão)
+  let out = redactPatterns(text);
   for (const secret of secrets) {
-    if (secret.length >= 4) out = out.split(secret).join('[chave omitida]');
+    if (secret.length < 4) continue;
+    // a chave inteira, em base64 e codificada em URL, e qualquer pedaço dela de 8+ caracteres (um eco cortado)
+    for (const form of [secret, Buffer.from(secret).toString('base64'), encodeURIComponent(secret)]) {
+      out = out.split(form).join('[chave omitida]');
+    }
+    for (let size = Math.min(secret.length, 24); size >= 8; size--) {
+      for (let i = 0; i + size <= secret.length; i++) {
+        const piece = secret.slice(i, i + size);
+        if (out.includes(piece)) out = out.split(piece).join('[chave omitida]');
+      }
+    }
+    // a chave (ou a forma codificada em URL) com espaços entre os caracteres: "s k - p r o j ..."
+    for (const form of new Set([secret, encodeURIComponent(secret)])) {
+      if (form.length < 12) continue;
+      const spaced = [...form].map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
+      out = out.replace(new RegExp(spaced, 'g'), '[chave omitida]');
+    }
   }
-  // padrões comuns de chave que o provedor possa ecoar (inclusive outra chave, ou um pedaço da nossa)
-  return out
-    .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, '[chave omitida]')
-    .replace(/\bAIza[0-9A-Za-z_-]{20,}/g, '[chave omitida]')
-    .replace(/\bgsk_[A-Za-z0-9]{12,}/g, '[chave omitida]')
-    .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [chave omitida]');
+  // e de novo: o que sobrou de padrão de chave que o provedor possa ecoar (inclusive outra chave)
+  return redactPatterns(out);
 }
 
 function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -150,6 +178,7 @@ export async function postWithRetry(call: HttpCall): Promise<Response> {
   const overall = call.signal === undefined ? timer : AbortSignal.any([call.signal, timer]);
   const cancelled = (): ProviderError => new ProviderError('cancelled', 'cancelado');
   const userAborted = (): boolean => call.signal?.aborted === true;
+  let networkFailures = 0;
 
   const once = async (): Promise<Outcome> => {
     let response: Response;
@@ -159,6 +188,8 @@ export async function postWithRetry(call: HttpCall): Promise<Response> {
         headers: { 'content-type': 'application/json', ...call.headers },
         body: JSON.stringify(call.body),
         signal: overall,
+        // um redirecionamento levaria o corpo (os trechos) e a chave a outro endereço: nunca é seguido
+        redirect: 'error',
       });
     } catch (error) {
       if (call.signal?.aborted === true) throw cancelled();
@@ -169,6 +200,18 @@ export async function postWithRetry(call: HttpCall): Promise<Response> {
       }
       const cause =
         error instanceof Error ? ((error.cause as Error | undefined)?.message ?? error.message) : String(error);
+      if (/redirect/i.test(cause)) {
+        throw new ProviderError(
+          'unknown',
+          `${call.label} respondeu com um redirecionamento, que o Cabeção não segue (os trechos e a chave iriam a outro endereço)`,
+        );
+      }
+      networkFailures++;
+      if (networkFailures > MAX_NETWORK_RETRIES) {
+        throw new ProviderError('network', `não consegui falar com ${call.label}: ${redact(cause, call.secrets)}`, {
+          retryable: true,
+        });
+      }
       return {
         error: new ProviderError('network', `não consegui falar com ${call.label}: ${redact(cause, call.secrets)}`, {
           retryable: true,
@@ -299,6 +342,10 @@ export function validateBaseUrl(value: string): string {
   }
   if (url.search !== '' || url.hash !== '') throw new Error('o endereço base não pode ter "?" nem "#"');
   const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
+  // endereço não roteável ou de metadados de nuvem (169.254.x, fe80::, 0.0.0.0): nunca é um provedor
+  if (/^(?:169\.254\.|0\.0\.0\.0$|\[?fe80:|\[?::\]?$)/i.test(url.hostname)) {
+    throw new Error('esse endereço não é de um provedor (rede local de enlace ou de metadados)');
+  }
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
     throw new Error('use https (http só vale para um servidor nesta máquina: localhost ou 127.0.0.1)');
   }

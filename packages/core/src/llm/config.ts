@@ -4,12 +4,14 @@
 //
 // Um provedor só é usado com `consented_at` preenchido (a confirmação do usuário no `cabecao llm on`) e com `enabled`
 // verdadeiro; `cabecao llm off` desliga sem apagar nada.
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmod, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeFileAtomic } from '../util/atomic.ts';
 import { isErrno } from '../util/errors.ts';
+import { validateBaseUrl } from './http.ts';
 import type { HttpPresetId } from './presets.ts';
-import { isHttpPresetId } from './presets.ts';
+import { HTTP_PRESETS, isHttpPresetId } from './presets.ts';
 
 export const LLM_CONFIG_FILE = 'llm.json';
 export const LLM_CONFIG_VERSION = 1;
@@ -28,6 +30,8 @@ export interface HttpProviderEntry {
   readonly model: string;
   readonly key: KeyRef;
   readonly consented_at: string | null;
+  /** Assinatura da confirmação (HMAC com o segredo local da máquina): sem ela válida, o provedor não está ativado. */
+  readonly consent?: string;
   /** Gemini: o usuário declarou que a chave é de um projeto com faturamento (camada paga). */
   readonly paid_tier?: boolean;
 }
@@ -38,6 +42,7 @@ export interface AgentProviderEntry {
   /** `null`: o mais barato que o agente deixa escolher. */
   readonly model: string | null;
   readonly consented_at: string | null;
+  readonly consent?: string;
 }
 
 export type ProviderEntry = HttpProviderEntry | AgentProviderEntry;
@@ -48,6 +53,10 @@ export interface LlmLimits {
   readonly max_output_tokens: number;
   /** Tempo limite de cada chamada ao provedor. */
   readonly timeout_ms: number;
+  /** Teto de perguntas que chegam ao provedor por hora, somando CLI e servidores MCP desta máquina. */
+  readonly max_calls_per_hour: number;
+  /** Teto de perguntas que chegam ao provedor por sessão do servidor MCP (um cliente de IA aberto). */
+  readonly max_calls_per_session: number;
 }
 
 export interface LlmConfig {
@@ -59,7 +68,13 @@ export interface LlmConfig {
   readonly limits: LlmLimits;
 }
 
-export const DEFAULT_LLM_LIMITS: LlmLimits = { context_tokens: 3000, max_output_tokens: 2048, timeout_ms: 60_000 };
+export const DEFAULT_LLM_LIMITS: LlmLimits = {
+  context_tokens: 3000,
+  max_output_tokens: 2048,
+  timeout_ms: 60_000,
+  max_calls_per_hour: 30,
+  max_calls_per_session: 20,
+};
 
 export function emptyLlmConfig(): LlmConfig {
   return {
@@ -115,6 +130,7 @@ function readEntry(id: string, value: unknown, problems: string[]): ProviderEntr
   }
   if (!isTimestamp(value.consented_at ?? null)) problems.push(`"${id}.consented_at" deveria ser uma data ou null`);
   const consented = (value.consented_at ?? null) as string | null;
+  const consent = typeof value.consent === 'string' && /^[0-9a-f]{64}$/.test(value.consent) ? value.consent : undefined;
   if (value.kind === 'agent') {
     if (!(AGENT_PROVIDER_IDS as readonly string[]).includes(String(value.agent))) {
       problems.push(`"${id}.agent" deveria ser um de ${AGENT_PROVIDER_IDS.join(', ')}`);
@@ -130,6 +146,7 @@ function readEntry(id: string, value: unknown, problems: string[]): ProviderEntr
       agent: value.agent as AgentProviderId,
       model: model as string | null,
       consented_at: consented,
+      ...(consent === undefined ? {} : { consent }),
     };
   }
   if (value.kind === 'http') {
@@ -149,6 +166,22 @@ function readEntry(id: string, value: unknown, problems: string[]): ProviderEntr
       problems.push(`"${id}.base_url" deveria ser texto`);
       return null;
     }
+    // o endereço é conferido em TODA leitura (não só no "llm on") e só vale nos presets que o admitem
+    if (typeof value.base_url === 'string') {
+      if (!BASE_URL_PRESETS.has(value.preset)) {
+        problems.push(`"${id}.base_url" não vale para o preset ${value.preset}: o endereço dele é fixo`);
+        return null;
+      }
+      try {
+        validateBaseUrl(value.base_url);
+      } catch (error) {
+        problems.push(`"${id}.base_url" recusado: ${(error as Error).message}`);
+        return null;
+      }
+    } else if (value.preset === 'compatible') {
+      problems.push(`"${id}.base_url" é obrigatório no preset compatible`);
+      return null;
+    }
     return {
       kind: 'http',
       preset: value.preset,
@@ -156,6 +189,7 @@ function readEntry(id: string, value: unknown, problems: string[]): ProviderEntr
       model: value.model,
       key: value.key,
       consented_at: consented,
+      ...(consent === undefined ? {} : { consent }),
       ...(typeof value.paid_tier === 'boolean' ? { paid_tier: value.paid_tier } : {}),
     };
   }
@@ -192,6 +226,13 @@ export function validateLlmConfig(path: string, value: unknown): LlmConfig {
       context_tokens: positive(limits.context_tokens, DEFAULT_LLM_LIMITS.context_tokens, 500, 8000),
       max_output_tokens: positive(limits.max_output_tokens, DEFAULT_LLM_LIMITS.max_output_tokens, 256, 16_000),
       timeout_ms: positive(limits.timeout_ms, DEFAULT_LLM_LIMITS.timeout_ms, 5_000, 600_000),
+      max_calls_per_hour: positive(limits.max_calls_per_hour, DEFAULT_LLM_LIMITS.max_calls_per_hour, 1, 10_000),
+      max_calls_per_session: positive(
+        limits.max_calls_per_session,
+        DEFAULT_LLM_LIMITS.max_calls_per_session,
+        1,
+        10_000,
+      ),
     },
   };
 }
@@ -225,8 +266,69 @@ export async function writeLlmConfig(dir: string, config: LlmConfig): Promise<vo
   if (process.platform !== 'win32') await chmod(path, 0o600).catch(() => {});
 }
 
-/** Os provedores que o `ask` pode usar agora, na ordem: ligado, no papel `answer` e com consentimento. */
-export function activeProviderIds(config: LlmConfig | null): string[] {
+/** Presets em que o usuário escolhe o endereço. Nos outros, o endereço é o do provedor e não se troca. */
+export const BASE_URL_PRESETS: ReadonlySet<string> = new Set(['compatible', 'ollama', 'lmstudio']);
+
+/** Arquivo do segredo local que assina as confirmações (`llm on`), na mesma pasta do `llm.json`, permissão 0600. */
+export const CONSENT_KEY_FILE = 'llm-consent.key';
+
+/** Para onde o provedor manda: o endereço configurado, senão o do preset, senão o agente. */
+export function entryDestination(entry: ProviderEntry): string {
+  if (entry.kind === 'agent') return `agent:${entry.agent}`;
+  return (entry.base_url ?? HTTP_PRESETS[entry.preset].baseUrl ?? '').replace(/\/+$/, '');
+}
+
+/**
+ * O que a confirmação cobre: o nome, o tipo, o destino, o modelo e de onde vem a chave. Mudar qualquer um (por
+ * exemplo, apontar o endereço para outro servidor) invalida a confirmação.
+ */
+function consentPayload(id: string, entry: ProviderEntry): string {
+  return JSON.stringify([
+    'cabecao-llm-consent-v1',
+    id,
+    entry.kind,
+    entry.kind === 'agent' ? entry.agent : entry.preset,
+    entryDestination(entry),
+    entry.model,
+    entry.kind === 'agent' ? null : entry.key,
+    entry.consented_at,
+  ]);
+}
+
+export function signConsent(secret: Buffer, id: string, entry: ProviderEntry): string {
+  return createHmac('sha256', secret).update(consentPayload(id, entry)).digest('hex');
+}
+
+export function consentValid(secret: Buffer | null, id: string, entry: ProviderEntry): boolean {
+  if (secret === null || entry.consented_at === null || entry.consent === undefined) return false;
+  const expected = Buffer.from(signConsent(secret, id, entry), 'hex');
+  const given = Buffer.from(entry.consent, 'hex');
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+/** Lê o segredo local (32 bytes). `create`: cria se não houver (só o `llm on`, com o usuário no terminal). */
+export async function readConsentSecret(dir: string, create = false): Promise<Buffer | null> {
+  const path = join(dir, CONSENT_KEY_FILE);
+  try {
+    const hex = (await readFile(path, 'utf8')).trim();
+    return /^[0-9a-f]{64}$/.test(hex) ? Buffer.from(hex, 'hex') : null;
+  } catch (error) {
+    if (!isErrno(error, 'ENOENT') || !create) return null;
+  }
+  const secret = randomBytes(32);
+  await writeFileAtomic(path, `${secret.toString('hex')}\n`, { mode: 0o600, ifUnchangedSince: null });
+  if (process.platform !== 'win32') await chmod(path, 0o600).catch(() => {});
+  return secret;
+}
+
+/**
+ * Os provedores que o `ask` pode usar agora, na ordem: ligado, no papel `answer`, com consentimento e com a
+ * assinatura da confirmação válida (um `llm.json` escrito à mão, ou trazido de outra máquina, não ativa nada).
+ */
+export function activeProviderIds(config: LlmConfig | null, secret: Buffer | null): string[] {
   if (config === null || !config.enabled) return [];
-  return config.roles.answer.filter((id) => (config.providers[id]?.consented_at ?? null) !== null);
+  return config.roles.answer.filter((id) => {
+    const entry = config.providers[id];
+    return entry !== undefined && consentValid(secret, id, entry);
+  });
 }

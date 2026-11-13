@@ -282,6 +282,13 @@ export function createHttpProvider(options: HttpProviderOptions): GenerationProv
       if (requireKey && found.key === null) {
         throw new ProviderError('not_authenticated', found.missing || 'a chave não foi encontrada');
       }
+      // uma chave lida de variável pode ter quebra de linha ou caractere de controle: o erro do fetch traria o valor
+      if (found.key !== null && !/^[\x21-\x7e]{8,512}$/.test(found.key)) {
+        throw new ProviderError(
+          'not_authenticated',
+          'a chave tem caracteres que não valem num cabeçalho HTTP (espaço, quebra de linha ou letra fora do ASCII); confira a variável ou grave de novo',
+        );
+      }
       if (preset.api === 'anthropic') return anthropicGenerate(options, found.key as string, request);
       return compatibleGenerate(options, found.key, request);
     },

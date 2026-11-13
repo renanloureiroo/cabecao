@@ -35,6 +35,8 @@ const PASSAGE: Passage = {
   score: 1,
   content: 'Neste teste do Cabeção, o céu do planeta Atlas é verde-limão durante o dia inteiro.',
   frontmatter: {},
+  unreadable: false,
+  tainted: false,
 };
 
 describe('provedores reais (opcional)', () => {
