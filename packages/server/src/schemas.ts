@@ -9,6 +9,7 @@
 // `checks.ts` confere isso em tempo de compilação, contra os tipos do núcleo.
 import { NOTE_TYPES, RECALL_PRIORITY, VALIDITIES, WRITE_MODES } from '@cabecao/core';
 import * as z from 'zod';
+import { asOfInput, relatedItem } from './schemas-node.ts';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Limites de tamanho das entradas
@@ -31,9 +32,9 @@ export const INPUT_LIMITS = {
 } as const;
 
 /** `z.string()` com teto e uma mensagem que diz qual é o teto. */
-const text = (max: number) =>
+export const text = (max: number) =>
   z.string().max(max, { error: `texto grande demais: o limite é ${max.toLocaleString('pt-BR')} caracteres` });
-const shortText = () => text(INPUT_LIMITS.short);
+export const shortText = () => text(INPUT_LIMITS.short);
 const list = () =>
   z
     .array(shortText())
@@ -42,20 +43,20 @@ const list = () =>
 // ---------------------------------------------------------------------------------------------------------------
 // Peças comuns
 
-const sessionHandle = shortText()
+export const sessionHandle = shortText()
   .describe('session_handle returned by recall; ties the commits of this task together.')
   .exactOptional();
 const scope = shortText().describe('"global" or "project:<slug>".');
 const noteType = z.enum(NOTE_TYPES);
 
-const issue = z.object({
+export const issue = z.object({
   severity: z.enum(['error', 'warning']),
   code: z.string(),
   field: z.string().nullable(),
   message: z.string(),
 });
 
-const dataItemShape = {
+export const dataItemShape = {
   id: z.string(),
   path: z.string(),
   type: z.string().nullable(),
@@ -70,7 +71,7 @@ const dataItemShape = {
   content: z.string(),
 };
 const dataItem = z.object(dataItemShape);
-const dataNotice = z.string();
+export const dataNotice = z.string();
 
 // ---------------------------------------------------------------------------------------------------------------
 // recall
@@ -113,6 +114,7 @@ export const searchInput = z.object({
   types: z.array(noteType).describe('Only these note types.').exactOptional(),
   limit: z.number().int().min(1).max(100).describe('Max hits (default 10).').exactOptional(),
   budget_tokens: z.number().int().min(1).exactOptional(),
+  as_of: asOfInput.exactOptional(),
 });
 
 export const searchOutput = z.object({
@@ -120,7 +122,9 @@ export const searchOutput = z.object({
   query: z.string(),
   mode: z.enum(['and', 'or', 'none']),
   terms: z.array(z.string()),
+  as_of: z.string(),
   hits: z.array(z.object({ ...dataItemShape, score: z.number(), heading_path: z.array(z.string()) })),
+  related: z.array(relatedItem),
   truncated: z.boolean(),
   next_step: z.string().exactOptional(),
 });
@@ -232,6 +236,7 @@ export const rememberInput = z.object({
   title: shortText().describe('Short title; defaults to the first line of content.').exactOptional(),
   scope: scope.describe('"global" (default) or "project:<slug>".').exactOptional(),
   tags: list().exactOptional(),
+  aliases: list().describe('Other names of the note; they also find unlinked mentions of it.').exactOptional(),
   relations: z
     .record(shortText(), list())
     .describe('Typed relations, e.g. {"uses": ["SQS"], "part_of": ["Projeto Atlas"]}.')
