@@ -98,19 +98,28 @@ function nextStep(result: SyncResult): string | undefined {
     return 'O remoto trouxe um .cabecao.json inválido e ele não entrou: compare a cópia .cabecao.conflict-* com o .cabecao.json, corrija o que a outra máquina queria mudar e apague a cópia.';
   }
   if (result.status === 'blocked' && result.reason === 'secrets') {
-    return 'Tire o segredo dos arquivos apontados em secrets (ou marque a linha com "cabecao:allow-secret" se não for um) e rode sync de novo.';
+    return 'Tire o segredo dos arquivos e linhas apontados (o valor nunca é mostrado), ou marque a linha com "cabecao:allow-secret" se não for um segredo, e rode o sync de novo.';
   }
   if (result.status === 'blocked' && result.reason === 'schema-too-new') {
-    return 'Atualize o Cabeção nesta máquina e rode sync de novo; até lá, as mudanças daqui ficam em commits locais e nada é enviado.';
+    return 'Atualize o Cabeção nesta máquina e rode o sync de novo ("cabecao doctor" mostra o comando para a sua instalação); até lá, as mudanças daqui ficam em commits locais e nada é enviado.';
   }
-  if (result.status === 'blocked') return 'Resolva o estado do repositório descrito em message e rode sync de novo.';
+  if (result.status === 'blocked') return 'Resolva o que a mensagem descreve e rode o sync de novo.';
   if (result.conflicts.length > 0) {
     return 'Há conflitos preservados: compare cada cópia .conflict-* com a nota, junte o que importa e apague a cópia.';
   }
+  if (result.status === 'offline' && result.remoteError?.category === 'auth') {
+    return 'O remoto recusou a credencial: rode "git fetch" na pasta do cérebro para ver o que o git pede (chave SSH, token ou gerenciador de credenciais), corrija e rode o sync de novo. As mudanças ficaram em commits locais.';
+  }
+  if (result.status === 'offline' && result.remoteError?.category === 'not-found') {
+    return 'O remoto não foi encontrado: confira o endereço com "git remote -v" na pasta do cérebro. As mudanças ficaram em commits locais.';
+  }
   if (result.status === 'offline')
-    return 'As mudanças ficaram em commits locais; rode sync de novo quando o remoto voltar.';
+    return 'As mudanças ficaram em commits locais; rode o sync de novo quando o remoto voltar.';
   if (result.status === 'busy') return 'Outro sync está em andamento; espere ele terminar.';
-  if (result.status === 'error') return 'Rode sync de novo; se repetir, rode "cabecao doctor".';
+  if (result.status === 'error' && result.reason === 'permission') {
+    return 'Libere a escrita na pasta .git do cérebro (o comando está na mensagem acima) e rode o sync de novo; até lá, nada é enviado.';
+  }
+  if (result.status === 'error') return 'Rode o sync de novo; se repetir, rode "cabecao doctor".';
   return undefined;
 }
 

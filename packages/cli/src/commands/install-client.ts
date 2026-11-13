@@ -14,6 +14,7 @@ import {
   tomlEntries,
 } from '../install-client/register.ts';
 import { tomlTable } from '../install-client/toml.ts';
+import { didYouMean } from '../suggest.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
 export type { ClientReport, FileReport, Outcome } from '../install-client/register.ts';
@@ -76,7 +77,10 @@ function printedText(clients: readonly PrintedClient[]): string {
 function selectedIds(ctx: CommandContext): ClientId[] {
   const unknown = ctx.positionals.filter((name) => !isClientId(name));
   if (unknown.length > 0) {
-    throw new UsageError(`cliente desconhecido: ${unknown.join(', ')}. Os clientes são: ${CLIENT_IDS.join(', ')}`);
+    const [first = ''] = unknown;
+    throw new UsageError(
+      `cliente desconhecido: ${unknown.join(', ')}.${didYouMean(first, CLIENT_IDS)} Os clientes são: ${CLIENT_IDS.join(', ')}`,
+    );
   }
   return [...new Set(ctx.positionals.filter(isClientId))];
 }
@@ -116,7 +120,12 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
 
   const action = remove ? 'remove' : 'install';
   if (ids.length === 0) {
-    return { data: { action, brain, launch, clients: [] }, text: 'Nenhum cliente de IA foi detectado nesta máquina.' };
+    return {
+      data: { action, brain, launch, clients: [] },
+      text: remove
+        ? 'Nenhum cliente de IA foi detectado nesta máquina.'
+        : 'Nenhum cliente de IA foi detectado nesta máquina. Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Antigravity), rode "cabecao install-client --all" de novo, ou "cabecao install-client --print" para configurar à mão.',
+    };
   }
   if (brain !== undefined && !(await isDirectory(brain))) {
     ctx.stderr.write(`cabecao: aviso: a pasta do cérebro ainda não existe: ${brain}\n`);

@@ -59,12 +59,15 @@ export class RemoteError extends Error {
   }
 }
 
-/** Últimas linhas úteis do stderr, sem credenciais. */
+/** O texto fixo que o git acrescenta a toda falha de acesso ao remoto: não diz nada sobre a causa. */
+const BOILERPLATE = /^(?:Please make sure you have the correct access rights|and the repository exists\.?)$/;
+
+/** Últimas linhas úteis do stderr, sem credenciais (a do ssh, que diz a causa, não se perde atrás do texto fixo). */
 function errorDetail(stderr: string): string {
   const lines = stderr
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line !== '' && !/^hint:/.test(line));
+    .filter((line) => line !== '' && !/^hint:/.test(line) && !BOILERPLATE.test(line));
   return redactCredentials(lines.slice(-3).join(' | ')).slice(0, 500);
 }
 

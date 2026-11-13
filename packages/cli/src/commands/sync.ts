@@ -6,6 +6,7 @@ import { appendSyncLog, logBlock, startDetachedSync } from '../background.ts';
 import { clientOf, readMachine, resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { EMPTY_HOOK_INPUT, hookBrain, readHookInput } from '../hook/input.ts';
+import { upgradeCommand } from '../install-method.ts';
 import { plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -35,7 +36,7 @@ export function syncExitCode(output: Pick<SyncOutput, 'status' | 'remote'>): num
   }
 }
 
-export function syncText(output: SyncOutput): string {
+export function syncText(output: SyncOutput, upgrade?: string): string {
   const lines = [`Sync: ${STATUS_TEXT[output.status]}. ${output.message}`.trim()];
   if (output.status === 'ok' || output.pulled + output.pushed + output.committed > 0) {
     lines.push(
@@ -84,7 +85,9 @@ export function syncText(output: SyncOutput): string {
     lines.push('Possíveis segredos (o valor não é mostrado):');
     for (const hit of output.secrets) {
       const where = hit.where === 'pending' ? 'mudança ainda sem commit' : 'commit que seria enviado';
-      lines.push(`  ${hit.path}:${hit.line}:${hit.column}  ${hit.rule} (${hit.description}; ${where})`);
+      lines.push(
+        `  ${hit.path}:${hit.line}:${hit.column}  ${hit.rule} (${hit.description.replace(/\.$/, '')}; ${where})`,
+      );
     }
   }
   if (output.remote_error !== null && output.remote_error.detail !== '') {
@@ -94,6 +97,7 @@ export function syncText(output: SyncOutput): string {
     lines.push('Recuperado de uma execução interrompida:', ...output.recovered.map((line) => `  ${line}`));
   }
   if (output.next_step !== undefined) lines.push(`Próximo passo: ${output.next_step}`);
+  if (output.reason === 'schema-too-new' && upgrade !== undefined) lines.push(`Para atualizar: ${upgrade}`);
   return lines.join('\n');
 }
 
@@ -196,7 +200,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
     throw error;
   }
   const code = syncExitCode(output);
-  const text = syncText(output);
+  const text = syncText(output, upgradeCommand(ctx));
   if (log) await writeLog(ctx, root, logBlock(startedAt, new Date(), code, text));
   return { code, data: output, text };
 }

@@ -11,6 +11,7 @@ import { hasTomlTable, tomlTable } from '../src/install-client/toml.ts';
 import type { RunOptions } from '../src/main.ts';
 import { run } from '../src/main.ts';
 import type { Env, Exec, ExecResult } from '../src/types.ts';
+import { VERSION } from '../src/version.ts';
 
 // Todos os caminhos de cliente saem de HOME/USERPROFILE, APPDATA e XDG_CONFIG_HOME injetados: nenhum teste lê ou
 // grava a configuração real da máquina. O PATH aponta para uma pasta vazia (ou com um `claude` de mentira) e o
@@ -649,7 +650,7 @@ describe('como o servidor é referenciado', () => {
     await writeFile(bin, '');
     expect(await resolveLaunch(io(bin), '/b', false)).toEqual({
       command: 'npx',
-      args: ['-y', 'cabecao', 'mcp', '--brain', '/b'],
+      args: ['-y', `cabecao@${VERSION}`, 'mcp', '--brain', '/b'],
       via: 'npx',
     });
   });
@@ -658,7 +659,7 @@ describe('como o servidor é referenciado', () => {
     expect((await resolveLaunch(io(box.bin), '/b', true)).command).toBe('npx');
     expect(await resolveLaunch(io(box.bin, 'win32'), 'C:\\b', true)).toEqual({
       command: 'cmd',
-      args: ['/c', 'npx', '-y', 'cabecao', 'mcp', '--brain', 'C:\\b'],
+      args: ['/c', 'npx', '-y', `cabecao@${VERSION}`, 'mcp', '--brain', 'C:\\b'],
       via: 'npx',
     });
     expect((await resolveLaunch(io(undefined), '/b', false)).via).toBe('npx');
@@ -669,7 +670,7 @@ describe('como o servidor é referenciado', () => {
     const entry = entryIn(mainTarget('cursor') as JsonTarget, await readFile(mainTarget('cursor').path, 'utf8'));
     // no Windows o npx é chamado por `cmd /c npx`; o fim dos argumentos é igual nos três sistemas
     const args = (entry as { args: string[] }).args;
-    expect(args.slice(-5)).toEqual(['-y', 'cabecao', 'mcp', '--brain', box.brain]);
+    expect(args.slice(-5)).toEqual(['-y', `cabecao@${VERSION}`, 'mcp', '--brain', box.brain]);
   });
 });
 

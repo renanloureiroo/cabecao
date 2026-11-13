@@ -1,3 +1,4 @@
 * text=auto eol=lf
 # Bundle da CLI copiado para o plugin do Claude Code (scripts/build-plugin.mjs): gerado, sem diff linha a linha.
 integrations/claude-code/server/** linguist-generated=true -diff
+packages/cli/src/skills/content.ts linguist-generated=true

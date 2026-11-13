@@ -171,7 +171,8 @@ const VAULT_NEXT_STEPS: Readonly<Record<string, string>> = {
     'Não comece o conteúdo com algo que imite um bloco de frontmatter (BOM, "---"); mande os campos em "frontmatter" e tente de novo.',
   config_invalid_json: INVALID_CONFIG_HINT,
   config_invalid: INVALID_CONFIG_HINT,
-  config_schema_too_new: 'Este cérebro é de uma versão mais nova do Cabeção: atualize com "npx cabecao@latest".',
+  config_schema_too_new:
+    'Este cérebro é de uma versão mais nova do Cabeção: atualize o Cabeção nesta máquina (no terminal, "cabecao doctor" mostra o comando para a sua instalação).',
 };
 
 /**

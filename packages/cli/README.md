@@ -6,7 +6,7 @@
 
 Seu segundo cérebro em Markdown e git, para você e seus agentes de IA, servido por MCP.
 
-Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio ou só a sua máquina). Os agentes de IA (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity, Gemini CLI) consultam e gravam nelas pelo servidor MCP do `cabecao`. Cada gravação vira um commit que você desfaz com um comando.
+Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor (GitHub, GitLab, Bitbucket, Gitea, servidor próprio ou só a sua máquina). Os agentes de IA (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity, Gemini CLI) consultam e gravam nelas pelo servidor MCP do `cabecao` ou, nos agentes com shell, pelas skills do Cabeção, que usam a própria CLI (`cabecao install-skills`). Cada gravação vira um commit que você desfaz com um comando.
 
 > **Beta:** `0.1.0-beta.1`. Instale com a etiqueta `beta`.
 
@@ -29,23 +29,44 @@ O `init` não pergunta nada: cria o cérebro num repositório vazio, só baixa u
 | Comando | O que faz |
 | --- | --- |
 | `cabecao init [url]` | Instala ou conecta esta máquina a um cérebro |
-| `cabecao status` | Notas, último sync, envios pendentes e conflitos |
+| `cabecao status` | Notas, último sync, envios pendentes, conflitos e os opcionais pendentes |
 | `cabecao doctor` | Diagnóstico com a correção sugerida para cada problema |
 | `cabecao sync` | Sincroniza com o remoto, sem descartar nada |
-| `cabecao search "<pergunta>"` | Busca por palavra-chave, com `--as-of` para o passado |
+| `cabecao schedule on\|off\|status` | Sync periódico pelo agendador do sistema |
+| `cabecao search "<pergunta>"` | Busca no cérebro, com `--as-of` para o passado |
+| `cabecao recall "<tarefa>"` | O briefing que o agente recebe no início de uma tarefa |
+| `cabecao read <nota>` | Lê uma nota, com a proveniência |
+| `cabecao remember` | Grava uma memória (a tool `remember`) |
+| `cabecao write <caminho>` | Cria, sobrescreve ou acrescenta a uma nota |
+| `cabecao patch <caminho>` | Troca um trecho exato de uma nota |
+| `cabecao relate <de> <tipo> <para>` | Liga duas notas com uma relação tipada |
+| `cabecao handoff` | Passagem de bastão para a próxima sessão |
 | `cabecao graph "<nota>"` | Vizinhos de uma nota no grafo |
 | `cabecao facts` | Fatos e se valem numa data |
+| `cabecao ingest <arquivo>` | Registra uma fonte em `raw/` |
+| `cabecao lint` | Relatório de saúde do cérebro, por regras |
+| `cabecao consolidate` | Consolida a memória (também chamando um agente, com `--run`) |
+| `cabecao forget <nota>` | Arquiva uma nota (nunca apaga) |
 | `cabecao undo` | Desfaz uma operação ou uma sessão de agente |
+| `cabecao embeddings on\|off\|status\|switch` | Busca por significado, com um modelo local |
+| `cabecao compact` | Reduz a branch de índice da busca por significado |
+| `cabecao eval <perguntas.jsonl>` | Mede a busca com as suas perguntas |
+| `cabecao reindex` | Reconstrói o banco local |
+| `cabecao obsidian setup` | Configura o cérebro para o Obsidian |
+| `cabecao export canvas` | Exporta um mapa do grafo (`.canvas`) |
+| `cabecao upgrade` | Aplica as migrações do esquema do cérebro |
 | `cabecao ask "<pergunta>"` | Resposta com citações conferidas, pelo provedor que você ativar (opcional) |
 | `cabecao llm on\|off\|status\|test\|remove` | O provedor das respostas do `ask`: desligado por padrão; nada sai da máquina até você ativar |
 | `cabecao install-client <cliente>` | Registra o servidor MCP num cliente de IA |
+| `cabecao install-skills` | Instala as skills do Cabeção nos agentes (uso pela CLI, sem MCP) |
+| `cabecao uninstall` | Tira o Cabeção desta máquina; nunca o cérebro |
 | `cabecao mcp` | O servidor MCP por stdio, que os clientes iniciam |
 
-`cabecao <comando> --help` mostra as opções. Todos aceitam `--json` e `--brain <pasta>`.
+`cabecao <comando> --help` mostra as opções e exemplos. Todos aceitam `--json` e `--brain <pasta>`.
 
 ## Documentação
 
-<https://renanloureiroo.github.io/cabecao/>: instalação, conceitos, guias, referência da CLI e das 12 tools MCP, segurança e solução de problemas.
+<https://renanloureiroo.github.io/cabecao/>: instalação, conceitos, guias, referência da CLI e das 17 tools MCP, segurança e solução de problemas.
 
 Código e issues: <https://github.com/renanloureiroo/cabecao>
 
