@@ -202,11 +202,11 @@ Only exists when an answer provider is turned on on this machine (`cabecao llm o
 | `status` | `answered`, `not_found` (the brain does not have this), `low_confidence` (more than half unsupported) or `unavailable` (no generated answer) |
 | `answer` | The text, with `[1]`, `[2]`; a claim without a checked citation comes with `[sem apoio]` |
 | `claims` | Each claim, with `supported` and the numbers of its `citations` |
-| `citations` | `n`, `id`, `path`, `title`, `heading_path`, `section` (for `read`), `quote` (the checked quote), `validity`, `trust`, `origin`, `edited_by`, `related` |
+| `citations` | `n`, `id`, `path`, `title`, `heading_path`, `section` (for `read`), `quote` (the checked quote, always the note's real text), `validity`, `trust`, `origin`, `edited_by`, `related` |
 | `unsupported_claims`, `removed_citations` | Unsupported claims; dropped citations (invented label or text that is not in the passage) |
 | `missing` | What the brain lacked, according to the answer |
-| `omitted` | Passages that did not go to the provider: `private`, `policy`, `secret`, `control`, `budget` |
-| `unavailable_reason` | With `unavailable`: `not_configured`, `disabled_for_brain` or `provider_failed` |
+| `omitted` | Passages that did not go to the provider: `private`, `policy`, `secret`, `control`, `budget`, `unreadable` (unreadable frontmatter) |
+| `unavailable_reason` | With `unavailable`: `not_configured`, `disabled_for_brain`, `provider_failed` or `limit_reached` (spending cap for the machine or this session) |
 | `passages` | Only with `unavailable` and `not_found`: the passages found, so the agent can answer without another call |
 | `next_step` | What to do next |
 
@@ -237,7 +237,7 @@ A provider failure is never an MCP error: it returns `unavailable` with `passage
   "unsupported_claims": 0,
   "removed_citations": 0,
   "missing": null,
-  "omitted": { "private": 0, "policy": 0, "secret": 0, "control": 0, "budget": 0 },
+  "omitted": { "private": 0, "policy": 0, "secret": 0, "control": 0, "budget": 0, "unreadable": 0 },
   "as_of": "2026-11-13",
   "next_step": "Resposta gerada a partir do cérebro, com cada citação conferida no trecho de origem. Para ver o original, use read com o id (e a section) da citação."
 }

@@ -355,7 +355,7 @@ Fontes:
       "Bruno Tavares lidera o Projeto Atlas desde setembro de 2026."
 ```
 
-**Exit:** `0` answered; `3` the brain does not have this; `4` more than half of the claims unsupported; `5` no provider available; `2` usage error. With `--json`, the same object as the [`ask` tool](./mcp.md#ask).
+**Exit:** `0` when the command worked (answered, answered with little support, or the brain does not have this: `status` says which); `5` when no provider generated the answer (off, failed or spending cap reached; the passages found come along); `2` usage error. Codes 3 and 4 are not used, because across the whole CLI they mean "needs your explicit request" and "only you, in the terminal". With `--json`, the same object as the [`ask` tool](./mcp.md#ask). For an agent, `--verbose` is ignored and `--show-context` does not show the destination.
 
 ## cabecao llm
 
@@ -367,23 +367,26 @@ cabecao llm off
 cabecao llm status
 cabecao llm test [--provider <provedor>]
 cabecao llm remove <provedor>
+cabecao llm policy [--allow none|agent|any] [--exclude-path <glob>...] [--exclude-type <tipo>...] [--exclude-trust <nível>...] [--clear]
 ```
 
 | Subcommand | What it does | Needs you in the terminal? |
 | --- | --- | --- |
 | `on` | Detects what already exists (Claude Code installed, key variables), offers that first, shows what leaves and where to, asks for confirmation and runs a test | Yes |
 | `off` | Turns it off without deleting anything | Yes |
-| `status` | Providers, model, destination, availability and where the key is (masked) | No |
+| `status` | Providers, model, destination, availability and where the key is (masked). For an agent, only whether answers are on | No |
 | `test` | One minimal call, with nothing from the brain: says whether it worked and how long it took (spends one question) | Yes |
-| `remove` | Deletes the provider and the key Cabeção stored | Yes |
+| `remove` | Deletes the provider and the key Cabeção stored; if the keychain refuses, it says so and exits with `1` | Yes |
+| `policy` | Shows or changes this brain's `llm_policy` (goes into git; only restricts). An agent does not change it, not even with confirmation | Yes |
 
 | Option | What it does |
 | --- | --- |
 | `--provider` | `claude-code`, `anthropic`, `openai`, `gemini`, `openrouter`, `groq`, `ollama`, `lmstudio` or `compatible` |
 | `--model` | The model (default: the cheapest with structured output; required for OpenRouter, local servers and `compatible`) |
-| `--base-url` | Address of an OpenAI-compatible service: `https`, or `http` only on `localhost` |
+| `--base-url` | Only with `compatible`, `ollama` and `lmstudio`: `https`, or `http` only on this machine; cloud metadata and link-local addresses are refused |
 | `--key-env` | Reads the key from this environment variable, without storing it |
 | `--store` | Where to store a pasted key: `keychain` (system keychain, default) or `file` (`0600` file) |
+| `--allow`, `--exclude-path`, `--exclude-type`, `--exclude-trust`, `--clear` | With `policy`: the [`llm_policy`](../guias/respostas-com-modelo.md#per-brain-policy) fields |
 
 ```text
 $ cabecao llm status
@@ -397,7 +400,9 @@ Configuração: ~/.config/cabecao/llm.json · log: ~/.cache/cabecao/ask.log
 
 The installed Antigravity and Codex are not offered; the reason is in the [guide](../guias/respostas-com-modelo.md#why-the-installed-antigravity-is-not-offered).
 
-**Exit:** `0`; `4` when `on`, `off`, `test` or `remove` run without a terminal or from an agent (see [Who is human and who is an agent](../guias/humano-e-agente.md)); `1` when you do not confirm or when `test` fails; `2` with an invalid provider or option.
+The configuration lives in your user's default folder; redirected by `CABECAO_CONFIG_DIR` (or `HOME`, `XDG_CONFIG_HOME`, `APPDATA`), it applies only to you in the terminal (see [Where the configuration lives](../guias/respostas-com-modelo.md#where-the-configuration-lives)).
+
+**Exit:** `0`; `4` when `on`, `off`, `test`, `remove` or `policy` run without a terminal or from an agent (see [Who is human and who is an agent](../guias/humano-e-agente.md)); `1` when you do not confirm or when `test` fails; `2` with an invalid provider or option.
 
 ## cabecao eval --answers
 

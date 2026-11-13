@@ -202,11 +202,11 @@ Só existe quando há um provedor de respostas ativado nesta máquina (`cabecao 
 | `status` | `answered`, `not_found` (o cérebro não tem isso), `low_confidence` (mais da metade sem apoio) ou `unavailable` (sem resposta gerada) |
 | `answer` | O texto, com `[1]`, `[2]`; uma afirmação sem citação conferida sai com `[sem apoio]` |
 | `claims` | Cada afirmação, com `supported` e os números das `citations` |
-| `citations` | `n`, `id`, `path`, `title`, `heading_path`, `section` (para `read`), `quote` (a citação conferida), `validity`, `trust`, `origin`, `edited_by`, `related` |
+| `citations` | `n`, `id`, `path`, `title`, `heading_path`, `section` (para `read`), `quote` (a citação conferida, sempre o texto real da nota), `validity`, `trust`, `origin`, `edited_by`, `related` |
 | `unsupported_claims`, `removed_citations` | Afirmações sem apoio; citações descartadas (rótulo inventado ou texto que não está no trecho) |
 | `missing` | O que faltou no cérebro, segundo a resposta |
-| `omitted` | Trechos que não foram ao provedor: `private`, `policy`, `secret`, `control`, `budget` |
-| `unavailable_reason` | Com `unavailable`: `not_configured`, `disabled_for_brain` ou `provider_failed` |
+| `omitted` | Trechos que não foram ao provedor: `private`, `policy`, `secret`, `control`, `budget`, `unreadable` (frontmatter ilegível) |
+| `unavailable_reason` | Com `unavailable`: `not_configured`, `disabled_for_brain`, `provider_failed` ou `limit_reached` (teto de gasto da máquina ou desta sessão) |
 | `passages` | Só com `unavailable` e `not_found`: os trechos achados, para o agente responder sem nova chamada |
 | `next_step` | O que fazer em seguida |
 
@@ -237,7 +237,7 @@ Falha do provedor nunca é erro MCP: volta `unavailable` com `passages`. Erro s�
   "unsupported_claims": 0,
   "removed_citations": 0,
   "missing": null,
-  "omitted": { "private": 0, "policy": 0, "secret": 0, "control": 0, "budget": 0 },
+  "omitted": { "private": 0, "policy": 0, "secret": 0, "control": 0, "budget": 0, "unreadable": 0 },
   "as_of": "2026-11-13",
   "next_step": "Resposta gerada a partir do cérebro, com cada citação conferida no trecho de origem. Para ver o original, use read com o id (e a section) da citação."
 }

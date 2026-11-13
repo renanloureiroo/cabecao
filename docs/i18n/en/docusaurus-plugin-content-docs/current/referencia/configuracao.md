@@ -86,7 +86,7 @@ Applies on every machine of the brain and only restricts: the provider itself is
 }
 ```
 
-`allow` is `"any"` (default), `"agent"` (only the installed agent) or `"none"` (never calls a provider). An invalid `llm_policy` does not break the brain: it closes sending (nothing leaves) and `doctor` says what to fix.
+`allow` is `"any"` (default), `"agent"` (only the installed agent) or `"none"` (never calls a provider). An invalid `llm_policy` does not break the brain: it closes sending (nothing leaves) and `doctor` says what to fix. The policy only restricts (what enables a provider is the machine), only you change it (`cabecao llm policy`, in the terminal) and an agent does not alter it, not even with confirmation.
 
 ## When the file breaks
 

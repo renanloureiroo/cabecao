@@ -33,29 +33,29 @@ Where the folder lives:
 
 ## Answer provider: `llm.json`
 
-Only exists if you turned on [answers with a language model](../guias/respostas-com-modelo.md) (`cabecao llm on`). It sits in the same folder as `config.json`, with `0600` permission, and **never stores the key**, only where it is:
+Only exists if you turned on [answers with a language model](../guias/respostas-com-modelo.md) (`cabecao llm on`). It sits in your user's default configuration folder (`~/.config/cabecao`; on Windows, `%APPDATA%\cabecao`), with `0600` permission, and **never stores the key**, only where it is. Redirected by an environment variable, it applies only to you in the terminal, never to an agent (see [Where the configuration lives](../guias/respostas-com-modelo.md#where-the-configuration-lives)):
 
 ```json
 {
   "version": 1,
   "enabled": true,
   "providers": {
-    "anthropic": { "kind": "http", "preset": "anthropic", "model": "claude-haiku-5-5", "key": "keychain", "consented_at": "2026-11-13T12:00:00.000Z" },
-    "claude-code": { "kind": "agent", "agent": "claude-code", "model": null, "consented_at": "2026-11-13T12:05:00.000Z" }
+    "anthropic": { "kind": "http", "preset": "anthropic", "model": "claude-haiku-5-5", "key": "keychain", "consented_at": "2026-11-13T12:00:00.000Z", "consent": "9f2c…" },
+    "claude-code": { "kind": "agent", "agent": "claude-code", "model": null, "consented_at": "2026-11-13T12:05:00.000Z", "consent": "41ab…" }
   },
   "roles": { "answer": ["anthropic", "claude-code"] },
-  "limits": { "context_tokens": 3000, "max_output_tokens": 2048, "timeout_ms": 60000 }
+  "limits": { "context_tokens": 3000, "max_output_tokens": 2048, "timeout_ms": 60000, "max_calls_per_hour": 30, "max_calls_per_session": 20 }
 }
 ```
 
 | Field | What it is |
 | --- | --- |
 | `enabled` | `false` after `cabecao llm off`: nothing leaves, and the rest stays |
-| `providers` | Each provider: `kind` (`http` or `agent`), `preset` or `agent`, `model`, `base_url` (compatible service), `key` (`env:NAME`, `keychain`, `file` or `none`) and `consented_at` (your confirmation; without it, the provider is not used) |
+| `providers` | Each provider: `kind` (`http` or `agent`), `preset` or `agent`, `model`, `base_url` (only for `compatible`, `ollama` and `lmstudio`; checked on every read), `key` (`env:NAME`, `keychain`, `file` or `none`), `consented_at` and `consent` (your confirmation, signed with the local secret; without it, or if the destination, model or key change, the provider is not used) |
 | `roles.answer` | The order of use: if the first one is unavailable or fails, the next one answers |
-| `limits` | Context per question (500 to 8000 tokens), output and the time limit of each call |
+| `limits` | Context per question (500 to 8000 tokens), output and the time limit of each call; the spending cap: `max_calls_per_hour` (default 30) and `max_calls_per_session` (default 20, per MCP server session) |
 
-Next to it, when applicable: `credentials.json` (keys stored with `--store file`, or on Linux without `secret-tool`; `0600` permission) and, on Windows, `credentials.dpapi.json` (keys encrypted with your user's DPAPI). The question log, `ask.log`, lives in the cache folder (`~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`): one line per question, with the truncated question, the provider, the time and the counts, without brain passages and without the key.
+Next to it: `llm-consent.key` (the secret that signs the confirmations, `0600`), `ask-usage.json` (the times of recent questions, for the hourly cap), and, when applicable: `credentials.json` (keys stored with `--store file`, or on Linux without `secret-tool`; `0600` permission) and, on Windows, `credentials.dpapi.json` (keys encrypted with your user's DPAPI). The question log, `ask.log`, lives in the cache folder (`~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`): one line per question, with the truncated question, the provider, the time and the counts, without brain passages and without the key. `cabecao uninstall` deletes all of it, and the keys in the system keychain.
 
 ## The brain
 

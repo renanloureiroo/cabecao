@@ -86,7 +86,7 @@ Vale em todas as máquinas do cérebro e só restringe: o provedor em si é esco
 }
 ```
 
-`allow` é `"any"` (padrão), `"agent"` (só o agente instalado) ou `"none"` (nunca chama provedor). Um `llm_policy` inválido não quebra o cérebro: ele fecha o envio (nada sai) e o `doctor` diz o que corrigir.
+`allow` é `"any"` (padrão), `"agent"` (só o agente instalado) ou `"none"` (nunca chama provedor). Um `llm_policy` inválido não quebra o cérebro: ele fecha o envio (nada sai) e o `doctor` diz o que corrigir. A política só restringe (quem libera um provedor é a máquina), só você a muda (`cabecao llm policy`, no terminal) e um agente não a altera, nem com confirmação.
 
 ## Quando o arquivo quebra
 
