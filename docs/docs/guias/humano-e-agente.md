@@ -40,8 +40,8 @@ A classificação mora num lugar só do código (`packages/cli/src/access.ts`), 
 | Classe | Comandos | Quem pode |
 | --- | --- | --- |
 | Memória | `recall`, `search`, `read`, `graph`, `facts`, `lint`, `remember`, `write`, `patch`, `relate`, `handoff`, `ingest`, `forget`, `consolidate`, `undo` | Os dois. Como agente, valem exatamente as regras do servidor MCP |
-| Administração | `init`, `status`, `doctor`, `sync`, `schedule`, `mcp`, `install-client`, `eval`, `reindex`, `embeddings status` | Os dois, inclusive sem terminal: rodam pelo agendador, pelos hooks e em scripts. Não escrevem memória em nome de ninguém (o `sync` commita edições de fora como `manual`) |
-| Só você, no terminal | `embeddings on`, `embeddings off`, `embeddings switch`, `compact` | Só você. Para um agente, ou sem terminal, saem com o código 4 e a explicação |
+| Administração | `init`, `status`, `doctor`, `sync`, `schedule`, `mcp`, `install-client`, `eval`, `reindex`, `obsidian`, `export`, `embeddings status` | Os dois, inclusive sem terminal: rodam pelo agendador, pelos hooks e em scripts. Não escrevem memória em nome de ninguém (o `sync` commita edições de fora como `manual`) |
+| Só você, no terminal | `embeddings on`, `embeddings off`, `embeddings switch`, `compact`, `upgrade` | Só você. Para um agente, ou sem terminal, saem com o código 4 e a explicação |
 
 ```text
 $ cabecao compact

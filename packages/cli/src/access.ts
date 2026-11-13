@@ -51,6 +51,11 @@ export const COMMAND_ACCESS: Readonly<Record<string, AccessSpec>> = {
   'install-client': { access: 'admin', why: 'registra o servidor nos clientes; roda em scripts' },
   eval: { access: 'admin', why: 'só mede a busca' },
   reindex: { access: 'admin', why: 'refaz o banco local, que é só uma visão das notas' },
+  obsidian: {
+    access: 'admin',
+    why: 'configura o Obsidian (só acrescenta, com cópia do original); não grava nota nem regra; clipper só mostra',
+  },
+  export: { access: 'admin', why: 'gera um mapa (.canvas) a partir das notas; não grava memória' },
   // só do humano no terminal
   embeddings: {
     access: 'human',
@@ -58,6 +63,10 @@ export const COMMAND_ACCESS: Readonly<Record<string, AccessSpec>> = {
     subcommands: { status: 'admin' },
   },
   compact: { access: 'human', why: 'reescreve a branch de índice numa geração nova e pode apagar no remoto' },
+  upgrade: {
+    access: 'human',
+    why: 'migra o esquema do cérebro (commits e ponto de restauração) e troca AGENTS.md e CLAUDE.md pelo modelo',
+  },
 };
 
 /**

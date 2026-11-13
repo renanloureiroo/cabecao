@@ -38,6 +38,9 @@ const COMMAND_NAMES = [
   'patch',
   'relate',
   'handoff',
+  'obsidian',
+  'export',
+  'upgrade',
 ];
 
 function cabecao(args, env = process.env) {

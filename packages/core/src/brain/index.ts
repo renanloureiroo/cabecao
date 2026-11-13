@@ -51,6 +51,8 @@ export type { IngestInput, IngestOptions, IngestOutput, IngestPlanNote } from '.
 export { INGEST_DIR, INGEST_MAX_BYTES, INGEST_MAX_CHARS } from './ingest.ts';
 export type { LintFinding, LintInput, LintOutput, LintRule, LintSeverity } from './lint.ts';
 export { CONFIRMABLE_TYPES, DEFAULT_LINT_LIMIT, LINT_RULES, MAX_LINT_LIMIT, UNCONFIRMED_AFTER_DAYS } from './lint.ts';
+export type { MapGraphEdge, MapGraphInput, MapGraphNote, MapGraphOutput } from './map.ts';
+export { DEFAULT_MAP_LIMIT, MAX_MAP_LIMIT } from './map.ts';
 export type {
   BacklinkOutput,
   ConflictOutput,

@@ -34,6 +34,9 @@ const COMMANDS = [
   'patch',
   'relate',
   'handoff',
+  'obsidian',
+  'export',
+  'upgrade',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];

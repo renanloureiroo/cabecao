@@ -3,7 +3,8 @@
 # A cada push na `main`:
 #   - há changesets pendentes  → abre ou atualiza o PR "Version Packages" (sobe a versão e escreve o CHANGELOG.md);
 #   - não há, e a versão do package.json ainda não está no npm (o PR de versão acabou de entrar)
-#                              → confere tudo, publica no npm, cria a tag vX.Y.Z e a release no GitHub;
+#                              → confere tudo, publica no npm, cria a tag vX.Y.Z e a release no GitHub e anexa a ela
+#                                o pacote .mcpb do Claude Desktop (job mcpb, que não impede a publicação se falhar);
 #   - não há, e a versão já está no npm → não faz nada (só garante que a tag e a release existem).
 #
 # Rodar à mão (Actions > release > Run workflow, na `main`) faz o mesmo, menos o PR de versão. Com "dry-run" marcado
@@ -296,3 +297,44 @@ jobs:
           # Se a tag já existir, o gh usa a tag existente; senão, cria no commit desta execução.
           gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "cabecao $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${prerelease[@]}"
+
+  mcpb:
+    # Anexa o pacote do Claude Desktop (cabecao-<versão>.mcpb) à release, montado com o bundle do MESMO tarball
+    # conferido e publicado no npm (integrations/mcpb/README.md). Job à parte, depois da publicação e da release, com
+    # continue-on-error: uma falha aqui nunca impede nem desfaz a publicação; o anexo pode ser refeito à mão com
+    # "pnpm build:mcpb" e "gh release upload v<versão> integrations/mcpb/dist/cabecao-<versão>.mcpb".
+    name: anexar o pacote .mcpb à release
+    needs: [plan, verify, github-release]
+    if: >-
+      !cancelled()
+      && needs.github-release.result == 'success'
+      && needs.verify.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: write # anexar o arquivo à release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack
+      - name: montar o .mcpb com o bundle do tarball publicado
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm"
+          tar -xzf "$RUNNER_TEMP/pack/cabecao-$VERSION.tgz" -C "$RUNNER_TEMP/npm"
+          node scripts/build-mcpb.mjs --dist "$RUNNER_TEMP/npm/package/dist" --version "$VERSION" --out "$RUNNER_TEMP/mcpb"
+      - name: anexar à release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: gh release upload "v$VERSION" "$RUNNER_TEMP/mcpb/cabecao-$VERSION.mcpb" --repo "$GITHUB_REPOSITORY" --clobber
