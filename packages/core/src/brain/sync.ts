@@ -100,6 +100,9 @@ function nextStep(result: SyncResult): string | undefined {
   if (result.status === 'blocked' && result.reason === 'secrets') {
     return 'Tire o segredo dos arquivos apontados em secrets (ou marque a linha com "cabecao:allow-secret" se não for um) e rode sync de novo.';
   }
+  if (result.status === 'blocked' && result.reason === 'schema-too-new') {
+    return 'Atualize o Cabeção nesta máquina e rode sync de novo; até lá, as mudanças daqui ficam em commits locais e nada é enviado.';
+  }
   if (result.status === 'blocked') return 'Resolva o estado do repositório descrito em message e rode sync de novo.';
   if (result.conflicts.length > 0) {
     return 'Há conflitos preservados: compare cada cópia .conflict-* com a nota, junte o que importa e apague a cópia.';

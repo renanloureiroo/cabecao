@@ -29,9 +29,9 @@ import {
   sanitizeMachineName,
   withLock,
 } from '../util/index.ts';
-import { readBrainConfig, VaultError, writeIndexMd } from '../vault/index.ts';
+import { readBrainConfig, SUPPORTED_SCHEMA_VERSION, VaultError, writeIndexMd } from '../vault/index.ts';
 import { CatalogCache, isCatalogNote, type NoteMeta, noteMetaFromText, renderCatalog } from './catalog.ts';
-import { keepValidConfig, loadSyncConfig } from './config-guard.ts';
+import { keepValidConfig, loadSyncConfig, newerSchemaIn } from './config-guard.ts';
 import { commitMessage, type SyncContext } from './context.ts';
 import { countCommits, git, gitText, handleGitLockError, isAncestor, listTree, revParse } from './git.ts';
 import { integrateDiverged, UnrelatedHistoriesError, withCatalogCommit } from './integrate.ts';
@@ -769,6 +769,16 @@ async function runSync(
       }
     }
     if (target !== null && target !== head) {
+      // o remoto foi atualizado por um Cabeção mais novo (`cabecao upgrade`): esta máquina não aplica nem envia nada
+      const newer = await newerSchemaIn(ctx, target);
+      if (newer !== null) {
+        await flush(cycle);
+        stop({
+          status: 'blocked',
+          reason: 'schema-too-new',
+          message: `O cérebro no remoto foi atualizado para o esquema ${newer} por uma versão mais nova do Cabeção, e este Cabeção só entende até o ${SUPPORTED_SCHEMA_VERSION}. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina ("npm i -g cabecao@latest" ou "npx cabecao@latest") e rode o sync de novo.`,
+        });
+      }
       // um `.cabecao.json` inválido vindo do remoto não entra: fica o daqui, e o do remoto vira cópia de conflito
       const guarded = await keepValidConfig(ctx, head, target);
       if (guarded !== null) {

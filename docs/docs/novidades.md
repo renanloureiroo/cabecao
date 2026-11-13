@@ -11,6 +11,11 @@ npm i -g cabecao@beta
 
 ## Ainda não publicado
 
+- **Obsidian com um comando.** `cabecao obsidian setup` configura o vault: cores do grafo por tipo de nota, tipos das propriedades (datas como data, relações como lista), o arquivo morto fora da busca, cinco painéis `.base` em `dashboards/` e o modelo do Web Clipper, que salva recortes em `raw/articles/` com `trust: low`. Só acrescenta ao que você já tem, com `--dry-run`, cópia do original e `--remove`. Veja [Usar com o Obsidian](./guias/obsidian.md).
+- **Mapas do grafo.** [`cabecao export canvas`](./referencia/cli.md#cabecao-export) gera um `.canvas` do Obsidian com a vizinhança de uma nota, um escopo ou o cérebro inteiro, agrupado por tipo e com o tipo de cada relação nas setas.
+- **Pacote para o Claude Desktop.** Um `.mcpb` anexado a cada versão no GitHub instala o servidor com dois cliques, com o programa embutido. Veja [Claude Desktop](./guias/claude-desktop.md).
+- **`cabecao upgrade`.** Aplica as migrações do esquema do cérebro com ponto de restauração e um commit por migração (hoje não há nenhuma pendente). Com `--template`, atualiza o `AGENTS.md` das betas e completa o `.gitignore`, sem passar por cima do que você editou. `status` e `doctor` avisam do que está pendente. Veja [Atualizar o Cabeção](./guias/atualizar.md).
+- **Sync entre versões.** Uma máquina com o Cabeção antigo não aplica nem envia nada quando o remoto já foi migrado por uma versão mais nova; as mudanças dela ficam em commits locais até a atualização.
 - **O ciclo de vida da memória.** Cinco tools novas no servidor MCP e quatro comandos na CLI:
   - `handoff_save`: a passagem de bastão, com validade, e o episódio da sessão; o `recall` entrega o último handoff do projeto e avisa quando ele já foi entregue a outra sessão.
   - O `remember` trata duplicatas e contradições no mesmo escopo e tipo: igual é ignorado, o que complementa atualiza, um fato com outro objeto substitui o antigo, e o caso ambíguo volta para o agente decidir.
