@@ -1,0 +1,81 @@
+---
+title: Installation
+description: Install Cabeção from npm and check the requirements.
+sidebar_position: 1
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## Requirements
+
+| Program | Version | Why |
+| --- | --- | --- |
+| Node.js | 22.16 or newer (22 line) or 24 or newer. Recommended: 24 | The local index uses `node:sqlite` with full-text search (FTS5), which only exists from 22.16 on. The 23 line is not supported. |
+| git | 2.38 or newer | Sync merges changes in memory, with no half-finished rebase. |
+
+Check what you have:
+
+```bash
+node --version
+git --version
+```
+
+With a Node version outside the range, Cabeção does not run and tells you what to do:
+
+```text
+cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: v20.12.2. Atualize em https://nodejs.org
+```
+
+## Install
+
+Cabeção is in beta and is published on npm with the `beta` tag. Ask for that tag explicitly.
+
+:::note[The CLI speaks Portuguese]
+The `cabecao` command-line messages are currently in Portuguese, so the terminal outputs on this site are shown exactly as printed, in Portuguese. The MCP tool descriptions that agents read are in English.
+:::
+
+<Tabs groupId="instalacao">
+<TabItem value="t1" label="Global (recommended)" default>
+
+```bash
+npm i -g cabecao@beta
+cabecao --version
+```
+
+```text
+0.1.0-beta.1
+```
+
+With a global install, the registration in the AI clients points straight to Node and to the Cabeção file,
+without going through `npx` on every session.
+
+</TabItem>
+<TabItem value="t2" label="Without installing (npx)">
+
+```bash
+npx cabecao@beta init git@github.com:voce/cerebro.git
+```
+
+It works, but the AI clients get registered as `npx -y cabecao mcp`: every new session goes through `npx`,
+which takes 0.5 to 1.4 s to start. To switch later, install globally and run
+`cabecao install-client --all`.
+
+</TabItem>
+</Tabs>
+
+The package has no runtime dependencies and no native binaries: it is a single JavaScript bundle.
+
+## Create the brain repository
+
+Before `init`, create an **empty, private** repository on the provider you use (GitHub, GitLab, Bitbucket, Gitea or your own server). Copy the address from the "clone" button. It can be SSH (`git@...`) or HTTPS.
+
+:::danger[Use a private repository]
+Cabeção's code is public; your brain should not be. With HTTPS on a well-known provider, `init` and `doctor` warn you if the repository looks public.
+:::
+
+If you do not want a remote yet, you can start local only and connect one later. See [Create or connect a brain](./init.md).
+
+## Next step
+
+[Create or connect a brain](./init.md) with `cabecao init`.
