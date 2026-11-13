@@ -41,6 +41,8 @@ const COMMAND_NAMES = [
   'obsidian',
   'export',
   'upgrade',
+  'install-skills',
+  'uninstall',
 ];
 
 function cabecao(args, env = process.env) {
@@ -207,6 +209,32 @@ if (expectUnsupported) {
       again.code === 0 && JSON.parse(again.stdout || 'null')?.data?.clients?.[0]?.status === 'unchanged',
       again,
     );
+
+    const skillsPrint = cabecao(['install-skills', '--print', 'codex'], env);
+    check(
+      'install-skills --print mostra as skills e não grava nada',
+      skillsPrint.code === 0 &&
+        skillsPrint.stdout.includes('name: cabecao-consultar') &&
+        !existsSync(join(home, '.agents')),
+      skillsPrint,
+    );
+    const skillsInstall = cabecao(['install-skills', 'codex'], env);
+    check(
+      'install-skills codex grava as skills numa pasta de usuário temporária',
+      skillsInstall.code === 0 && existsSync(join(home, '.agents', 'skills', 'cabecao-consultar', 'SKILL.md')),
+      skillsInstall,
+    );
+    const dryUninstall = cabecao(['uninstall', '--dry-run'], env);
+    check(
+      'uninstall --dry-run lista o que sairia e não remove nada',
+      dryUninstall.code === 0 &&
+        dryUninstall.stdout.includes('nada foi feito') &&
+        existsSync(join(home, '.agents', 'skills', 'cabecao-consultar', 'SKILL.md')),
+      dryUninstall,
+    );
+    // com CI ligado é agente mesmo rodando de um terminal: nunca pergunta nada no terminal de quem roda o smoke
+    const agentUninstall = cabecao(['uninstall'], { ...env, CI: 'true' });
+    check('uninstall sem terminal é recusado com o código 4', agentUninstall.code === 4, agentUninstall);
 
     const noBrain = cabecao(['status'], { ...env, CABECAO_BRAIN: join(home, 'não existe') });
     check(

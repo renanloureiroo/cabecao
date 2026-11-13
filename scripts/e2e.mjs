@@ -244,6 +244,7 @@ async function mcpSession(machine, calls) {
     });
 
   const results = [];
+  const tools = [];
   try {
     const opened = await request('initialize', {
       protocolVersion: '2025-11-25',
@@ -252,6 +253,8 @@ async function mcpSession(machine, calls) {
     });
     if (opened.result === undefined) throw new Error(`initialize falhou: ${JSON.stringify(opened.error)}`);
     send({ method: 'notifications/initialized' });
+    const listed = await request('tools/list', {});
+    tools.push(...(listed.result?.tools ?? []).map((tool) => tool.name));
     for (const [name, args] of calls) {
       const response = await request('tools/call', { name, arguments: args });
       results.push(response.result ?? { isError: true, error: response.error });
@@ -269,7 +272,68 @@ async function mcpSession(machine, calls) {
       return true;
     }
   });
-  return { results, code, stderr, notJson };
+  return { results, code, stderr, notJson, tools };
+}
+
+/** O executável do git no PATH deste processo (para montar um PATH só com node, git e os falsos do teste). */
+function gitDir() {
+  const exts = process.platform === 'win32' ? ['.exe', '.cmd'] : [''];
+  for (const dir of (process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':')) {
+    for (const ext of exts) if (dir !== '' && existsSync(join(dir, `git${ext}`))) return dir;
+  }
+  throw new Error('git não está no PATH');
+}
+
+/**
+ * Uma máquina com o PATH restrito a node, git e, se pedido, um "claude" FALSO que só anota os argumentos (nunca o
+ * Claude Code de verdade). É a que roda o init sem --no-clients: ele detecta e registra o que achar na pasta temporária.
+ */
+function restrictedMachine(name, { fakeClaude = false } = {}) {
+  const machine = machineEnv(name);
+  const fakeBin = join(root, `bin falso ${name}`);
+  mkdirSync(fakeBin, { recursive: true });
+  const log = join(fakeBin, 'claude.log');
+  if (fakeClaude) {
+    if (process.platform === 'win32') {
+      writeFileSync(join(fakeBin, 'claude.cmd'), `@echo %* >> "${log}"\r\n@exit /b 0\r\n`);
+    } else {
+      writeFileSync(join(fakeBin, 'claude'), `#!/bin/sh\necho "$@" >> '${log}'\nexit 0\n`, { mode: 0o755 });
+    }
+  }
+  const sep = process.platform === 'win32' ? ';' : ':';
+  const path = [fakeBin, dirname(process.execPath), gitDir()].join(sep);
+  return { ...machine, env: { ...machine.env, PATH: path, Path: path }, log };
+}
+
+/** O fim do init leva ao primeiro sucesso: "Pronto", o que ficou em cada agente, o teste e os opcionais detectados. */
+function initEndPart(remote) {
+  const none = restrictedMachine('sem agente');
+  const plain = cabecao(none, ['init', remote, '--dir', join(root, 'sem agente', 'cérebro')]);
+  check(
+    'init sem agente: "Pronto", nenhum agente, o teste e os opcionais (sync automático, busca por significado)',
+    plain.code === 0 &&
+      plain.stdout.startsWith('Pronto. Seu cérebro está em ') &&
+      plain.stdout.includes('Agentes: nenhum encontrado nesta máquina.') &&
+      plain.stdout.includes('Teste agora:\n  1. Depois de conectar um agente, peça a ele:') &&
+      plain.stdout.includes('cabecao search "respostas curtas"') &&
+      /Opcional \(rode quando quiser\):\n {2}cabecao schedule on/.test(plain.stdout) &&
+      plain.stdout.includes('cabecao embeddings on'),
+    plain,
+  );
+  const withClaude = restrictedMachine('com claude', { fakeClaude: true });
+  mkdirSync(join(withClaude.home, '.claude'), { recursive: true });
+  const claude = cabecao(withClaude, ['init', remote, '--dir', join(root, 'com claude', 'cérebro')]);
+  const logged = existsSync(withClaude.log) ? readFileSync(withClaude.log, 'utf8') : '';
+  check(
+    'init com o Claude Code: registra (pelo "claude" falso), manda testar no Claude Code e sugere as skills',
+    claude.code === 0 &&
+      /Claude Code +servidor MCP registrado/.test(claude.stdout) &&
+      claude.stdout.includes('1. No Claude Code, peça: "guarde que eu prefiro respostas curtas, em tópicos"') &&
+      /cabecao install-skills +ensina Claude Code a usar o cérebro/.test(claude.stdout) &&
+      (process.platform === 'win32' || logged.includes('mcp add-json cabecao')),
+    { claude, logged },
+  );
+  return { none, withClaude };
 }
 
 async function main() {
@@ -323,6 +387,8 @@ async function main() {
   ) {
     return;
   }
+  initEndPart(remote);
+
   const searchB = cabecao(B, ['search', 'zebralunar', '--json']);
   check(
     'B: search acha a nota escrita em A',
@@ -393,6 +459,14 @@ async function main() {
       ['sync', {}],
     ]);
     const [written, synced] = session.results;
+    const manifest = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../integrations/mcpb/manifest.json', import.meta.url)), 'utf8'),
+    );
+    check(
+      'o servidor do bundle recém-construído lista exatamente as tools do manifesto do .mcpb',
+      JSON.stringify([...session.tools].sort()) === JSON.stringify(manifest.tools.map((tool) => tool.name).sort()),
+      { tools: session.tools, manifest: manifest.tools.map((tool) => tool.name) },
+    );
     check(
       'B: cabecao mcp responde, e write_page grava a nota',
       written?.isError !== true && typeof written?.structuredContent?.op === 'string' && read(dirB, created) !== null,
@@ -635,6 +709,18 @@ async function embeddingsPart(plainA, plainB, dirA, dirB, remote) {
     git(['for-each-ref', '--format=%(refname)', 'refs/heads/cabecao/'], remote) === 'refs/heads/cabecao/index',
     git(['for-each-ref'], remote),
   );
+  // uma máquina nova, sem o runtime de embeddings: o fim do init diz que o cérebro usa busca por significado
+  const third = restrictedMachine('terceira');
+  const initThird = cabecao(third, ['init', remote, '--dir', join(root, 'terceira', 'cérebro')]);
+  check(
+    'segunda máquina num cérebro com busca por significado: o opcional diz o modelo e o comando',
+    initThird.code === 0 &&
+      /cabecao embeddings on +este cérebro usa busca por significado\s+\(multilingual-e5-small\)/.test(
+        initThird.stdout,
+      ),
+    initThird,
+  );
+
   const syncB = cabecao(B, ['sync', '--json']);
   const indexB = json(syncB)?.data?.index;
   check(
