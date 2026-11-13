@@ -5,13 +5,18 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOL_NAMES } from '@cabecao/server';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import {
+  agentEnv,
+  CALLABLE_AGENT_IDS,
+  CALLABLE_AGENTS,
+  chooseAgent,
+  NOT_CALLABLE_AGENTS,
+} from '../src/agents/index.ts';
 import type { AgentAdapter } from '../src/consolidate-run/agents.ts';
-import { RUN_AGENT_IDS, RUN_AGENTS, UNSUPPORTED_AGENTS } from '../src/consolidate-run/agents.ts';
+import { RUN_AGENTS } from '../src/consolidate-run/agents.ts';
 import type { RunOptions } from '../src/consolidate-run/run.ts';
-import { agentEnv, chooseAgent, runConsolidation } from '../src/consolidate-run/run.ts';
-import { SERVER_TOOL_NAMES } from '../src/consolidate-run/tools.ts';
+import { runConsolidation } from '../src/consolidate-run/run.ts';
 import type { CommandContext, CommandResult } from '../src/types.ts';
 import type { Machine } from './helpers.ts';
 import { brainRepo, disposeSandbox, freshDir, git, machine, parseJson, TEST_TIMEOUT_MS } from './helpers.ts';
@@ -54,7 +59,6 @@ function fakeAgent(scenario: string, report: string): AgentAdapter {
   const claude = RUN_AGENTS['claude-code'];
   return {
     ...claude,
-    binary: process.execPath,
     prepare(input) {
       const base = claude.prepare(input);
       return {
@@ -120,7 +124,13 @@ async function runFake(
     context(m, brain, stderr),
     { ...OPTIONS, ...options },
     {
-      choose: async () => ({ adapter: fakeAgent(scenario, reportPath), path: process.execPath, source: 'flag' }),
+      choose: async () => ({
+        agent: CALLABLE_AGENTS['claude-code'],
+        path: process.execPath,
+        credentials: {},
+        source: 'flag',
+      }),
+      adapter: () => fakeAgent(scenario, reportPath),
       graceMs: 500,
     },
   );
@@ -236,7 +246,7 @@ describe('consolidate --run pela linha de comando', { timeout: TEST_TIMEOUT_MS }
   it('--dry-run mostra o comando e a configuração temporária, sem criar ponto de restauração', async () => {
     const brain = await brainRepo();
     const m = machine();
-    for (const agent of RUN_AGENT_IDS) {
+    for (const agent of CALLABLE_AGENT_IDS) {
       const result = await m.cabecao(['consolidate', '--run', '--agent', agent, '--dry-run', '--brain', brain]);
       expect(result.code).toBe(0);
       expect(result.stdout).toContain('Simulação (--dry-run)');
@@ -250,6 +260,15 @@ describe('consolidate --run pela linha de comando', { timeout: TEST_TIMEOUT_MS }
       await m.cabecao(['consolidate', '--run', '--agent', 'codex', '--dry-run', '--json', '--brain', brain]),
     );
     expect(json.data.command).toContain('--ignore-user-config');
+    // sem chave de API, a simulação avisa; com ela, mostra o nome da variável e nunca o valor
+    expect(
+      (await m.cabecao(['consolidate', '--run', '--agent', 'codex', '--dry-run', '--brain', brain])).stdout,
+    ).toContain('só é chamado com chave de API');
+    const keyed = await m.cabecao(['consolidate', '--run', '--agent', 'codex', '--dry-run', '--brain', brain], {
+      env: { ...m.env, OPENAI_API_KEY: 'sk-teste-nao-mostrar' },
+    });
+    expect(keyed.stdout).toContain('CODEX_API_KEY');
+    expect(keyed.stdout).not.toContain('sk-teste-nao-mostrar');
     expect(await git(brain, ['tag', '--list'])).toBe('');
   });
 
@@ -261,17 +280,45 @@ describe('consolidate --run pela linha de comando', { timeout: TEST_TIMEOUT_MS }
     expect(parseJson(result).error).toMatchObject({ code: 'EAGENT_MISSING' });
     const auto = await m.cabecao(['consolidate', '--run', '--brain', brain]);
     expect(auto.code).toBe(1);
-    expect(auto.stderr).toContain('nenhum agente com --run instalado');
+    expect(auto.stderr).toContain('nenhum agente que o Cabeção pode chamar está disponível');
     expect(await git(brain, ['tag', '--list'])).toBe('');
   });
 
-  it('agentes sem --run: gemini aponta o Antigravity, cursor explica o porquê', async () => {
+  it('Antigravity e Gemini CLI: os termos não permitem; a mensagem cita a fonte e a alternativa, e nada é criado', async () => {
     const brain = await brainRepo();
     const m = machine();
-    const gemini = await m.cabecao(['consolidate', '--run', '--agent', 'gemini', '--brain', brain]);
-    expect(gemini.code).toBe(1);
-    expect(gemini.stderr).toContain('--agent antigravity');
+    for (const name of ['antigravity', 'gemini']) {
+      const result = await m.cabecao(['consolidate', '--run', '--agent', name, '--brain', brain, '--json']);
+      expect(result.code).toBe(1);
+      const error = parseJson(result).error;
+      expect(error.code).toBe('EAGENT_UNSUPPORTED');
+      expect(error.message).toContain('https://antigravity.google/docs/faq/');
+      expect(error.message).toContain('consolidate');
+      // nem a simulação o oferece
+      const dry = await m.cabecao(['consolidate', '--run', '--agent', name, '--dry-run', '--brain', brain]);
+      expect(dry.code).toBe(1);
+    }
+    expect(await git(brain, ['tag', '--list'])).toBe('');
+  });
+
+  it('Codex sem chave de API: recusado com a fonte, sem usar o login do ChatGPT', async () => {
+    const brain = await brainRepo();
+    const m = machine();
+    const name = process.platform === 'win32' ? 'codex.exe' : 'codex';
+    await writeFile(join(m.pathDir, name), '#!/bin/sh\n');
+    await chmod(join(m.pathDir, name), 0o755);
+    const result = await m.cabecao(['consolidate', '--run', '--agent', 'codex', '--brain', brain, '--json']);
+    expect(result.code).toBe(1);
+    expect(parseJson(result).error).toMatchObject({ code: 'EAGENT_CREDENTIALS' });
+    expect(parseJson(result).error.message).toContain('https://learn.chatgpt.com/docs/auth');
+    expect(await git(brain, ['tag', '--list'])).toBe('');
+  });
+
+  it('cursor explica o porquê; nome desconhecido é erro de uso', async () => {
+    const brain = await brainRepo();
+    const m = machine();
     const cursor = await m.cabecao(['consolidate', '--run', '--agent', 'cursor', '--brain', brain]);
+    expect(cursor.code).toBe(1);
     expect(cursor.stderr).toContain('shell');
     const unknown = await m.cabecao(['consolidate', '--run', '--agent', 'qualquer', '--brain', brain]);
     expect(unknown.code).toBe(2);
@@ -287,20 +334,28 @@ describe('consolidate --run pela linha de comando', { timeout: TEST_TIMEOUT_MS }
 
 describe('escolha do agente', () => {
   it.skipIf(process.platform === 'win32')(
-    'sem --agent: o configurado na máquina, senão o primeiro instalado',
+    'sem --agent: o configurado na máquina, senão o primeiro instalado e com credencial; agy nunca entra',
     async () => {
       const m = machine();
-      for (const name of ['codex', 'agy']) {
+      for (const name of ['codex', 'agy', 'gemini']) {
         await writeFile(join(m.pathDir, name), '#!/bin/sh\n');
         await chmod(join(m.pathDir, name), 0o755);
       }
-      const auto = await chooseAgent(m.io, undefined, false);
-      expect(auto).toMatchObject({ source: 'auto', adapter: { id: 'codex' } });
+      // instalados, mas o Codex sem chave de API e o Antigravity fora da lista: nenhum disponível
+      await expect(chooseAgent(m.io, undefined, false)).rejects.toMatchObject({ code: 'EAGENT_MISSING' });
+      const withKey = { ...m.io, env: { ...m.env, CODEX_API_KEY: 'k' } };
+      const auto = await chooseAgent(withKey, undefined, false);
+      expect(auto).toMatchObject({ source: 'auto', agent: { id: 'codex' }, credentials: { CODEX_API_KEY: 'k' } });
+      await writeFile(join(m.pathDir, 'claude'), '#!/bin/sh\n');
+      await chmod(join(m.pathDir, 'claude'), 0o755);
+      expect(await chooseAgent(withKey, undefined, false)).toMatchObject({ agent: { id: 'claude-code' } });
       await mkdir(m.configDir, { recursive: true });
+      await writeFile(join(m.configDir, 'config.json'), JSON.stringify({ machine: 'teste', agent: 'codex' }));
+      const configured = await chooseAgent(withKey, undefined, false);
+      expect(configured).toMatchObject({ source: 'config', agent: { id: 'codex' } });
+      expect(configured.path).toBe(join(m.pathDir, 'codex'));
       await writeFile(join(m.configDir, 'config.json'), JSON.stringify({ machine: 'teste', agent: 'antigravity' }));
-      const configured = await chooseAgent(m.io, undefined, false);
-      expect(configured).toMatchObject({ source: 'config', adapter: { id: 'antigravity' } });
-      expect(configured.path).toBe(join(m.pathDir, 'agy'));
+      await expect(chooseAgent(withKey, undefined, false)).rejects.toMatchObject({ code: 'EAGENT_UNSUPPORTED' });
     },
   );
 });
@@ -314,7 +369,7 @@ describe('adaptadores', () => {
   const input = { workDir: '/tmp/w', server, prompt: 'roteiro', model: undefined, timeoutMs: 600_000 };
 
   it('nenhum adaptador pula as permissões', () => {
-    for (const id of RUN_AGENT_IDS) {
+    for (const id of CALLABLE_AGENT_IDS) {
       const args = RUN_AGENTS[id].prepare(input).args.join(' ');
       expect(args).not.toMatch(/dangerously|bypassPermissions|--yolo|--force|always-proceed/);
     }
@@ -353,22 +408,6 @@ describe('adaptadores', () => {
     expect(args.at(-1)).toBe('-');
   });
 
-  it('Antigravity: configuração na pasta de trabalho, permissões só da sessão', () => {
-    const invocation = RUN_AGENTS.antigravity.prepare(input);
-    const args = invocation.args;
-    const settings = JSON.parse(args[args.indexOf('--settings') + 1] ?? '{}');
-    expect(settings.permissions.allow).toEqual(['mcp(cabecao-run/*)']);
-    expect(settings.permissions.deny).toEqual(['command(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)']);
-    expect(settings.trustedWorkspaces).toEqual(['/tmp/w']);
-    expect(args[args.indexOf('--print') + 1]).toBe('roteiro');
-    expect(args).toContain('--sandbox');
-    const file = invocation.files[0];
-    expect(file?.path).toBe('.agents/mcp_config.json');
-    const config = JSON.parse(file?.content ?? '{}');
-    expect(config.mcpServers['cabecao-run'].command).toBe('/node');
-    expect(config.mcpServers['cabecao-run'].tools.consolidate).toEqual({ eager: true });
-  });
-
   it('leitura da saída de cada agente', () => {
     expect(
       RUN_AGENTS['claude-code'].parse({
@@ -389,23 +428,13 @@ describe('adaptadores', () => {
         stderr: '',
       }),
     ).toEqual({ summary: 'feito', costUsd: null, turns: 1, error: null });
-    expect(
-      RUN_AGENTS.antigravity.parse({
-        code: 1,
-        stdout: '{"conversation_id":"c","status":"ERROR","error":"quota","num_turns":2}',
-        stderr: '',
-      }),
-    ).toMatchObject({ error: 'quota', turns: 2 });
   });
 
   it('agentes sem --run têm o motivo escrito', () => {
-    for (const name of ['gemini', 'cursor', 'vscode', 'copilot', 'claude-desktop', 'opencode']) {
-      expect(UNSUPPORTED_AGENTS[name]?.length ?? 0).toBeGreaterThan(20);
+    for (const name of ['antigravity', 'gemini', 'cursor', 'vscode', 'copilot', 'claude-desktop', 'opencode']) {
+      expect(NOT_CALLABLE_AGENTS[name]?.length ?? 0).toBeGreaterThan(20);
     }
-  });
-
-  it('a cópia dos nomes das tools é a mesma do servidor', () => {
-    expect([...SERVER_TOOL_NAMES]).toEqual([...TOOL_NAMES]);
+    expect(Object.keys(RUN_AGENTS).sort()).toEqual([...CALLABLE_AGENT_IDS].sort());
   });
 
   it('ambiente mínimo: só sistema, pastas, rede, git e o login do agente', () => {
@@ -418,9 +447,22 @@ describe('adaptadores', () => {
         AWS_SECRET_ACCESS_KEY: 's',
         GITHUB_TOKEN: 'g',
       },
-      RUN_AGENTS['claude-code'],
+      CALLABLE_AGENTS['claude-code'],
+      {},
       { EXTRA: '1' },
     );
     expect(env).toEqual({ PATH: '/p', HOME: '/h', ANTHROPIC_API_KEY: 'k', EXTRA: '1' });
+    // o Codex recebe só a chave de API como CODEX_API_KEY, nunca o resto
+    const codex = CALLABLE_AGENTS.codex;
+    expect(
+      agentEnv(
+        { PATH: '/p', OPENAI_API_KEY: 'o', GITHUB_TOKEN: 'g' },
+        codex,
+        codex.credentials({ OPENAI_API_KEY: 'o' }),
+      ),
+    ).toEqual({
+      PATH: '/p',
+      CODEX_API_KEY: 'o',
+    });
   });
 });
