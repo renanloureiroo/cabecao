@@ -15,60 +15,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { ConsolidateOutput, ConsolidationState, UndoOutput } from '@cabecao/core';
 import { cacheDir, consolidateRunRoutine } from '@cabecao/core';
-import { dirContext, readMachine, resolveBrain, withBrain } from '../brain.ts';
-import { CliError, UsageError } from '../errors.ts';
-import { findExecutable } from '../install-client/files.ts';
+import type { AgentProcessOptions, AgentProcessResult, ChosenAgent } from '../agents/index.ts';
+import { agentEnv, chooseAgent, pickEnv, runAgentProcess, SOURCE_TEXT } from '../agents/index.ts';
+import { dirContext, resolveBrain, withBrain } from '../brain.ts';
 import type { CommandContext, CommandResult, Env } from '../types.ts';
 import type { AgentAdapter, AgentReport, Invocation, ServerLaunch } from './agents.ts';
-import { isRunAgentId, RUN_AGENT_IDS, RUN_AGENTS, UNSUPPORTED_AGENTS } from './agents.ts';
-import type { AgentProcessOptions, AgentProcessResult } from './process.ts';
-import { runAgentProcess } from './process.ts';
+import { RUN_AGENTS } from './agents.ts';
 
 export const DEFAULT_TIMEOUT_MINUTES = 20;
 export const MAX_TIMEOUT_MINUTES = 240;
-
-/** Variáveis do ambiente que o agente recebe: sistema, pastas, rede (proxy e certificados), git e Cabeção. */
-const BASE_ENV = [
-  'PATH',
-  'Path',
-  'PATHEXT',
-  'HOME',
-  'USERPROFILE',
-  'HOMEDRIVE',
-  'HOMEPATH',
-  'APPDATA',
-  'LOCALAPPDATA',
-  'PROGRAMDATA',
-  'SystemRoot',
-  'SYSTEMROOT',
-  'windir',
-  'ComSpec',
-  'TEMP',
-  'TMP',
-  'TMPDIR',
-  'USER',
-  'USERNAME',
-  'LOGNAME',
-  'LANG',
-  'LC_ALL',
-  'LC_CTYPE',
-  'TZ',
-  'XDG_CONFIG_HOME',
-  'XDG_DATA_HOME',
-  'XDG_CACHE_HOME',
-  'XDG_STATE_HOME',
-  'XDG_RUNTIME_DIR',
-  'DBUS_SESSION_BUS_ADDRESS',
-  'HTTPS_PROXY',
-  'HTTP_PROXY',
-  'NO_PROXY',
-  'https_proxy',
-  'http_proxy',
-  'no_proxy',
-  'NODE_EXTRA_CA_CERTS',
-  'SSL_CERT_FILE',
-  'SSL_CERT_DIR',
-] as const;
 
 /** O que o servidor do Cabeção precisa para achar o cérebro, a configuração da máquina e o git. */
 const SERVER_ENV = [
@@ -97,22 +52,8 @@ const SERVER_ENV = [
   'GIT_COMMITTER_EMAIL',
 ] as const;
 
-function pick(env: Env, names: readonly string[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const name of names) {
-    const value = env[name];
-    if (value !== undefined && value !== '') out[name] = value;
-  }
-  return out;
-}
-
-/** Ambiente mínimo do agente: o de base, o do login dele e o que o adaptador acrescenta. Nada mais é repassado. */
-export function agentEnv(env: Env, adapter: AgentAdapter, extra: Readonly<Record<string, string>>): Env {
-  return { ...pick(env, [...BASE_ENV, ...adapter.loginEnv]), ...extra };
-}
-
 export function serverEnv(env: Env): Record<string, string> {
-  return pick(env, SERVER_ENV);
+  return pickEnv(env, SERVER_ENV);
 }
 
 /** Como o agente inicia o servidor: o mesmo Node e o mesmo arquivo do `cabecao` que está rodando agora. */
@@ -143,73 +84,6 @@ export async function serverLaunch(
   const npx = ['npx', '-y', 'cabecao', ...mcpArgs];
   if (ctx.platform === 'win32') return { command: 'cmd', args: ['/c', ...npx], env };
   return { command: 'npx', args: npx.slice(1), env };
-}
-
-export interface ChosenAgent {
-  readonly adapter: AgentAdapter;
-  /** Caminho do executável, ou `null` se não foi achado (só no `--dry-run`). */
-  readonly path: string | null;
-  readonly source: 'flag' | 'config' | 'auto';
-}
-
-function unsupported(name: string): CliError {
-  return new CliError(`o agente "${name}" não tem --run: ${UNSUPPORTED_AGENTS[name] ?? ''}`, {
-    code: 'EAGENT_UNSUPPORTED',
-    hint: `Agentes com --run: ${RUN_AGENT_IDS.join(', ')}.`,
-  });
-}
-
-async function locate(ctx: Pick<CommandContext, 'env' | 'platform'>, adapter: AgentAdapter): Promise<string | null> {
-  const found = await findExecutable(adapter.binary, ctx);
-  if (found === undefined) return null;
-  // um `.cmd`/`.bat` no Windows só roda por shell, e o roteiro e o JSON nos argumentos não passam por um com segurança
-  if (ctx.platform === 'win32' && /\.(?:cmd|bat)$/i.test(found)) {
-    throw new CliError(`${found} é um script .cmd: o Cabeção não roda o agente por shell`, {
-      code: 'EAGENT_SHELL',
-      hint: `Instale a versão nativa (.exe) do ${adapter.label}.`,
-    });
-  }
-  return found;
-}
-
-/**
- * O agente: o de `--agent`; senão o da configuração da máquina (`"agent"` no config.json); senão o primeiro instalado na
- * ordem de `RUN_AGENT_IDS` (claude-code, codex, antigravity).
- */
-export async function chooseAgent(
-  ctx: Pick<CommandContext, 'env' | 'platform' | 'homedir'>,
-  requested: string | undefined,
-  dryRun: boolean,
-): Promise<ChosenAgent> {
-  const resolveNamed = async (name: string, source: 'flag' | 'config'): Promise<ChosenAgent> => {
-    if (!isRunAgentId(name)) {
-      if (name in UNSUPPORTED_AGENTS) throw unsupported(name);
-      const message = `agente desconhecido: ${name}. Os agentes com --run são: ${RUN_AGENT_IDS.join(', ')}`;
-      if (source === 'flag') throw new UsageError(message);
-      throw new CliError(`${message} (veio de "agent" na configuração da máquina)`, { code: 'EAGENT_UNKNOWN' });
-    }
-    const adapter = RUN_AGENTS[name];
-    const path = await locate(ctx, adapter);
-    if (path === null && !dryRun) {
-      throw new CliError(`o ${adapter.label} (comando "${adapter.binary}") não está instalado nesta máquina`, {
-        code: 'EAGENT_MISSING',
-        hint: `Instale e faça login no ${adapter.label}, ou escolha outro com --agent (${RUN_AGENT_IDS.join(', ')}).`,
-      });
-    }
-    return { adapter, path, source };
-  };
-  if (requested !== undefined) return resolveNamed(requested, 'flag');
-  const configured = (await readMachine(ctx))?.agent;
-  if (configured !== undefined) return resolveNamed(configured, 'config');
-  for (const id of RUN_AGENT_IDS) {
-    const adapter = RUN_AGENTS[id];
-    const path = await locate(ctx, adapter);
-    if (path !== null) return { adapter, path, source: 'auto' };
-  }
-  throw new CliError('nenhum agente com --run instalado nesta máquina', {
-    code: 'EAGENT_MISSING',
-    hint: `Instale e faça login num destes: ${RUN_AGENT_IDS.map((id) => `${RUN_AGENTS[id].label} (${RUN_AGENTS[id].binary})`).join(', ')}.`,
-  });
 }
 
 /** O material do `start`, enxuto, para ir no roteiro como dado. */
@@ -247,6 +121,8 @@ export function materialJson(output: ConsolidateOutput): string {
 export interface RunDeps {
   /** Escolha do agente (nos testes, sem procurar no `PATH`). */
   readonly choose?: (requested: string | undefined, dryRun: boolean) => Promise<ChosenAgent>;
+  /** O adaptador do agente escolhido (nos testes, um agente falso). */
+  readonly adapter?: (chosen: ChosenAgent) => AgentAdapter;
   readonly spawn?: (file: string, args: readonly string[], options: AgentProcessOptions) => Promise<AgentProcessResult>;
   /** Tolerância entre SIGTERM e SIGKILL (testes). */
   readonly graceMs?: number;
@@ -260,12 +136,6 @@ export interface RunOptions {
   readonly model: string | undefined;
   readonly allowForget: boolean;
 }
-
-const SOURCE_TEXT: Readonly<Record<ChosenAgent['source'], string>> = {
-  flag: 'escolhido com --agent',
-  config: 'configurado em "agent" no config.json da máquina',
-  auto: `o primeiro instalado na ordem ${RUN_AGENT_IDS.join(', ')}`,
-};
 
 function shellQuote(value: string): string {
   return /^[A-Za-z0-9_\-./:=@*]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
@@ -294,9 +164,10 @@ async function dryRun(
   ctx: CommandContext,
   brain: string,
   chosen: ChosenAgent,
+  adapter: AgentAdapter,
   options: RunOptions,
 ): Promise<CommandResult> {
-  const { adapter } = chosen;
+  const { agent } = chosen;
   const workDir = '<pasta temporária>';
   const server = await serverLaunch(ctx, brain, '<consolidation_id>', options.allowForget);
   const invocation = adapter.prepare({
@@ -306,17 +177,18 @@ async function dryRun(
     model: options.model,
     timeoutMs: options.timeoutMs,
   });
-  const file = chosen.path ?? adapter.binary;
-  const env = agentEnv(ctx.env, adapter, invocation.env);
+  const file = chosen.path ?? agent.binary;
+  const env = agentEnv(ctx.env, agent, chosen.credentials, invocation.env);
   const lines = [
-    `Agente: ${adapter.label} (${chosen.path ?? `"${adapter.binary}" não encontrado no PATH`}; ${SOURCE_TEXT[chosen.source]}).`,
+    `Agente: ${agent.label} (${chosen.path ?? `"${agent.binary}" não encontrado no PATH`}; ${SOURCE_TEXT[chosen.source]}).`,
     'Simulação (--dry-run): nada foi executado, nenhum ponto de restauração foi criado.',
+    ...(chosen.credentials === null ? [`Aviso: ${agent.missingCredentials}`] : []),
     '',
     `Diretório de trabalho: ${workDir} (vazia, apagada no fim)`,
     `Tempo limite: ${minutes(options.timeoutMs)}`,
     `Comando: ${[file, ...invocation.args].map((arg) => (arg.includes('\n') ? '<roteiro>' : shellQuote(arg))).join(' ')}`,
     invocation.stdin === null ? 'O roteiro vai nos argumentos.' : 'O roteiro vai pela entrada padrão.',
-    `Ambiente do agente (só estes nomes): ${Object.keys(env).sort().join(', ')}`,
+    `Ambiente do agente (só os nomes; os valores não são mostrados): ${Object.keys(env).sort().join(', ')}`,
     '',
     'Restrições:',
     ...adapter.restrictions.map((line) => `  - ${line}`),
@@ -371,7 +243,7 @@ async function removeDir(dir: string): Promise<boolean> {
 async function saveLog(
   ctx: Pick<CommandContext, 'env' | 'platform' | 'homedir' | 'stderr'>,
   id: string,
-  adapter: AgentAdapter,
+  label: string,
   file: string,
   result: AgentProcessResult,
 ): Promise<string | null> {
@@ -380,7 +252,7 @@ async function saveLog(
     await mkdir(dir, { recursive: true });
     const path = join(dir, `${id}.log`);
     const text = [
-      `# ${adapter.label} (${file}), código ${result.code ?? result.signal ?? 'nenhum'}, ${result.durationMs} ms${result.timedOut ? ', tempo limite' : ''}${result.interrupted ? ', interrompido' : ''}`,
+      `# ${label} (${file}), código ${result.code ?? result.signal ?? 'nenhum'}, ${result.durationMs} ms${result.timedOut ? ', tempo limite' : ''}${result.interrupted ? ', interrompido' : ''}`,
       '## stdout',
       result.stdout,
       '## stderr',
@@ -415,9 +287,10 @@ export async function runConsolidation(
     options.agent,
     options.dryRun,
   );
-  if (options.dryRun) return dryRun(ctx, brain, chosen, options);
-  const { adapter } = chosen;
-  const file = chosen.path ?? adapter.binary;
+  const adapter = (deps.adapter ?? ((c: ChosenAgent) => RUN_AGENTS[c.agent.id]))(chosen);
+  if (options.dryRun) return dryRun(ctx, brain, chosen, adapter, options);
+  const { agent } = chosen;
+  const file = chosen.path ?? agent.binary;
 
   // 1. start: ponto de restauração e material
   const started = await withBrain(ctx, brain, (b) =>
@@ -426,7 +299,7 @@ export async function runConsolidation(
   const id = started.consolidation_id;
   const tag = started.restore_point.tag;
   ctx.stderr.write(
-    `cabecao: ${adapter.label} (${SOURCE_TEXT[chosen.source]}) vai consolidar o cérebro sem ninguém olhando; tempo limite ${minutes(options.timeoutMs)}. Ponto de restauração: ${tag}.\n`,
+    `cabecao: ${agent.label} (${SOURCE_TEXT[chosen.source]}) vai consolidar o cérebro sem ninguém olhando; tempo limite ${minutes(options.timeoutMs)}. Ponto de restauração: ${tag}.\n`,
   );
 
   // 2. o agente, numa pasta temporária vazia
@@ -453,7 +326,7 @@ export async function runConsolidation(
     await writeFiles(workDir, invocation);
     result = await (deps.spawn ?? runAgentProcess)(file, invocation.args, {
       cwd: workDir,
-      env: agentEnv(ctx.env, adapter, invocation.env),
+      env: agentEnv(ctx.env, agent, chosen.credentials, invocation.env),
       stdin: invocation.stdin,
       timeoutMs: options.timeoutMs,
       platform: ctx.platform,
@@ -464,7 +337,7 @@ export async function runConsolidation(
     cleaned = await removeDir(workDir);
   }
   if (!cleaned) ctx.stderr.write(`cabecao: aviso: não consegui apagar a pasta temporária ${workDir}\n`);
-  const logPath = await saveLog(ctx, id, adapter, file, result);
+  const logPath = await saveLog(ctx, id, agent.label, file, result);
 
   // 3. conferir no git
   const state: ConsolidationState = await withBrain(ctx, brain, (b) => b.consolidationState(id));
@@ -480,7 +353,7 @@ export async function runConsolidation(
     error: report.error,
   };
   const head = [
-    `Agente: ${adapter.label} (${SOURCE_TEXT[chosen.source]}), ${minutes(result.durationMs)}${report.turns === null ? '' : `, ${report.turns} turno(s)`}${report.costUsd === null ? '' : `, US$ ${report.costUsd.toFixed(4)}`}.`,
+    `Agente: ${agent.label} (${SOURCE_TEXT[chosen.source]}), ${minutes(result.durationMs)}${report.turns === null ? '' : `, ${report.turns} turno(s)`}${report.costUsd === null ? '' : `, US$ ${report.costUsd.toFixed(4)}`}.`,
   ];
   const tail = logPath === null ? [] : [`Saída completa do agente: ${logPath}`];
   const base = {

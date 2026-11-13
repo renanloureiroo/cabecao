@@ -1,8 +1,8 @@
 // `cabecao consolidate`: prepara a consolidação (ponto de restauração e material) e a fecha. Quem raciocina é um
-// agente (o Cabeção não tem LLM). Com `--run`, a CLI chama um agente não interativo (Claude Code, Codex ou
-// Antigravity) com uma configuração de MCP temporária e confere o resultado: ver `consolidate-run/run.ts`. O nome das
-// tools deixa de depender de como o servidor foi instalado, porque o agente só enxerga o servidor da configuração
-// temporária.
+// agente (o Cabeção não tem LLM). Com `--run`, a CLI chama um agente não interativo (Claude Code ou Codex, os que os
+// termos permitem: `agents/policy.ts`) com uma configuração de MCP temporária e confere o resultado: ver
+// `consolidate-run/run.ts`. O nome das tools deixa de depender de como o servidor foi instalado, porque o agente só
+// enxerga o servidor da configuração temporária.
 import type { ConsolidateOutput } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import { DEFAULT_TIMEOUT_MINUTES, MAX_TIMEOUT_MINUTES, runConsolidation } from '../consolidate-run/run.ts';

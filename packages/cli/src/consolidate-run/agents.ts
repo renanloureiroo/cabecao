@@ -1,23 +1,14 @@
-// Adaptadores dos agentes que o `cabecao consolidate --run` sabe chamar sem ninguém olhando. Cada um sabe três coisas:
-// montar o comando (argumentos, sem shell), escrever a configuração de MCP TEMPORÁRIA que aponta só para o servidor do
-// Cabeção (nunca a do usuário) e ler a saída. Tudo aqui é puro: quem cria a pasta, grava os arquivos e roda o processo é
-// `run.ts`; os testes conferem os argumentos sem executar agente nenhum.
+// Adaptadores dos agentes que o `cabecao consolidate --run` chama sem ninguém olhando. Quem pode ser chamado, e com que
+// credencial, é decidido em `agents/policy.ts` (termos de uso conferidos em fonte oficial); aqui fica o que é próprio
+// da consolidação: montar os argumentos (sem shell), escrever a configuração de MCP TEMPORÁRIA que aponta só para o
+// servidor do Cabeção (nunca a do usuário), restringir o agente às tools dele e ler a saída. Tudo aqui é puro: quem
+// cria a pasta, grava os arquivos e roda o processo é `run.ts`; os testes conferem os argumentos sem executar nada.
 //
-// A regra de entrada é a segurança: um agente só tem adaptador se, em modo não interativo, dá para liberar APENAS as
-// tools do servidor `cabecao` e negar shell, edição de arquivos e rede. Os que não deixam (ou que não foram testados)
-// ficam em `UNSUPPORTED_AGENTS`, com o motivo, que a CLI mostra a quem pedir por eles.
-//
-// Fontes (consultadas em 13/11/2026) e versões conferidas com `--help` nesta data: Claude Code 2.1.323, Codex CLI
-// 0.159.3, Antigravity CLI (`agy`) 1.5.0. Detalhes na pesquisa interna "Agentes - pesquisa de novembro de 2026".
+// A segunda regra de entrada é a segurança: em modo não interativo, dá para liberar APENAS as tools do servidor
+// `cabecao` e negar shell, edição de arquivos e rede. Versões conferidas com `--help` em 13/11/2026: Claude Code
+// 2.1.323 e Codex CLI 0.159.3.
 import { join } from 'node:path';
-import { SERVER_TOOL_NAMES } from './tools.ts';
-
-export const RUN_AGENT_IDS = ['claude-code', 'codex', 'antigravity'] as const;
-export type RunAgentId = (typeof RUN_AGENT_IDS)[number];
-
-export function isRunAgentId(value: string): value is RunAgentId {
-  return (RUN_AGENT_IDS as readonly string[]).includes(value);
-}
+import type { CallableAgentId } from '../agents/policy.ts';
 
 /** Como o agente inicia o servidor do Cabeção: `node <bin> mcp --brain <cérebro> --consolidation <id>`. */
 export interface ServerLaunch {
@@ -64,36 +55,16 @@ export interface ProcessOutput {
 }
 
 export interface AgentAdapter {
-  readonly id: RunAgentId;
-  readonly label: string;
-  /** Executável procurado no `PATH`. */
-  readonly binary: string;
+  readonly id: CallableAgentId;
   /** Nome do servidor do Cabeção na configuração temporária. */
   readonly serverName: string;
   /** Como o nome de uma tool aparece para o modelo (para o roteiro). */
   readonly toolExample: string;
   /** O que fica liberado e negado, em português (para o `--dry-run` e para a documentação). */
   readonly restrictions: readonly string[];
-  /** Variáveis de ambiente do login do agente que são repassadas (o resto do ambiente não vai). */
-  readonly loginEnv: readonly string[];
   prepare(input: PrepareInput): Invocation;
   parse(output: ProcessOutput): AgentReport;
 }
-
-/** Agentes conhecidos sem `--run`, com o motivo. */
-export const UNSUPPORTED_AGENTS: Readonly<Record<string, string>> = {
-  gemini:
-    'o Gemini CLI deixou de atender contas pessoais em 18/06/2026 e foi substituído pelo Antigravity CLI (agy): use --agent antigravity. Para quem ainda tem o Gemini CLI (licença Enterprise ou chave paga), o modo não interativo não foi testado.',
-  cursor:
-    'o Cursor Agent em modo não interativo ("cursor-agent -p") tem acesso a todas as tools, inclusive shell e escrita; as permissões só se configuram em arquivo e a documentação não diz o que acontece com uma ação não liberada sem ninguém olhando. Sem essa garantia, o Cabeção não o chama.',
-  vscode:
-    'o VS Code não tem modo não interativo; o GitHub Copilot CLI ("copilot -p") tem opções para restringir as tools, mas ainda não foi testado com o Cabeção.',
-  copilot:
-    'o GitHub Copilot CLI ("copilot -p") tem opções para restringir as tools, mas ainda não foi testado com o Cabeção.',
-  'claude-desktop': 'o Claude Desktop é um aplicativo de mesa, sem modo não interativo: use --agent claude-code.',
-  opencode:
-    'o OpenCode ("opencode run") permite negar shell e edição por configuração, mas ainda não foi testado com o Cabeção.',
-};
 
 const SUMMARY_MAX = 2000;
 
@@ -133,7 +104,7 @@ function stderrTail(output: ProcessOutput): string | null {
   return text === '' ? null : text.split('\n').slice(-3).join(' ').slice(0, 500);
 }
 
-/** A entrada da configuração JSON de MCP (o formato `mcpServers` do Claude Code e do Antigravity). */
+/** A entrada da configuração JSON de MCP (o formato `mcpServers` do Claude Code). */
 function jsonServer(server: ServerLaunch): Record<string, unknown> {
   return { command: server.command, args: [...server.args], env: { ...server.env } };
 }
@@ -146,8 +117,6 @@ function jsonServer(server: ServerLaunch): Record<string, unknown> {
  */
 const claudeCode: AgentAdapter = {
   id: 'claude-code',
-  label: 'Claude Code',
-  binary: 'claude',
   serverName: 'cabecao',
   toolExample: 'mcp__cabecao__recall',
   restrictions: [
@@ -155,20 +124,6 @@ const claudeCode: AgentAdapter = {
     'nenhuma tool embutida (--tools ""): sem shell, sem leitura ou edição de arquivos, sem busca ou acesso à web, sem subagentes',
     'só as tools do servidor do Cabeção liberadas (--allowedTools mcp__cabecao__*); qualquer outro pedido de permissão é negado (--permission-mode dontAsk, --permission-prompts none)',
     'sem as configurações do usuário, do projeto e locais (--restricted), sem comandos de barra nem skills (--disable-slash-commands) e sem gravar a sessão (--no-session-persistence)',
-  ],
-  loginEnv: [
-    'ANTHROPIC_API_KEY',
-    'ANTHROPIC_AUTH_TOKEN',
-    'ANTHROPIC_BASE_URL',
-    'CLAUDE_CONFIG_DIR',
-    'CLAUDE_CODE_OAUTH_TOKEN',
-    'CLAUDE_CODE_USE_BEDROCK',
-    'CLAUDE_CODE_USE_VERTEX',
-    'CLAUDE_CODE_USE_FOUNDRY',
-    'AWS_PROFILE',
-    'AWS_REGION',
-    'ANTHROPIC_VERTEX_PROJECT_ID',
-    'CLOUD_ML_REGION',
   ],
   prepare(input) {
     const config = { mcpServers: { cabecao: { type: 'stdio', ...jsonServer(input.server) } } };
@@ -245,8 +200,8 @@ const CODEX_DISABLED_FEATURES = [
 /**
  * Codex CLI (`codex exec`). Fontes: `codex exec --help` e `codex features list` (0.159.3) e o código da Codex CLI
  * (codex-rs: `features.shell_tool = false` tira as tools de shell; `mcp_servers.<nome>.default_tools_approval_mode`
- * aprova as tools de um servidor). `--ignore-user-config` não lê o `config.toml` do usuário (o login continua);
- * o servidor entra por `-c mcp_servers.cabecao.*`. As tools aparecem como `mcp__cabecao__<tool>`.
+ * aprova as tools de um servidor). `--ignore-user-config` não lê o `config.toml` do usuário; a credencial é a chave de
+ * API em `CODEX_API_KEY` (`agents/policy.ts`), que no `codex exec` passa na frente do login guardado; o servidor entra por `-c mcp_servers.cabecao.*`. As tools aparecem como `mcp__cabecao__<tool>`.
  *
  * O `apply_patch` não tem chave para desligar: ele continua, mas a caixa de areia `read-only` com `approval_policy =
  * "never"` recusa qualquer escrita. A leitura de arquivos não é bloqueada pela caixa de areia quando o modelo tem uma
@@ -255,18 +210,15 @@ const CODEX_DISABLED_FEATURES = [
  */
 const codex: AgentAdapter = {
   id: 'codex',
-  label: 'Codex',
-  binary: 'codex',
   serverName: 'cabecao',
   toolExample: 'mcp__cabecao__recall',
   restrictions: [
-    'não lê o config.toml do usuário nem as regras de execução (--ignore-user-config, --ignore-rules): os servidores, hooks e plugins dele ficam de fora; o login continua',
+    'só com chave de API (CODEX_API_KEY, que tem precedência sobre o login do ChatGPT guardado); não lê o config.toml do usuário nem as regras de execução (--ignore-user-config, --ignore-rules): os servidores, hooks e plugins dele ficam de fora',
     `sem shell e sem as tools de navegador, tela, imagem, subagentes, apps e plugins (--disable ${CODEX_DISABLED_FEATURES.join(', ')})`,
     'caixa de areia somente leitura e nenhuma aprovação (--sandbox read-only, approval_policy = "never"): qualquer escrita em arquivo é recusada',
     'sem busca na web (web_search = "disabled"); só as tools do servidor do Cabeção aprovadas (default_tools_approval_mode = "approve")',
     'sem gravar a sessão (--ephemeral)',
   ],
-  loginEnv: ['CODEX_HOME', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL'],
   prepare(input) {
     const prefix = 'mcp_servers.cabecao';
     const args = [
@@ -334,81 +286,7 @@ const codex: AgentAdapter = {
   },
 };
 
-/** Nome do servidor na configuração temporária do Antigravity: diferente de `cabecao` para não colidir com o global. */
-const ANTIGRAVITY_SERVER = 'cabecao-run';
-
-/**
- * Antigravity CLI (`agy -p`). Fontes: `agy --help` (1.5.0) e antigravity.google/docs (cli/headless, mcp, permissions,
- * settings). O `agy` não tem opção para apontar outro arquivo de MCP: o servidor vai na configuração DA PASTA DE
- * TRABALHO (`.agents/mcp_config.json`), que é a pasta temporária; a global do usuário continua carregada, por isso o
- * nome `cabecao-run` (um `cabecao` global não toma o lugar dele). As permissões vão em `--settings` (só desta sessão,
- * nunca gravadas): libera `mcp(cabecao-run/*)` e nega comandos, escrita e web. Em modo `-p`, o que pede aprovação é
- * negado sem travar ("soft-denied", com aviso no stderr). As tools vão marcadas `eager`, registradas direto como
- * `mcp_cabecao-run_<tool>` (as preguiçosas exigiriam ler o esquema num arquivo fora da pasta de trabalho).
- */
-const antigravity: AgentAdapter = {
-  id: 'antigravity',
-  label: 'Antigravity',
-  binary: 'agy',
-  serverName: ANTIGRAVITY_SERVER,
-  toolExample: `mcp_${ANTIGRAVITY_SERVER}_recall`,
-  restrictions: [
-    `o servidor do Cabeção só na configuração da pasta temporária (.agents/mcp_config.json), com o nome ${ANTIGRAVITY_SERVER}; a configuração do usuário não é alterada`,
-    `permissões só desta sessão (--settings): liberado mcp(${ANTIGRAVITY_SERVER}/*); negados command(*), write_file(*), read_url(*) e execute_url(*); arquivos fora da pasta de trabalho bloqueados (allowNonWorkspaceAccess: false)`,
-    'o que pede aprovação é negado sem ninguém responder (modo -p); comandos só na caixa de areia (--sandbox)',
-    'servidores MCP globais do usuário continuam carregados, mas as tools deles pedem aprovação e por isso são negadas',
-  ],
-  loginEnv: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_CLOUD_PROJECT', 'GOOGLE_APPLICATION_CREDENTIALS'],
-  prepare(input) {
-    const tools = Object.fromEntries(SERVER_TOOL_NAMES.map((name) => [name, { eager: true }]));
-    const config = { mcpServers: { [ANTIGRAVITY_SERVER]: { ...jsonServer(input.server), tools } } };
-    const settings = {
-      toolPermission: 'request-review',
-      enableTerminalSandbox: true,
-      allowNonWorkspaceAccess: false,
-      trustedWorkspaces: [input.workDir],
-      permissions: {
-        allow: [`mcp(${ANTIGRAVITY_SERVER}/*)`],
-        deny: ['command(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)'],
-      },
-    };
-    const seconds = Math.max(60, Math.floor(input.timeoutMs / 1000) - 15);
-    return {
-      args: [
-        '--print',
-        input.prompt,
-        '--output-format',
-        'json',
-        '--print-timeout',
-        `${seconds}s`,
-        '--settings',
-        JSON.stringify(settings),
-        '--sandbox',
-        '--disable-slash-commands',
-        ...(input.model === undefined ? ['--effort', 'low'] : ['--model', input.model]),
-      ],
-      stdin: null,
-      env: {},
-      files: [{ path: '.agents/mcp_config.json', content: `${JSON.stringify(config, null, 2)}\n` }],
-    };
-  },
-  parse(output) {
-    const result = lastJsonObject(output.stdout);
-    if (result === null) return { summary: null, costUsd: null, turns: null, error: stderrTail(output) };
-    const status = typeof result.status === 'string' ? result.status : null;
-    const errorText = typeof result.error === 'string' ? result.error : null;
-    const failed = status !== null && status !== 'SUCCESS';
-    return {
-      summary: clip(typeof result.response === 'string' ? result.response : null),
-      costUsd: null,
-      turns: num(result.num_turns),
-      error: failed || errorText !== null ? (errorText ?? status) : null,
-    };
-  },
-};
-
-export const RUN_AGENTS: Readonly<Record<RunAgentId, AgentAdapter>> = {
+export const RUN_AGENTS: Readonly<Record<CallableAgentId, AgentAdapter>> = {
   'claude-code': claudeCode,
   codex,
-  antigravity,
 };
