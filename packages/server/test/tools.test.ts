@@ -186,8 +186,19 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       expect((handoff.handoff as { path: string }).path).toMatch(/^memory\/handoffs\//);
       expect((handoff.episode as { path: string }).path).toMatch(/^memory\/episodes\//);
 
+      const ingested = check(
+        'ingest',
+        await server.client.call('ingest', {
+          content: 'Ata curta: o Projeto Atlas vai testar o SQS FIFO.\n',
+          title: 'Ata de teste do MCP',
+          session_handle: session,
+        }),
+      );
+      expect((ingested.source as { trust: string }).trust).toBe('low');
+      expect((ingested.plan as { steps: string[] }).steps.length).toBeGreaterThan(0);
+
       const undone = check('undo', await server.client.call('undo', { session: session, session_handle: session }));
-      expect((undone.undone as unknown[]).length).toBe(6);
+      expect((undone.undone as unknown[]).length).toBe(7);
 
       // sem remoto configurado: o sync faz o que é local e diz como ficou
       const synced = check('sync', await server.client.call('sync', { session_handle: session }));

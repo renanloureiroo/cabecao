@@ -260,6 +260,26 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/undo.ts'),
   },
   {
+    name: 'ingest',
+    summary: 'Registra uma fonte (artigo, ata, documento) em raw/',
+    usage: ['ingest <arquivo> [--title <título>] [--scope <escopo>]'],
+    options: {
+      title: { type: 'string', valueName: 'título', description: 'Título da fonte (padrão: o do arquivo)' },
+      scope: {
+        type: 'string',
+        valueName: 'escopo',
+        description: '"global" (padrão) ou "project:<nome>" para as notas',
+      },
+    },
+    details: [
+      'Copia o texto do arquivo (Markdown ou texto, até 4 MB) para raw/articles/, com origin: ingest:file e trust: low,',
+      'passando pelo scanner de segredos, num commit. Um arquivo que já está em raw/ não é copiado de novo. Mostra o',
+      'plano de ingestão (o que ler, que notas criar e atualizar): o Cabeção não tem LLM, quem escreve as notas é o',
+      'agente. O frontmatter do arquivo não vira frontmatter da nota: só título, fonte e autor são aproveitados.',
+    ].join('\n'),
+    load: () => import('./commands/ingest.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],

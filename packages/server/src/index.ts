@@ -6,6 +6,7 @@ export { FALLBACK_CLIENT, resolveClientName } from './client-name.ts';
 export { SERVER_INSTRUCTIONS } from './instructions.ts';
 export type { LineLimitOptions, RequestId } from './line-limit.ts';
 export { LineLimiter, MAX_MESSAGE_BYTES } from './line-limit.ts';
+export { PROMPT_NAMES } from './prompts.ts';
 export type { ServerErrorCode, ToolErrorJson } from './results.ts';
 export { INPUT_LIMITS } from './schemas.ts';
 export { buildServer, serverInfo } from './server.ts';

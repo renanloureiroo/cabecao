@@ -9,6 +9,7 @@ import type {
   FactsOutput,
   GraphOutput,
   HandoffSaveOutput,
+  IngestOutput,
   ReadOutput,
   RecallOutput,
   RelateOutput,
@@ -30,7 +31,7 @@ import type {
   writeOutput,
 } from './schemas.ts';
 import type { factsOutput, graphOutput, relateOutput } from './schemas-graph.ts';
-import type { handoffSaveOutput, rememberOutput } from './schemas-lifecycle.ts';
+import type { handoffSaveOutput, ingestOutput, rememberOutput } from './schemas-lifecycle.ts';
 
 /** Tira o `readonly` em profundidade (o Zod infere listas e objetos mutáveis). */
 type Writable<T> = T extends readonly (infer U)[]
@@ -80,4 +81,5 @@ export type OutputSchemasCoverCore = [
   Expect<Covers<RelateOutput, typeof relateOutput>>,
   Expect<Covers<RememberOutput, typeof rememberOutput>>,
   Expect<Covers<HandoffSaveOutput, typeof handoffSaveOutput>>,
+  Expect<Covers<IngestOutput, typeof ingestOutput>>,
 ];
