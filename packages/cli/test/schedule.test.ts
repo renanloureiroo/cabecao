@@ -261,10 +261,11 @@ describe('schedule no macOS (launchd falso)', { timeout: TEST_TIMEOUT_MS }, () =
     const fake = fakeScheduler();
     const opts = { platform: 'darwin' as const, exec: fake.exec, binPath: s.bin };
     expect((await s.m.cabecao(['schedule', 'on'], opts)).code).toBe(0);
-    writeFileSync(
-      join(s.m.configDir, 'schedule.json'),
-      readFileSync(join(s.m.configDir, 'schedule.json'), 'utf8').replace(s.bin, join(s.m.home, 'sumiu.mjs')),
-    );
+    // o bin agendado some (desinstalado); no JSON o caminho vai com escapes, por isso a troca é no objeto
+    const statePath = join(s.m.configDir, 'schedule.json');
+    const state = JSON.parse(readFileSync(statePath, 'utf8'));
+    state.args[0] = join(s.m.home, 'sumiu.mjs');
+    writeFileSync(statePath, JSON.stringify(state));
     const doctor = parseJson(await s.m.cabecao(['doctor', '--offline', '--json', '--brain', s.brain], opts));
     expect(doctor.data.checks.find((check: { id: string }) => check.id === 'schedule')).toMatchObject({
       status: 'warn',
