@@ -1,6 +1,6 @@
 # 08 · Instalação e operação
 
-> 🚧 **Estado (marco 1):** a CLI tem 8 comandos implementados (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), na branch `feat/m1-nucleo`. **O pacote ainda não foi publicado no npm**, então `npx cabecao` só funciona depois da publicação; até lá, rode o bundle gerado por `pnpm build` (ver [13](13-publicacao.md)). O que não tem marco indicado abaixo é plano de marcos futuros, e o que está marcado como "testado" foi validado em prova de conceito.
+> 🚧 **Estado (marcos 1 e 3):** a CLI tem 10 comandos implementados: `init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client` (marco 1) e `graph` e `facts` (marco 3, na branch `feat/m3-grafo`, que também traz `--as-of` no `search`). Todos aceitam `--json`. **O pacote ainda não foi publicado no npm**, então `npx cabecao` só funciona depois da publicação; até lá, rode o bundle gerado por `pnpm build` (ver [13](13-publicacao.md)). O que não tem marco indicado abaixo é plano de marcos futuros, e o que está marcado como "testado" foi validado em prova de conceito.
 
 ## Requisitos
 
@@ -101,7 +101,9 @@ A coluna "Marco" diz quando o comando chega. **1** = existe hoje.
 | `cabecao status` | 1 | Notas, último sync, conflitos (a fila de embeddings é do marco 2) |
 | `cabecao doctor` | 1 | Diagnóstico com a correção sugerida para cada problema |
 | `cabecao sync` | 1 | Sincroniza tudo o que o git não ignora |
-| `cabecao search "<pergunta>"` | 1 | Busca pelo terminal, por palavra-chave |
+| `cabecao search "<pergunta>" [--as-of <data>]` | 1 (`--as-of`: 3) | Busca pelo terminal, por palavra-chave, com a validade na data e o bloco de notas relacionadas |
+| `cabecao graph "<nota>" [--depth 1\|2] [--type <tipo>...] [--as-of <data>]` | 3 | Vizinhos de uma nota no grafo, com o tipo, a direção e a validade de cada relação |
+| `cabecao facts [--subject] [--predicate] [--object] [--as-of] [--limit]` | 3 | Fatos e se valem na data, com a cadeia de versões |
 | `cabecao undo [--session\|--op]` | 1 | Desfaz. Aceita o começo do ULID, com pelo menos 8 caracteres |
 | `cabecao mcp` | 1 | Servidor MCP (usado pelos clientes) |
 | `cabecao install-client <cliente>` | 1 | Registra o servidor nos clientes de IA |

@@ -7,7 +7,7 @@
   <strong>English</strong> · <a href="README.md">Português</a>
 </p>
 
-> **Status: 🚧 milestone 1 implemented and under review; nothing published to npm yet.** The CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), git sync, keyword search and an MCP server with 9 tools exist on the `feat/m1-nucleo` branch, with 1,181 tests plus an end-to-end test with two machines. **Not yet validated:** real git hosts (GitHub, GitLab, Bitbucket, Gitea), SSH and credential managers, signed commits, and real MCP clients (Claude Code, Claude Desktop, Codex, Cursor). Semantic search, the graph and the plugin belong to milestones 2 to 4. Every architecture decision was tested in a proof of concept before entering the plan. See the [evidence](docs/11-evidencias.md) and [roadmap](docs/10-roadmap.md) (Portuguese for now).
+> **Status: 🚧 milestone 1 implemented and under review; nothing published to npm yet.** The CLI (`init`, `status`, `doctor`, `sync`, `search`, `undo`, `mcp`, `install-client`), git sync, keyword search and an MCP server with 9 tools exist on the `feat/m1-nucleo` branch, with 1,181 tests plus an end-to-end test with two machines. **Not yet validated:** real git hosts (GitHub, GitLab, Bitbucket, Gitea), SSH and credential managers, signed commits, and real MCP clients (Claude Code, Claude Desktop, Codex, Cursor). Milestone 3 (graph and time validity: the `graph`, `facts` and `relate` tools, `as_of` and related notes in search, unlinked mentions, the `graph` and `facts` commands) is implemented and under review on the `feat/m3-grafo` branch. Semantic search and the plugin belong to milestones 2 and 4. Every architecture decision was tested in a proof of concept before entering the plan. See the [evidence](docs/11-evidencias.md) and [roadmap](docs/10-roadmap.md) (Portuguese for now).
 
 ---
 
@@ -21,7 +21,7 @@ A **personal second brain** that lives in **a git repository you own**, on any h
 - 🔗 **Any git remote.** No provider API, pull requests or CI required.
 - 🔄 **Syncs everything git does not ignore.** Today: notes, attachments and configuration. Planned (milestone 2): embeddings and graph, so a machine never recomputes what another already computed.
 - 🔎 **Search** by keyword (today) and, in milestone 2, also by meaning, with a local model (nothing leaves your machine).
-- 🕸️ **A wiki with a graph** (milestone 3): wikilinks, typed relations and time-bounded facts the agent can navigate.
+- 🕸️ **A wiki with a graph** (milestone 3, under review on `feat/m3-grafo`): wikilinks, typed relations, unlinked mentions and time-bounded facts the agent can navigate.
 - 🧠 **Agent memory:** what you taught in one session is there in the next, in any client.
 - ↩️ **Reversible:** every operation is a commit, with an undo command.
 - 🪶 **Light:** a 241 kB packed package (about 840 kB installed) with no runtime or native dependencies; `cabecao --version` takes about 26 ms. The embedding model (milestone 2) will be downloaded only when you turn on semantic search.
