@@ -52,6 +52,12 @@ export interface CatalogEmbeddingConfig {
   variant: string;
   dims: number;
   recipe: number;
+  /**
+   * Revisão (commit) do repositório no Hugging Face de onde os arquivos vêm. O catálogo não fixa revisão (os arquivos
+   * saem de `main`); a CLI grava aqui o commit resolvido na primeira escolha do modelo, para todas as máquinas
+   * baixarem os MESMOS arquivos. Ausente: `main`.
+   */
+  revision?: string;
 }
 
 /**
@@ -85,7 +91,10 @@ const NAME_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const REPO_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const REVISION_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
 
-/** Configuração para gravar no `.cabecao.json` ao escolher um modelo do catálogo. */
+/**
+ * Configuração para gravar no `.cabecao.json` ao escolher um modelo do catálogo. Sem `revision`: quem chama resolve o
+ * commit com `resolveModelRevision` e o acrescenta antes de gravar.
+ */
 export function catalogConfig(name: string, variant?: string): CatalogEmbeddingConfig {
   const model = findCatalogModel(name);
   if (!model) throw new UnknownModelError(name, CATALOG_MODEL_NAMES);
@@ -126,13 +135,15 @@ export function resolveEmbeddingConfig(config: unknown): ModelSpec {
   }
   const recipe = optionalInteger(raw, 'recipe', 1, Number.MAX_SAFE_INTEGER) ?? entry.recipe;
   if (recipe !== entry.recipe) throw new UnsupportedRecipeError(model, recipe, entry.recipe);
+  const revision = optionalString(raw, 'revision') ?? DEFAULT_REVISION;
+  checkRevision(revision);
 
   return {
     model,
     variant: variantName,
     recipe,
     repo: entry.repo,
-    revision: DEFAULT_REVISION,
+    revision,
     file: variant.file,
     externalData: variant.externalData,
     dims: entry.dims,
@@ -172,9 +183,7 @@ function resolveCustom(raw: Record<string, unknown>, model: string): ModelSpec {
   const variant = optionalString(raw, 'variant') ?? DEFAULT_CUSTOM_VARIANT;
   if (!NAME_RE.test(variant)) throw new EmbeddingConfigError(`"variant" inválida: "${variant}"`);
   const revision = optionalString(raw, 'revision') ?? DEFAULT_REVISION;
-  if (!REVISION_RE.test(revision) || revision.includes('..')) {
-    throw new EmbeddingConfigError(`"revision" inválida: "${revision}"`);
-  }
+  checkRevision(revision);
   const recipe = optionalInteger(raw, 'recipe', 1, Number.MAX_SAFE_INTEGER) ?? 1;
   const maxTokens = optionalInteger(raw, 'maxTokens', 8, MAX_TOKENS);
 
@@ -229,6 +238,17 @@ function resolveCustom(raw: Record<string, unknown>, model: string): ModelSpec {
     ...(maxTokens !== undefined ? { maxTokens } : {}),
     custom: true,
   };
+}
+
+function checkRevision(revision: string): void {
+  if (!REVISION_RE.test(revision) || revision.includes('..')) {
+    throw new EmbeddingConfigError(`"revision" inválida: "${revision}"`);
+  }
+}
+
+/** Commit do git (40 dígitos hexadecimais, minúsculos): a forma de `revision` que fixa os arquivos. */
+export function isCommitRevision(revision: string): boolean {
+  return /^[0-9a-f]{40}$/.test(revision);
 }
 
 function parsePrompts(value: unknown): PromptTemplates {
