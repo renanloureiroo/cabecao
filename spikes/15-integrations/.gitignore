@@ -1,9 +1,0 @@
-node_modules/
-sandbox/
-evidence/**/*.stream.jsonl
-evidence/*.stream.jsonl
-evidence/**/*.stderr
-evidence/*.stderr
-obsidian/profile/
-obsidian/vault-test/.obsidian/workspace.json
-*.tgz

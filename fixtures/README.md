@@ -2,7 +2,7 @@
 
 ## `vault/`: cérebro de exemplo
 
-Um cérebro pequeno, em português, que segue o [modelo de dados](../docs/03-modelo-de-dados.md). Os testes do projeto leem daqui.
+Um cérebro pequeno, em português, que segue o modelo de dados. Os testes do projeto leem daqui.
 
 **Tudo é inventado**: a empresa Lumen Logística, o Projeto Atlas, Ana Prado e Bruno Tavares não existem. Nunca coloque dados de um cérebro real nesta pasta.
 

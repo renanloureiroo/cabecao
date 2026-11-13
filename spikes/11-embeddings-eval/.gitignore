@@ -1,6 +1,0 @@
-node_modules/
-models/
-out/emb/
-runtime/*/node_modules/
-data/public/
-*.log
