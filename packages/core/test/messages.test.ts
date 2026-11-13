@@ -29,6 +29,7 @@ const COMMANDS = [
   'recall',
   'schedule',
   'obsidian',
+  'export',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];

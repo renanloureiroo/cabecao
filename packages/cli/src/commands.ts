@@ -426,6 +426,39 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/obsidian.ts'),
   },
   {
+    name: 'export',
+    summary: 'Exporta um mapa do grafo para o Obsidian (.canvas)',
+    usage: [
+      'export canvas [--node <nota>] [--depth 1|2] [--limit <n>] [-o <arquivo>] [--force]',
+      'export canvas --scope <escopo> [--limit <n>] [-o <arquivo>] [--force]',
+    ],
+    options: {
+      node: { type: 'string', valueName: 'nota', description: 'Nota central: título, caminho ou id' },
+      depth: { type: 'string', valueName: 'n', description: 'Com --node: 1 (padrão) ou 2 saltos' },
+      scope: {
+        type: 'string',
+        valueName: 'escopo',
+        description: 'Só as notas deste escopo: "global" ou "project:<nome>"',
+      },
+      limit: { type: 'string', valueName: 'n', description: 'Máximo de notas no mapa, de 1 a 500 (padrão: 60)' },
+      output: {
+        type: 'string',
+        short: 'o',
+        valueName: 'arquivo',
+        description: 'Arquivo .canvas (padrão: dashboards/mapa-<nome>.canvas)',
+      },
+      force: { type: 'boolean', description: 'Substitui o arquivo se ele já existe' },
+    },
+    details: [
+      'Gera um arquivo JSON Canvas com a vizinhança de uma nota (--node), as notas de um escopo (--scope) ou o cérebro',
+      'inteiro: uma caixa por tipo de nota, com as cores do grafo do Obsidian, notas em grade sem sobreposição e setas',
+      'com o tipo da relação (uses, part_of, supersedes...). Menções sem link, notas arquivadas e cópias de conflito',
+      'ficam de fora. Acima do limite, saem as notas mais longe e as menos ligadas, com aviso. Não substitui um mapa',
+      'existente sem --force: ele pode ter a sua arrumação.',
+    ].join('\n'),
+    load: () => import('./commands/export.ts'),
+  },
+  {
     name: 'mcp',
     summary: 'Servidor MCP por stdio (é o que os clientes de IA iniciam)',
     usage: ['mcp [--brain <pasta>]'],
