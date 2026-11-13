@@ -414,7 +414,7 @@ describe('cofre de chaves (executor falso: o cofre real nunca é tocado)', () =>
         }) as CredentialRunner,
       };
       const result = await storeKey(io, 'anthropic', KEY, 'keychain');
-      expect(result.stored).toBe('keychain');
+      expect(result.stored, result.note ?? '').toBe('keychain');
       expect(readFileSync(join(io.configDir, 'credentials.dpapi.json'), 'utf8')).not.toContain(KEY);
       expect(calls.flat().join(' ')).not.toContain(KEY);
       expect((await readKey(io, 'anthropic', 'keychain', null)).key).toBe(KEY);
