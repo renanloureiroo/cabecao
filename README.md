@@ -22,7 +22,7 @@
 
 <!-- README-I18N:END -->
 
-Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor. Os agentes de IA (Claude Code, Codex, Cursor e outros) consultam e gravam nelas por MCP, e cada gravação vira um commit que você desfaz com um comando. O nome homenageia o Cabeção de *Malhação*, o personagem que lembrava de tudo.
+Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor. Os agentes de IA (Claude Code, Codex, Cursor e outros) consultam e gravam nelas por MCP, e cada gravação vira um commit que você desfaz com um comando. O nome homenageia o Cabeção de *Malhação*.
 
 > **Beta.** A versão atual é a `0.1.0-beta.1`. Já funciona no dia a dia, mas comandos e formatos ainda podem mudar antes da 1.0.
 
