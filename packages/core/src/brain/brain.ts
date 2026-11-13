@@ -44,6 +44,8 @@ import type { IngestInput, IngestOptions, IngestOutput } from './ingest.ts';
 import { ingest } from './ingest.ts';
 import type { LintInput, LintOutput } from './lint.ts';
 import { lint } from './lint.ts';
+import type { MapGraphInput, MapGraphOutput } from './map.ts';
+import { mapGraph } from './map.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -121,6 +123,8 @@ export interface Brain {
   status(): Promise<StatusOutput>;
   /** Vizinhos de uma nota no grafo (1 ou 2 saltos), com tipo, direção e validade de cada relação numa data. */
   graph(input: GraphInput): Promise<GraphOutput>;
+  /** Notas e TODAS as arestas entre elas, para o mapa (`cabecao export canvas`). Só da CLI: não é tool do MCP. */
+  mapGraph(input?: MapGraphInput): Promise<MapGraphOutput>;
   /** Fatos por sujeito, predicado e objeto, e se valem numa data, com a cadeia de versões. */
   facts(input?: FactsInput): Promise<FactsOutput>;
   /** Relatório de saúde por regras (sem LLM, só leitura): cada achado com severidade, caminho e correção. */
@@ -293,6 +297,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     search: (input) => search(ctx, input),
     read: (input) => read(ctx, input),
     graph: (input) => graph(ctx, input),
+    mapGraph: (input) => mapGraph(ctx, input),
     facts: (input) => facts(ctx, input),
     lint: (input) => lint(ctx, input),
     status: async () => {

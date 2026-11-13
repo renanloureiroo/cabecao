@@ -532,6 +532,101 @@ O Antigravity e o Gemini CLI não entram no `--run`: os termos do plano pessoal 
 
 **Saída:** `0` quando preparou, fechou, ou o agente terminou (com ou sem mudanças); `1` quando o id não é de uma consolidação desta máquina, o agente não está instalado, não tem a credencial permitida ou não tem `--run`, ou o agente não fechou a consolidação; `2` com uma opção de `--run` sem `--run` ou um `--timeout` inválido.
 
+## cabecao obsidian
+
+Configura o cérebro para o Obsidian: grafo, propriedades, painéis e Web Clipper.
+
+```text
+cabecao obsidian setup [--dry-run] [--force]
+cabecao obsidian setup --remove [--dry-run]
+cabecao obsidian clipper
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--dry-run` | Mostra o que mudaria, com a diferença de cada arquivo; não grava |
+| `--force` | Grava mesmo com o Obsidian aberto neste cérebro |
+| `--remove` | Tira só o que o setup desta máquina acrescentou e não foi mudado depois |
+
+`setup` **mescla** `app.json`, `graph.json` e `types.json` em `.obsidian/`: só acrescenta o que falta, nunca troca um valor seu, nunca tira nem reordena o que já existe e não reformata o arquivo. Antes da primeira alteração de cada arquivo, o original vai para `.cabecao/backups/obsidian/`. Também grava em `dashboards/` os cinco painéis `.base` e o modelo do Web Clipper, sem substituir um painel que você editou. `workspace.json` e os plugins nunca são tocados. Com o Obsidian rodando e este vault marcado como aberto, recusa gravar (a não ser com `--force`). `clipper` imprime o modelo do Web Clipper em JSON. Veja [Usar com o Obsidian](../guias/obsidian.md).
+
+```text
+$ cabecao obsidian setup
+Obsidian: ~/cabecao
++ .obsidian/app.json (criado)
++ .obsidian/graph.json (criado)
++ .obsidian/types.json (criado)
++ dashboards/decisoes.base (criado)
++ dashboards/fatos.base (criado)
++ dashboards/memorias.base (criado)
++ dashboards/revisar.base (criado)
++ dashboards/saude.base (criado)
++ dashboards/cabecao-web-clipper.json (criado)
+Pronto. Abra a pasta do cérebro no Obsidian ("Open folder as vault"). Para importar o modelo do Web Clipper:
+extensão > Settings > Templates > Import > dashboards/cabecao-web-clipper.json. Para desfazer: "cabecao obsidian setup --remove".
+```
+
+**Saída:** `0`; `1` quando um dos JSON existentes não pôde ser lido (ele não é tocado; os outros seguem), quando o Obsidian está aberto neste cérebro, ou no `--remove` sem registro do setup nesta máquina; `2` sem `setup` nem `clipper`.
+
+## cabecao export
+
+Exporta um mapa do grafo para o Obsidian, em JSON Canvas (`.canvas`).
+
+```text
+cabecao export canvas [--node <nota>] [--depth 1|2] [--limit <n>] [-o <arquivo>] [--force]
+cabecao export canvas --scope <escopo> [--limit <n>] [-o <arquivo>] [--force]
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--node <nota>` | Nota central: título, caminho ou id. O mapa é a vizinhança dela |
+| `--depth 1\|2` | Com `--node`: saltos a partir da nota (padrão: 1) |
+| `--scope <escopo>` | Só as notas deste escopo: `global` ou `project:<nome>` |
+| `--limit <n>` | Máximo de notas no mapa, de 1 a 500 (padrão: 60) |
+| `-o`, `--output <arquivo>` | Arquivo `.canvas` (padrão: `dashboards/mapa-<nome>.canvas`) |
+| `--force` | Substitui o arquivo se ele já existe |
+
+Sem `--node` nem `--scope`, o mapa é do cérebro inteiro. Cada tipo de nota fica numa caixa, com as cores do grafo do Obsidian; as notas ficam em grade, sem sobreposição, e as setas levam o tipo da relação (`uses`, `part_of`, `supersedes`, `subject`, `link`...). Menções sem link, notas arquivadas e cópias de conflito ficam de fora. Acima do limite, saem as notas mais longe e as menos ligadas, com aviso. O arquivo é determinístico: exportar de novo a mesma coisa dá os mesmos bytes.
+
+```text
+$ cabecao export canvas --node "Projeto Atlas" --depth 2
+Mapa: dashboards/mapa-projeto-atlas.canvas
+22 notas, 67 relações.
+Abra no Obsidian; o arquivo vai para o remoto no próximo "cabecao sync".
+
+$ cabecao export canvas --limit 10 -o ~/cabecao/dashboards/pequeno.canvas
+Mapa: dashboards/pequeno.canvas
+10 notas, 33 relações (14 notas ficaram de fora pelo limite de 10; use --limit até 500).
+Abra no Obsidian; o arquivo vai para o remoto no próximo "cabecao sync".
+```
+
+**Saída:** `0`; `1` quando o arquivo já existe (sem `--force`), a nota não existe ou o mapa ficaria vazio; `2` com opções inválidas (`--depth` sem `--node`, `--node` com `--scope`, saída que não termina em `.canvas`).
+
+## cabecao upgrade
+
+Aplica as migrações do esquema do cérebro e, com `--template`, atualiza o modelo.
+
+```text
+cabecao upgrade [--dry-run]
+cabecao upgrade --template [--dry-run] [--yes]
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--dry-run` | Mostra o que mudaria; não grava |
+| `--template` | Atualiza o modelo do cérebro (`AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes`) |
+| `--yes` | Com `--template`: troca também os arquivos que você editou, sem perguntar |
+
+Sem `--template`: se o `schemaVersion` do `.cabecao.json` é anterior ao deste Cabeção, cria o ponto de restauração `cabecao/restore/<data>-upgrade` e aplica as migrações em ordem, um commit por migração (ação `migrate`), todas na mesma sessão (`cabecao undo --session <id>` desfaz tudo). Só roda com o cérebro limpo e sincronizado, e recusa um cérebro de esquema mais novo. Com `--template`: troca os arquivos iguais ao modelo de uma versão anterior, pergunta antes de trocar um que você editou (sem terminal, ele fica, e o modelo novo vai para `.cabecao/template/`) e acrescenta as linhas que faltam no `.gitignore` e no `.gitattributes`, num commit. Veja [Atualizar o Cabeção](../guias/atualizar.md).
+
+```text
+$ cabecao upgrade
+Esquema 1: em dia (este Cabeção usa o 1). Nenhuma migração pendente.
+Modelo do cérebro: há atualização opcional (.gitignore). Veja com "cabecao upgrade --template --dry-run".
+```
+
+**Saída:** `0`; `1` quando recusa (cérebro de esquema mais novo, mudanças fora de commit, commits a enviar ou a receber, sync em andamento) ou quando uma migração falha (as anteriores ficam commitadas).
+
 ## cabecao mcp
 
 O servidor MCP por stdio.

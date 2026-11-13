@@ -11,6 +11,11 @@ npm i -g cabecao@beta
 
 ## Not yet released
 
+- **Obsidian in one command.** `cabecao obsidian setup` configures the vault: graph colors by note type, property types (dates as dates, relations as lists), the archive out of search, five `.base` dashboards in `dashboards/`, and the Web Clipper template, which saves clips to `raw/articles/` with `trust: low`. It only adds to what you already have, with `--dry-run`, a copy of the original and `--remove`. See [Using it with Obsidian](./guias/obsidian.md).
+- **Graph maps.** [`cabecao export canvas`](./referencia/cli.md#cabecao-export) writes an Obsidian `.canvas` with the neighborhood of a note, a scope or the whole brain, grouped by type and with each relation type on the arrows.
+- **Claude Desktop package.** An `.mcpb` attached to each version on GitHub installs the server with a double click, with the program bundled. See [Claude Desktop](./guias/claude-desktop.md).
+- **`cabecao upgrade`.** Applies the brain's schema migrations with a restore point and one commit per migration (there are none pending today). With `--template`, it updates the betas' `AGENTS.md` and completes `.gitignore`, without overwriting what you edited. `status` and `doctor` warn about what is pending. See [Updating Cabeção](./guias/atualizar.md).
+- **Sync across versions.** A machine with an older Cabeção applies and pushes nothing when the remote has already been migrated by a newer version; its changes stay in local commits until it is updated.
 - **The memory lifecycle.** Five new MCP server tools and four CLI commands:
   - `handoff_save`: the handoff, with an expiry, plus the session's episode; `recall` delivers the project's latest handoff and warns when it was already delivered to another session.
   - `remember` handles duplicates and contradictions in the same scope and type: the same memory is skipped, one that complements updates, a fact with another object supersedes the old one, and the ambiguous case goes back to the agent to decide.
