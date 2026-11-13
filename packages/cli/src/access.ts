@@ -36,7 +36,10 @@ export const COMMAND_ACCESS: Readonly<Record<string, AccessSpec>> = {
   handoff: { access: 'memory', why: 'passagem de bastão (espelha handoff_save)' },
   ingest: { access: 'memory', why: 'registra fonte em raw/; agente só lê arquivo de dentro do cérebro' },
   forget: { access: 'memory', why: 'arquiva; agente só com o confirm_token, humano confirma no terminal' },
-  consolidate: { access: 'memory', why: 'prepara e fecha consolidação (as escritas são de quem a conduz)' },
+  consolidate: {
+    access: 'memory',
+    why: 'prepara e fecha consolidação; --run roda sem terminal (agendado), mas --allow-forget e --allow-elevated só o humano passa',
+  },
   undo: { access: 'memory', why: 'desfaz; operação do usuário ou começo do id: agente só com confirmação' },
   // administração que roda sem terminal por desenho
   init: { access: 'admin', why: 'prepara a máquina; roda em scripts' },

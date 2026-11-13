@@ -101,7 +101,7 @@ Essa grava `origin: human` e `trust: high`, como uma regra escrita por você no 
 | `forget` | Pergunta no terminal, ou `--yes` | Sempre em duas chamadas: a primeira devolve o resumo e o token, a segunda arquiva com `--confirm`; `--yes` é recusado (código 4) |
 | `undo` | Qualquer operação, pelo começo do id (8 caracteres ou mais) | Sem confirmação, só as próprias operações de agente, pelo id inteiro; o resto com `--confirm` |
 | `ingest <arquivo>` | Lê qualquer arquivo seu | Só lê arquivo de dentro do cérebro; o texto de fora vai pela entrada padrão (`cabecao ingest - --title ...`), como `content` da tool, com `trust: low` |
-| `consolidate` | Prepara e fecha | O mesmo que a tool: fecha a consolidação pelo id; as escritas dela seguem as regras de agente |
+| `consolidate` | Prepara e fecha; `--run` com `--allow-forget` ou `--allow-elevated` | O mesmo que a tool: fecha a consolidação pelo id; `--run` roda (agendado, por exemplo), mas `--allow-forget` e `--allow-elevated` são recusados (código 4) |
 
 ## Casos de borda
 

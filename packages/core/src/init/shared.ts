@@ -310,7 +310,13 @@ export async function saveMachineConfig(
       message: `O cérebro padrão desta máquina era ${previousBrain}; agora é ${root}.`,
     });
   }
-  const next: MachineConfig = { machine: plan.machine, ...(defaultBrain === undefined ? {} : { defaultBrain }) };
+  const agent = plan.previous?.agent;
+  const next: MachineConfig = {
+    machine: plan.machine,
+    ...(defaultBrain === undefined ? {} : { defaultBrain }),
+    // o agente do `consolidate --run` é escolha do usuário: um `init` novo não a apaga
+    ...(agent === undefined ? {} : { agent }),
+  };
   if (plan.previous !== null && plan.previous.machine === next.machine && previousBrain === defaultBrain) {
     return async () => {};
   }

@@ -61,6 +61,13 @@ describe('configuração da máquina', () => {
     }
   });
 
+  it('guarda o agente do consolidate --run e recusa um nome inválido', async () => {
+    await writeMachineConfig({ machine: 'pc', agent: 'codex' }, dir);
+    expect(await readMachineConfig(dir)).toEqual({ machine: 'pc', agent: 'codex' });
+    await writeRaw('{"machine":"pc","agent":"Codex CLI"}');
+    await expect(readMachineConfig(dir)).rejects.toThrow(/"agent"/);
+  });
+
   it('aceita BOM e ignora chaves desconhecidas', async () => {
     await writeRaw('\uFEFF{"machine":"pc","futuro":true}');
     expect(await readMachineConfig(dir)).toEqual({ machine: 'pc' });

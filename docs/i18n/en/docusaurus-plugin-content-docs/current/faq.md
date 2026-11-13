@@ -25,7 +25,7 @@ That Cabeção works and is published, but may still change before version 1.0: 
 
 ## Which AI clients work?
 
-Any client that speaks MCP over stdio. `install-client` registers the server automatically in Claude Code, Claude Desktop, Codex, Cursor, VS Code, and Gemini CLI. For another client, `cabecao install-client --print` shows the configuration to copy.
+Any client that speaks MCP over stdio. `install-client` registers the server automatically in Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity, and Gemini CLI. For another client, `cabecao install-client --print` shows the configuration to copy.
 
 ## Will the agent fill the brain with junk?
 

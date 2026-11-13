@@ -89,10 +89,10 @@ describe('ajuda de comando', () => {
     expect(await run(['--help', 'eco'], { commands })).toEqual(result);
   });
 
-  it('a ajuda de install-client cita os seis clientes', async () => {
+  it('a ajuda de install-client cita os sete clientes', async () => {
     const result = await run(['install-client', '--help']);
     expect(result.code).toBe(0);
-    for (const client of ['claude-code', 'claude-desktop', 'codex', 'cursor', 'vscode', 'gemini']) {
+    for (const client of ['claude-code', 'claude-desktop', 'codex', 'cursor', 'vscode', 'antigravity', 'gemini']) {
       expect(result.stdout).toContain(client);
     }
   });

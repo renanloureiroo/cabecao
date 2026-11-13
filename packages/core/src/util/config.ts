@@ -11,6 +11,8 @@ export interface MachineConfig {
   machine: string;
   /** Caminho absoluto do cérebro usado quando nenhum é informado. */
   defaultBrain?: string;
+  /** Agente que o `cabecao consolidate --run` usa quando `--agent` não é passado (`claude-code`, `codex`...). */
+  agent?: string;
 }
 
 /** O `config.json` existe mas não dá para usar (JSON quebrado, campo faltando ou inválido). */
@@ -67,18 +69,22 @@ function validate(path: string, value: unknown): MachineConfig {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ConfigError(path, 'o conteúdo deveria ser um objeto JSON');
   }
-  const { machine, defaultBrain } = value as Record<string, unknown>;
+  const { machine, defaultBrain, agent } = value as Record<string, unknown>;
   if (!isValidMachineName(machine)) {
     throw new ConfigError(
       path,
       `"machine" deveria ser um nome com letras minúsculas, dígitos e hífen (até ${MACHINE_NAME_MAX} caracteres)`,
     );
   }
-  if (defaultBrain === undefined) return { machine };
+  if (agent !== undefined && (typeof agent !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(agent))) {
+    throw new ConfigError(path, '"agent" deveria ser o nome de um agente, como "claude-code" ou "codex"');
+  }
+  const extra = agent === undefined ? {} : { agent };
+  if (defaultBrain === undefined) return { machine, ...extra };
   if (typeof defaultBrain !== 'string' || defaultBrain === '') {
     throw new ConfigError(path, '"defaultBrain" deveria ser o caminho de uma pasta');
   }
-  return { machine, defaultBrain };
+  return { machine, defaultBrain, ...extra };
 }
 
 /**
