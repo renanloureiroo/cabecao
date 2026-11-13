@@ -1,7 +1,11 @@
+import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { SyncOutput } from '@cabecao/core';
-import { BrainError, isInvalidConfigError, isUlid, syncBrain, toSyncOutput } from '@cabecao/core';
+import { BRAIN_CONFIG_FILE, BrainError, isInvalidConfigError, isUlid, syncBrain, toSyncOutput } from '@cabecao/core';
+import { appendSyncLog, logBlock, startDetachedSync } from '../background.ts';
 import { CLI_CLIENT, readMachine, resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
+import { EMPTY_HOOK_INPUT, hookBrain, readHookInput } from '../hook/input.ts';
 import { plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -117,19 +121,91 @@ function invalidConfig(error: unknown): boolean {
   return isInvalidConfigError(cause);
 }
 
+async function isBrainDir(root: string): Promise<boolean> {
+  try {
+    return (await stat(join(root, BRAIN_CONFIG_FILE))).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function describe(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const hint = (error as { hint?: unknown } | null)?.hint;
+  return typeof hint === 'string' ? `${message} (${hint})` : message;
+}
+
+/**
+ * `--detach` e `--hook`: dispara o sync num processo destacado e volta na hora (o resultado vai para
+ * `.cabecao/logs/sync.log`). Com `--hook` (o fim de sessão do Claude Code), lê o JSON da sessão no stdin e nunca
+ * falha: qualquer problema vai só para o stderr, com código 0.
+ */
+async function runDetached(ctx: CommandContext): Promise<CommandResult> {
+  const hook = ctx.values.hook === true;
+  try {
+    if (ctx.values.log === true)
+      throw new UsageError('--log não combina com --detach: o sync em segundo plano já grava no log');
+    if (ctx.values.session !== undefined) throw new UsageError('--session não combina com --detach');
+    const input = hook ? await readHookInput(ctx) : EMPTY_HOOK_INPUT;
+    const root = await resolveBrain(hook ? { ...ctx, brain: hookBrain(ctx) } : ctx);
+    if (!(await isBrainDir(root))) {
+      throw new CliError(`${root} não é um cérebro (falta o ${BRAIN_CONFIG_FILE})`, {
+        code: 'not_a_brain',
+        hint: 'Confira o caminho do cérebro ou rode "cabecao init".',
+      });
+    }
+    const note = hook
+      ? `hook ${input.event ?? 'SessionEnd'} do Claude Code${input.reason === null ? '' : `, motivo ${input.reason}`}`
+      : 'cabecao sync --detach';
+    const started = await startDetachedSync(ctx, root, note);
+    if (hook) return { code: 0 };
+    return {
+      code: 0,
+      data: { status: 'started', pid: started.pid, log: started.log },
+      text: `Sync disparado em segundo plano (processo ${started.pid}). O resultado vai para ${started.log}.`,
+    };
+  } catch (error) {
+    if (!hook) throw error;
+    ctx.stderr.write(
+      `cabecao sync --hook: ${describe(error)}. Nada foi sincronizado agora; o próximo sync leva as mudanças.\n`,
+    );
+    return { code: 0 };
+  }
+}
+
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (ctx.positionals.length > 0) throw new UsageError(`argumento a mais: ${ctx.positionals.join(' ')}`);
+  if (ctx.values.detach === true || ctx.values.hook === true) return runDetached(ctx);
   const session = typeof ctx.values.session === 'string' ? ctx.values.session : undefined;
   const root = await resolveBrain(ctx);
+  const log = ctx.values.log === true;
+  const startedAt = new Date();
   // O sync roda aqui mesmo: `cabecao sync` já é o processo separado que o hook e o servidor MCP disparam.
   let output: SyncOutput;
   try {
-    output = await withBrain(ctx, root, (brain) =>
-      brain.sync(session === undefined ? {} : { session_handle: session }),
-    );
+    try {
+      output = await withBrain(ctx, root, (brain) =>
+        brain.sync(session === undefined ? {} : { session_handle: session }),
+      );
+    } catch (error) {
+      if (!invalidConfig(error)) throw error;
+      output = await syncWithoutBrain(ctx, root, session);
+    }
   } catch (error) {
-    if (!invalidConfig(error)) throw error;
-    output = await syncWithoutBrain(ctx, root, session);
+    if (log) await writeLog(ctx, root, logBlock(startedAt, new Date(), 1, `Erro: ${describe(error)}`));
+    throw error;
   }
-  return { code: syncExitCode(output), data: output, text: syncText(output) };
+  const code = syncExitCode(output);
+  const text = syncText(output);
+  if (log) await writeLog(ctx, root, logBlock(startedAt, new Date(), code, text));
+  return { code, data: output, text };
+}
+
+/** Grava no log sem nunca derrubar o sync: um disco cheio vira só um aviso. */
+async function writeLog(ctx: CommandContext, root: string, block: string): Promise<void> {
+  try {
+    await appendSyncLog(root, block);
+  } catch (error) {
+    ctx.stderr.write(`cabecao: não consegui gravar o log do sync: ${describe(error)}\n`);
+  }
 }
