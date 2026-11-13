@@ -99,7 +99,7 @@ The brain is chosen in this order: `--brain`, `CABECAO_BRAIN`, the default saved
 ## Init refused the repository
 
 - **"parece um projeto de código"** (looks like a code project): the repository has `package.json`, `src/`, or another marker. Use a repository just for the brain.
-- **"A pasta ... já existe e não está vazia"** (the folder already exists and is not empty): pick another folder with `--dir` or empty the one you pointed to.
+- **"A pasta ... já existe e não está vazia"** (the folder already exists and is not empty): pick with `--dir` a folder that does not exist yet (or an empty one). If it is your Obsidian vault, don't empty anything: put the vault in a remote repository and run `cabecao init <url>`, which clones it into a new folder ([Adopt an existing vault](./guias/adotar-vault.md)).
 
 ## The agent does not see Cabeção
 

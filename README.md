@@ -22,7 +22,7 @@
 
 <!-- README-I18N:END -->
 
-Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor. Os agentes de IA (Claude Code, Codex, Cursor e outros) consultam e gravam nelas por MCP, e cada gravação vira um commit que você desfaz com um comando. O nome homenageia o Cabeção de *Malhação*.
+Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor. Os agentes de IA (Claude Code, Codex, Cursor e outros) consultam e gravam nelas por MCP, e cada gravação vira um commit que você desfaz com um comando. O nome é uma homenagem ao Cabeção de *Malhação*.
 
 > **Beta.** A versão atual é a `0.1.0-beta.1`. Já funciona no dia a dia, mas comandos e formatos ainda podem mudar antes da 1.0.
 
@@ -30,18 +30,25 @@ Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor
 
 ```text
 $ cabecao init git@github.com:voce/cerebro.git
-Pasta do cérebro: ~/cabecao (máquina notebook)
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook) e em git@github.com:voce/cerebro.git.
 
-Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
-
+Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
 Índice local: 0 notas indexadas em 2 ms.
 
-Clientes de IA:
-  Claude Code: registrado
-    ~/.claude.json: registrado
-  Reinicie o cliente para ele enxergar a mudança.
-...
-  14 ok, 0 avisos, 0 falhas.
+Agentes:
+  Codex   servidor MCP registrado em ~/.codex/config.toml
+  Cursor  servidor MCP registrado em ~/.cursor/mcp.json
+  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
+
+Teste agora:
+  1. No Codex, peça: "guarde que eu prefiro respostas curtas, em tópicos"
+  2. Numa conversa nova, pergunte: "como eu prefiro as respostas?"
+  3. Ou confira aqui: cabecao search "respostas curtas"
+
+Opcional (rode quando quiser):
+  cabecao install-skills  ensina Codex e Cursor a usar o cérebro pela linha de
+                          comando (skills)
+  ...
 ```
 
 Numa sessão do Claude Code, você pede "guarde que os testes de pagamento só passam com `TZ=UTC`", e o agente chama a tool `remember`:
@@ -72,7 +79,7 @@ $ cabecao search "testes pagamento"
 - **Qualquer provedor.** GitHub, GitLab, Bitbucket, Gitea, um servidor seu ou só a sua máquina. Só git, sem API de provedor.
 - **Memória entre sessões e máquinas.** O que você ensina numa conversa volta na próxima, em qualquer cliente MCP.
 - **Tudo reversível.** Cada gravação é um commit identificado; `cabecao undo` desfaz uma operação ou uma sessão inteira de um agente.
-- **Agentes com limites.** Eles não criam regras, não editam arquivos de instrução, não gravam segredos e deixam rastro quando mexem numa nota sua.
+- **Agentes com limites.** Regras e arquivos de instrução só mudam com o seu pedido explícito, confirmado; segredo nunca entra; e todo commit de agente leva a marca dele.
 - **Manutenção sem você olhando.** `cabecao consolidate --run` chama o Claude Code ou o Codex para consolidar a memória, só com as tools do Cabeção, e desfaz o que ficar pela metade.
 
 ## Instalação
@@ -85,28 +92,32 @@ cabecao init git@github.com:voce/cerebro.git
 cabecao doctor
 ```
 
-O `init` também adota um vault do Obsidian que já existe, sem mover arquivos, e sem URL cria um cérebro só local.
+O `init` termina com o que pedir ao agente para testar e os próximos passos opcionais que ele detectou. Ele também adota um vault do Obsidian que está num repositório git (clonado numa pasta nova, sem mover nem renomear notas), e sem URL cria um cérebro só local.
 
-## Conectar ao Claude Code
+## Conectar os agentes
 
-O `init` já registra o servidor MCP nos clientes que encontrar. Para registrar depois:
+O `init` já registra o servidor MCP nos clientes que encontrar: Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity e Gemini CLI. Para registrar depois, `cabecao install-client --all`.
+
+Nos agentes com shell, as **skills** do Cabeção ensinam o agente a usar o cérebro pela linha de comando, sem o servidor MCP e com as mesmas regras:
 
 ```bash
-cabecao install-client claude-code
+cabecao install-skills
 ```
 
-Reinicie o Claude Code. Também funciona com Claude Desktop, Codex, Cursor, VS Code, Antigravity e Gemini CLI (`cabecao install-client --all`).
+No Claude Code, o plugin traz tudo junto (servidor embutido, briefing no início da sessão, sync no fim e as skills): `/plugin marketplace add renanloureiroo/cabecao` e `/plugin install cabecao@cabecao`.
 
 ## Recursos
 
-| Hoje (`0.1.0-beta.1`) | Em breve |
-| --- | --- |
-| `init` em qualquer remoto git, com adoção de vault do Obsidian | Busca por significado, com modelo local |
-| `sync` sem perder nada: cópia de conflito em vez de sobrescrever | Plugin do Claude Code com hooks |
-| Busca por palavra-chave com validade no tempo (`--as-of`) | Revisão, consolidação e "esquecer" memórias |
-| Grafo: wikilinks, relações tipadas, fatos e menções sem link | Integração com o Obsidian |
-| Servidor MCP com 12 tools e restrições a agentes | Pacote para o Claude Desktop |
-| `undo` por operação ou sessão; scanner de segredos | |
+- `init` em qualquer remoto git, com adoção de vault do Obsidian, e um fim que leva ao primeiro teste
+- `sync` sem perder nada: cópia de conflito em vez de sobrescrever; sync automático com `schedule`
+- Busca por palavra-chave e, opcional, por significado com um modelo local; validade no tempo (`--as-of`)
+- Grafo: wikilinks, relações tipadas, fatos e menções sem link
+- Servidor MCP com 17 tools, plugin do Claude Code, pacote `.mcpb` do Claude Desktop e skills para os agentes com shell
+- Memória com ciclo de vida: handoff, duplicatas resolvidas, `lint`, `consolidate` (também com um agente sozinho), `forget`
+- `undo` por operação ou sessão; scanner de segredos; regras só com o seu pedido explícito
+- Obsidian com um comando (`obsidian setup`); `upgrade` e `uninstall`
+
+O que vem depois está em [Em breve](https://renanloureiroo.github.io/cabecao/em-breve).
 
 ## Documentação
 

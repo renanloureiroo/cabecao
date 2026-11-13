@@ -51,10 +51,10 @@ Rodar `on` de novo não duplica nada: com tudo igual, ele diz "já estava regist
   ```text
   $ npx cabecao schedule on
   cabecao: o agendamento precisa de uma instalação estável do cabecao: rodando por npx (ou pelo código-fonte), o caminho do programa muda e o agendador ficaria apontando para nada
-  Instale com "npm i -g cabecao" e rode "cabecao schedule on" de novo depois de instalar.
+  Instale com "npm i -g cabecao@beta" e rode "cabecao schedule on" de novo depois de instalar.
   ```
 
-  Instale com `npm i -g cabecao` e rode `cabecao schedule on`. Se o Node vier de um gerenciador de versões (nvm, fnm, volta...) e você remover aquela versão, rode `on` de novo.
+  Instale com `npm i -g cabecao@beta` e rode `cabecao schedule on`. Se o Node vier de um gerenciador de versões (nvm, fnm, volta...) e você remover aquela versão, rode `on` de novo.
 - **O cérebro padrão desta máquina.** O comando agendado é curto (`node cabecao.mjs sync --log`) e não leva a pasta do cérebro: ela vem da configuração que o `cabecao init` gravou. No Windows isso é obrigatório, porque o Agendador de Tarefas aceita no máximo 261 caracteres no comando.
 
 ### Ver e desligar

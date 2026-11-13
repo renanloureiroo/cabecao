@@ -1,18 +1,30 @@
 ---
-title: Atualizar o Cabeção
-description: Atualize o programa, aplique as migrações do esquema do cérebro com cabecao upgrade e, se quiser, o modelo novo do AGENTS.md.
+title: Atualizar e desinstalar
+description: Atualize o programa (do jeito que você instalou), aplique as migrações do cérebro com cabecao upgrade, e tire o Cabeção da máquina com cabecao uninstall sem tocar no cérebro.
 sidebar_position: 12
 ---
 
-Atualizar tem duas partes: o **programa** (o pacote `cabecao`, o plugin do Claude Code, o pacote do Claude Desktop) e, de vez em quando, o **cérebro**, quando uma versão nova muda o formato dele.
+Atualizar tem duas partes: o **programa** (o pacote `cabecao`, o plugin do Claude Code, o pacote do Claude Desktop) e, de vez em quando, o **cérebro**, quando uma versão nova muda o formato dele. No fim desta página está como [desinstalar](#desinstalar).
 
 ## O programa
 
-```bash
-npm i -g cabecao@beta     # ou: npx cabecao@beta <comando>
+O comando depende de como você instalou. O `cabecao doctor` mostra o da sua instalação na primeira linha:
+
+```text
+ok     Cabeção                  0.1.0-beta.1 (instalado com npm -g); para atualizar: npm i -g cabecao@beta
 ```
 
-O plugin do Claude Code se atualiza pelo marketplace, e o pacote do Claude Desktop, instalando o `.mcpb` novo por cima ([Claude Desktop](./claude-desktop.md)). Nenhum deles mexe no cérebro.
+| Instalou com | Para atualizar |
+| --- | --- |
+| `npm i -g` | `npm i -g cabecao@beta` |
+| `pnpm add -g` | `pnpm add -g cabecao@beta` |
+| `npx` | `npx cabecao@beta <comando>` (o `npx` usa a versão que você pedir) |
+| Dentro de um projeto | `npm i cabecao@beta`, na pasta do projeto |
+| Plugin do Claude Code | `/plugin update cabecao@cabecao` |
+
+Enquanto o Cabeção for beta, use a etiqueta `@beta`: sem ela, o npm pode instalar uma beta mais velha. As mensagens da CLI que mandam atualizar (um cérebro de versão mais nova, o sync agendado que perdeu o programa) já dizem o comando da sua instalação, com a etiqueta do canal em uso. O pacote do Claude Desktop se atualiza instalando o `.mcpb` novo por cima ([Claude Desktop](./claude-desktop.md)). Nada disso mexe no cérebro.
+
+Depois de atualizar, rode `cabecao install-skills` de novo se você instalou as [skills](./skills.md): ele troca só as que continuam como o Cabeção gravou. O `doctor` avisa quando elas ficaram de uma versão anterior. Se o Node mudou (nvm, fnm, Volta), rode também `cabecao install-client --all`: o registro nos clientes aponta para o caminho do Node, e o `doctor` acusa quando ele não existe mais.
 
 Atualize todas as máquinas que usam o mesmo cérebro. Veja abaixo o que acontece com uma máquina que ficou para trás.
 
@@ -49,9 +61,10 @@ A regra de compatibilidade é esta:
 
 ```text
 $ cabecao sync
-Sync: bloqueado. O cérebro no remoto foi atualizado para o esquema 2 por uma versão mais nova do Cabeção, e este Cabeção só entende até o 1. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina ("npm i -g cabecao@latest" ou "npx cabecao@latest") e rode o sync de novo.
+Sync: bloqueado. O cérebro no remoto foi atualizado para o esquema 2 por uma versão mais nova do Cabeção, e este Cabeção só entende até o 1. Nada do remoto foi aplicado e nada foi enviado; as mudanças desta máquina estão em commits locais. Atualize o Cabeção nesta máquina e rode o sync de novo.
 Recebidos: 0 commits · enviados: 0 · criados neste sync: 1
-Próximo passo: Atualize o Cabeção nesta máquina e rode sync de novo; até lá, as mudanças daqui ficam em commits locais e nada é enviado.
+Próximo passo: Atualize o Cabeção nesta máquina e rode o sync de novo ("cabecao doctor" mostra o comando para a sua instalação); até lá, as mudanças daqui ficam em commits locais e nada é enviado.
+Para atualizar: npm i -g cabecao@beta
 ```
 
 Uma mudança de esquema só sai em versão menor ou maior do pacote, nunca numa correção.
@@ -106,3 +119,48 @@ Commit 6e2b2ec7ce; "cabecao undo --op 01M7AKW4EGWA9XY09SJ7V2DQDT" desfaz. Rode "
 ```
 
 Os painéis do Obsidian em `dashboards/` seguem a mesma regra pelo `cabecao obsidian setup`: um painel que você editou nunca é substituído ([Obsidian](./obsidian.md)).
+
+## Desinstalar
+
+O npm não roda nada quando desinstala um pacote. Por isso, antes de tirar o programa, rode `cabecao uninstall`: ele tira desta máquina tudo o que o Cabeção pôs **fora do cérebro**:
+
+- o registro do servidor MCP em todos os clientes de IA (como `cabecao install-client --remove`);
+- as skills que ele instalou (as que você alterou ficam);
+- o sync agendado (como `cabecao schedule off`);
+- a configuração da máquina (`~/.config/cabecao`, ou a pasta de `CABECAO_CONFIG_DIR`);
+- o cache: o runtime e os modelos da busca por significado e os registros das consolidações (`--keep-cache` mantém).
+
+O **cérebro nunca é tocado**: ele é seu, está no git e no remoto. A cópia `.bak` que o `install-client` guardou do arquivo original de cada cliente também fica.
+
+Veja antes o que sairia; qualquer um, até um agente, pode rodar o `--dry-run`:
+
+```text
+$ cabecao uninstall --dry-run
+O que "cabecao uninstall" tiraria desta máquina (nada foi feito):
+  registro do servidor MCP no Codex: ~/.codex/config.toml
+  registro do servidor MCP no Cursor: ~/.cursor/mcp.json
+  skills do Cabeção em ~/.agents/skills (codex, cursor; só as que você não alterou)
+  configuração da máquina: ~/.config/cabecao
+
+Fica: o cérebro em ~/cabecao (é seu, está no git e no remoto). Apague a pasta à mão se quiser.
+Para tirar o programa depois: npm uninstall -g cabecao
+```
+
+Para remover, rode sem `--dry-run`, no seu terminal. Ele mostra a mesma lista e pergunta:
+
+```text
+$ cabecao uninstall
+Vai sair desta máquina:
+  ...
+Remover? [s/N] s
+Pronto:
+  registro removido do Codex
+  registro removido do Cursor
+  skills removidas de ~/.agents/skills
+  apagado ~/.config/cabecao
+O cérebro continua em ~/cabecao.
+Para tirar o programa: npm uninstall -g cabecao
+```
+
+Só você confirma: sem terminal (um agente, um script), o comando recusa com o código 4. Depois, tire o programa com o comando que ele mostrou (`npm uninstall -g cabecao`, `pnpm remove -g cabecao` ou `/plugin uninstall cabecao@cabecao`). Para tirar também o cérebro desta máquina, apague a pasta dele; o remoto continua com tudo.
+

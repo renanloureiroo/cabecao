@@ -14,14 +14,16 @@ cabecao init git@github.com:voce/cerebro.git
 | --- | --- |
 | Nada (acabou de ser criado), ou só README e LICENSE | Cria a estrutura do cérebro, faz o primeiro commit e envia |
 | Um cérebro do Cabeção (`.cabecao.json` na raiz) | Só baixa: é a segunda máquina |
-| Um vault do Obsidian ou uma pasta de Markdown | Adota: acrescenta a configuração do Cabeção sem mover nenhum arquivo |
+| Um vault do Obsidian ou uma pasta de Markdown | Adota: clona numa pasta nova e acrescenta a configuração do Cabeção, sem mover nem renomear nenhuma nota |
 | Outra coisa (um projeto de código, por exemplo) | Recusa e explica; nada fica para trás |
 
-Depois ele monta o índice local, registra o servidor MCP nos clientes de IA que encontrar (como `cabecao install-client --all`) e roda o [`doctor`](../referencia/cli.md#cabecao-doctor).
+Depois ele monta o índice local, registra o servidor MCP nos clientes de IA que encontrar (como `cabecao install-client --all`), roda o [`doctor`](../referencia/cli.md#cabecao-doctor) e termina dizendo o que testar e o que mais dá para ligar.
 
 O cérebro fica em `~/cabecao`. Para outra pasta, use `--dir`. O nome da máquina sai do nome do computador; para escolher, use `--machine`. Ele aparece nos commits e no nome das cópias de conflito.
 
 ## Repositório vazio
+
+Saída real, numa máquina com o Codex e o Cursor instalados:
 
 ```text
 $ cabecao init git@github.com:voce/cerebro.git --machine notebook
@@ -33,45 +35,58 @@ cabecao: fazendo o commit inicial...
 cabecao: gravando a configuração desta máquina...
 cabecao: enviando ao remoto...
 cabecao: montando o índice local...
-Pasta do cérebro: ~/cabecao (máquina notebook)
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook) e em git@github.com:voce/cerebro.git.
 
-Repositório: Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
-
+Repositório vazio: estrutura do cérebro criada na branch main e enviada para git@github.com:voce/cerebro.git.
 Índice local: 0 notas indexadas em 2 ms.
 
-Clientes de IA:
-  Claude Code: registrado
-    ~/.claude.json: registrado
-  Reinicie o cliente para ele enxergar a mudança.
+Agentes:
+  Codex   servidor MCP registrado em ~/.codex/config.toml
+  Cursor  servidor MCP registrado em ~/.cursor/mcp.json
+  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
 
-Diagnóstico (cabecao doctor, sem consultar o remoto de novo):
-  ok     Node.js                  v24.21.0
-  ok     git                      2.54.0
-  ok     Cérebro                  ~/cabecao (esquema 1)
-  ok     Configuração da máquina  máquina "notebook"
-  ok     Identidade do git        Ana Exemplo <ana@exemplo.invalid>
-  ok     Assinatura de commits    commit.gpgsign desligado
-  ok     Remoto                   origin (git@github.com:voce/cerebro.git); não consultado (--offline)
-  ok     .gitignore               tem as linhas que o Cabeção precisa
-  ok     .gitattributes           tem as linhas que o Cabeção precisa
-  ok     Banco local              em dia com o último commit (0 nota(s), varrido em 2026-11-13 00:03)
-  ok     Travas                   nenhuma trava órfã
-  ok     Operações interrompidas  nenhuma
-  ok     Conflitos                nenhum pendente
-  ok     Clientes MCP             1 cliente(s) registrado(s)
-                                  - Claude Code: ~/.claude.json: registrado para este cérebro
+Teste agora:
+  1. No Codex, peça: "guarde que eu prefiro respostas curtas, em tópicos"
+  2. Numa conversa nova, pergunte: "como eu prefiro as respostas?"
+  3. Ou confira aqui: cabecao search "respostas curtas"
 
-  14 ok, 0 avisos, 0 falhas.
+Opcional (rode quando quiser):
+  cabecao install-skills  ensina Codex e Cursor a usar o cérebro pela linha de
+                          comando (skills)
+  cabecao schedule on     sincroniza sozinho a cada 30 min; sem isso, o que o
+                          agente grava só vai às outras máquinas com
+                          "cabecao sync"
+  cabecao embeddings on   busca por significado, que roda nesta máquina (baixa
+                          um runtime e um modelo: centenas de MB)
 
-Próximos passos:
+Diagnóstico: 18 ok, 0 avisos, 0 falhas. Detalhes: cabecao doctor
+
+Depois:
   - Em outra máquina, rode cabecao init git@github.com:voce/cerebro.git.
 ```
 
 As linhas que começam com `cabecao:` mostram o progresso e vão para a saída de erro. A estrutura criada está em [Estrutura do cérebro](../conceitos/estrutura.md).
 
+### Teste agora
+
+O bloco "Teste agora" é o jeito mais rápido de ver o Cabeção funcionando: reinicie o agente, peça para ele guardar uma preferência e, numa conversa nova, pergunte por ela. O agente grava com `remember` e encontra com `recall` ou `search`, e você confere no terminal com `cabecao search`. Sem nenhum agente detectado, o primeiro passo diz para conectar um antes ([Conectar clientes](./conectar-clientes.md)).
+
+### Os opcionais
+
+O `init` não pergunta nada (só a URL decide). No fim, ele lista até três próximos passos **detectados** na sua máquina, cada um com o comando:
+
+| Opcional | Aparece quando |
+| --- | --- |
+| `cabecao install-skills` | Há um agente que lê skills (Claude Code sem o plugin, Codex, Cursor, VS Code, Antigravity, Gemini CLI) e as skills do Cabeção ainda não estão nele. Veja [Usar o Cabeção com skills](../guias/skills.md) |
+| `cabecao schedule on` | O cérebro tem remoto e o sync automático está desligado. Veja [Sync automático](../guias/sync-automatico.md) |
+| `cabecao embeddings on` | A busca por significado está desligada, ou o cérebro já usa uma e falta ligar nesta máquina (aí ele diz o modelo). Veja [Buscar](../guias/buscar.md) |
+| `cabecao obsidian setup` | O cérebro tem a pasta `.obsidian` e o setup ainda não rodou. Veja [Usar com o Obsidian](../guias/obsidian.md) |
+
+`cabecao status` e `cabecao doctor` repetem, no fim, os opcionais que continuam pendentes. O diagnóstico do fim do `init` é curto: uma linha com a contagem e só os itens que não estão `ok`; o completo é o `cabecao doctor`.
+
 ## Segunda máquina (cérebro existente)
 
-Na outra máquina, instale o Cabeção e rode o mesmo comando, com a mesma URL (início da saída; o diagnóstico vem depois):
+Na outra máquina, instale o Cabeção e rode o mesmo comando, com a mesma URL (início da saída, numa máquina com o Claude Code; o teste e os opcionais vêm depois):
 
 ```text
 $ cabecao init git@github.com:voce/cerebro.git --machine trabalho
@@ -80,32 +95,33 @@ cabecao: baixando o repositório...
 cabecao: vendo o que há no repositório...
 cabecao: gravando a configuração desta máquina...
 cabecao: montando o índice local...
-Pasta do cérebro: ~/cabecao (máquina trabalho)
+Pronto. Seu cérebro está em ~/cabecao (máquina trabalho) e em git@github.com:voce/cerebro.git.
 
-Repositório: Cérebro existente: clonado em ~/cabecao (branch main).
+Cérebro existente: clonado em ~/cabecao (branch main).
+Índice local: 0 notas indexadas em 2 ms.
 
-Índice local: 3 notas indexadas em 41 ms.
-
-Clientes de IA:
-  Claude Code: registrado
-    ~/.claude.json: registrado
-  Reinicie o cliente para ele enxergar a mudança.
+Agentes:
+  Claude Code  servidor MCP registrado (pelo comando "claude mcp", escopo user)
+  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
 ```
 
 Nada no repositório muda. O índice local é montado a partir das notas, e as memórias gravadas na primeira máquina já aparecem para os agentes desta. Para manter as duas em dia, veja [Sincronizar entre máquinas](../guias/sincronizar-maquinas.md).
 
 ## Vault do Obsidian ou pasta de Markdown
 
-Se o repositório já tem notas, o Cabeção adota o que existe. Nenhum arquivo é movido nem renomeado (início da saída):
+Se o repositório já tem notas, o Cabeção adota o que existe: clona o vault numa pasta nova e acrescenta a configuração dele, sem mover, renomear ou alterar nenhuma nota (início da saída):
 
 ```text
-$ cabecao init git@github.com:voce/vault-obsidian.git --dir ~/Obsidian/Notas --machine notebook --no-clients
-Pasta do cérebro: ~/Obsidian/Notas (máquina notebook)
+$ cabecao init git@github.com:voce/vault.git --machine notebook
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook) e em git@github.com:voce/vault.git.
 
-Repositório: Vault adotado sem mover nenhum arquivo: .cabecao.json, .gitattributes, .gitignore, AGENTS.md, CLAUDE.md acrescentados ou completados e enviados na branch main.
+Vault adotado: .cabecao.json, .gitattributes, .gitignore, AGENTS.md, CLAUDE.md acrescentados ou completados e enviados na branch main; nenhuma nota foi movida, renomeada ou alterada.
+Índice local: 1 nota indexada em 4 ms.
 
-Índice local: 3 notas indexadas em 7 ms.
+Obsidian: O cérebro é a pasta ~/cabecao, um clone novo do vault. Se o Obsidian abre este vault de outra pasta, ele continua abrindo aquela cópia, que não recebe o que os agentes gravam aqui: no Obsidian, use "Abrir pasta como cofre" (Open folder as vault) e escolha ~/cabecao. Depois de conferir que está tudo aqui, apague a cópia antiga ou deixe de usá-la.
 ```
+
+O cérebro é a pasta nova: abra ela no Obsidian.
 
 As pastas que já têm notas entram na lista de pastas de notas do `.cabecao.json`, ao lado de `wiki`, `memory` e `raw`, onde o Cabeção grava as notas novas. Os detalhes estão em [Adotar um vault existente](../guias/adotar-vault.md).
 
@@ -115,9 +131,9 @@ Sem URL, o cérebro é criado só local, sem remoto (início da saída):
 
 ```text
 $ cabecao init --machine notebook --no-clients
-Pasta do cérebro: ~/cabecao (máquina notebook)
+Pronto. Seu cérebro está em ~/cabecao (máquina notebook), só nesta máquina.
 
-Repositório: Cérebro criado só nesta máquina, em ~/cabecao (branch main). Nenhum remoto foi ligado.
+Cérebro criado só nesta máquina, em ~/cabecao (branch main). Nenhum remoto foi ligado.
 ```
 
 Tudo funciona igual, inclusive o `undo`: o histórico é um repositório git local. O `sync` só avisa que não há remoto. Para ligar um depois, crie um repositório privado e vazio e, na pasta do cérebro:
