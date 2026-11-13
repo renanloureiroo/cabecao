@@ -15,7 +15,7 @@ export type {
   PreparedAsk,
   StreamedClaim,
   UnavailableReason,
-} from './ask.ts';
+} from './engine.ts';
 export {
   ASK_STATUSES,
   AskCancelledError,
@@ -28,7 +28,7 @@ export {
   normalizeAskInput,
   prepareAsk,
   UNAVAILABLE_REASONS,
-} from './ask.ts';
+} from './engine.ts';
 export type { AnswerEvalReport, AnswerQuestion, AnswerQuestionResult, Ratio } from './eval.ts';
 export { AnswerQuestionsError, evaluateAnswers, parseAnswerQuestions } from './eval.ts';
 export type { FakeProvider, FakeProviderOptions, FakeResponder } from './fake.ts';

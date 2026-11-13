@@ -82,7 +82,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (extra.length > 0) throw new UsageError(`argumento a mais: ${extra.join(' ')}`);
   if (ctx.values.answers === true) {
     // as respostas do `ask` (opcional): o código dos provedores só carrega aqui
-    const { runAnswersEval } = await import('../llm/eval.ts');
+    const { runAnswersEval } = await import('../llm/answers.ts');
     return runAnswersEval(ctx, file);
   }
   if (ctx.values.provider !== undefined) throw new UsageError('--provider só vale com --answers');
