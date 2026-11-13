@@ -120,14 +120,19 @@ export function isPrivateTarget(realRoot: string, realTarget: string): boolean {
  * CLI também os das subpastas; o Claude Code, o de uma subpasta quando lê arquivos dela), e em macOS e Windows
  * `claude.md` abre `CLAUDE.md`: por isso valem em QUALQUER nível do cérebro e sem diferenciar maiúsculas.
  *
- * - `agents.md` (Codex, Cursor, Copilot, Zed, opencode e outros), `agents.override.md` (Codex);
+ * - `agents.md` (Codex, Cursor, Copilot, Zed, opencode, Antigravity e outros), `agents.override.md` (Codex);
  * - `agent.md` (Amp e Zed);
  * - `claude.md` e `claude.local.md` (Claude Code);
- * - `gemini.md` (Gemini CLI) e `qwen.md` (Qwen Code, derivado do Gemini CLI).
+ * - `gemini.md` (Gemini CLI e Antigravity) e `qwen.md` (Qwen Code, derivado do Gemini CLI).
+ *
+ * O Antigravity (antigravity.google/docs/rules, conferido em 13/11/2026) lê `AGENTS.md` e `GEMINI.md` da pasta de
+ * trabalho e das de cima, e o resto em caminho oculto (`.agents/AGENTS.md`, `.agents/rules/`, `.agent/rules/`): não
+ * há nome novo para esta lista.
  *
  * Os demais arquivos de instrução conhecidos ficam em pasta ou arquivo oculto (`.cursorrules`, `.windsurfrules`,
- * `.clinerules`, `.rules`, `.github/copilot-instructions.md`, `.cursor/rules/`, `.claude/`, `.kiro/`, `.junie/`) ou
- * não terminam em `.md`; esses já não passam por `assertNotePath`, que recusa caminho oculto e exige `.md`.
+ * `.clinerules`, `.rules`, `.github/copilot-instructions.md`, `.cursor/rules/`, `.claude/`, `.kiro/`, `.junie/`,
+ * `.agents/`) ou não terminam em `.md`; esses já não passam por `assertNotePath`, que recusa caminho oculto e exige
+ * `.md`.
  */
 export const CLIENT_INSTRUCTION_FILES: readonly string[] = [
   'agents.md',

@@ -554,7 +554,7 @@ export const checkClients: Check = (facts) => {
       title: 'Clientes MCP',
       status: 'warn',
       message: 'nenhum cliente de IA encontrado nesta máquina',
-      fix: 'Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Gemini CLI), rode "cabecao install-client --all", ou "cabecao install-client --print" para configurar à mão.',
+      fix: 'Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Antigravity), rode "cabecao install-client --all", ou "cabecao install-client --print" para configurar à mão.',
     };
   }
   const items: string[] = [];
