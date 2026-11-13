@@ -1,6 +1,7 @@
-import type { EmbeddingProvider, SyncOutput } from '@cabecao/core';
+import { stat } from 'node:fs/promises';
+import type { AskInput, AskOutput, Brain, BrainConfig, EmbeddingProvider, SyncOutput } from '@cabecao/core';
 import { readBrainConfig } from '@cabecao/core';
-import { readMachine, resolveBrain, toCliError } from '../brain.ts';
+import { machineConfigDir, readMachine, resolveBrain, toCliError } from '../brain.ts';
 import { embeddingProvider } from '../embeddings.ts';
 import { CliError, UsageError } from '../errors.ts';
 import type { CliIo, CommandContext, CommandResult } from '../types.ts';
@@ -20,6 +21,8 @@ export interface StdioServerOptions {
   syncRunner?: SyncRunner;
   /** Runtime de embeddings; criar não carrega nada (o modelo carrega na primeira busca que precisa dele). */
   embeddings?: EmbeddingProvider;
+  /** Respostas geradas (tool `ask`); só quando há provedor ativo nesta máquina e o cérebro permite. */
+  ask?: (brain: Brain, input: AskInput, signal?: AbortSignal) => Promise<AskOutput>;
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
 }
@@ -73,6 +76,33 @@ export function parseSyncProcessOutput(result: { code: number | null; stdout: st
   });
 }
 
+/**
+ * A tool `ask` só existe com um provedor de respostas ativo nesta máquina (`cabecao llm on`) e permitido pela
+ * `llm_policy` do cérebro. Sem `llm.json`, nada do código dos provedores é carregado. A decisão é tomada na subida do
+ * servidor: ativar depois pede reiniciar o cliente de IA.
+ */
+export async function askRunnerFor(
+  io: Pick<CliIo, 'env' | 'platform' | 'homedir' | 'stderr'>,
+  config: BrainConfig,
+): Promise<StdioServerOptions['ask']> {
+  const exists = await stat(`${machineConfigDir(io)}/llm.json`).then(
+    () => true,
+    () => false,
+  );
+  if (!exists) return undefined;
+  try {
+    const { askAnnounced, runAsk } = await import('../llm/run.ts');
+    if (!(await askAnnounced(io, config))) return undefined;
+    return async (brain, input, signal) =>
+      (await runAsk(io, brain, input, signal === undefined ? {} : { signal })).output;
+  } catch (error) {
+    io.stderr.write(
+      `[cabecao] respostas (ask) indisponíveis: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return undefined;
+  }
+}
+
 export interface McpDeps {
   /** Carrega o servidor. Nos testes, um falso. */
   loadServer: () => Promise<RunStdioServer>;
@@ -93,11 +123,13 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
   if (ctx.positionals.length > 0) throw new UsageError(`argumento a mais: ${ctx.positionals.join(' ')}`);
   const brainRoot = await resolveBrain(ctx);
   // Confere antes de subir: um cliente MCP mostra o stderr de um servidor que não sobe, e a mensagem diz o que fazer.
+  let brainConfig: BrainConfig;
   try {
-    await readBrainConfig(brainRoot);
+    brainConfig = await readBrainConfig(brainRoot);
   } catch (error) {
     throw toCliError(error);
   }
+  const ask = await askRunnerFor(ctx, brainConfig);
   const machine = (await readMachine(ctx))?.machine;
   let runStdioServer: RunStdioServer;
   try {
@@ -118,6 +150,7 @@ export async function runMcp(ctx: CommandContext, deps: McpDeps = DEFAULT_DEPS):
     ...(machine === undefined ? {} : { machine }),
     syncRunner: createSyncRunner(ctx, brainRoot),
     embeddings: embeddingProvider(ctx),
+    ...(ask === undefined ? {} : { ask }),
   });
   return {};
 }

@@ -67,6 +67,59 @@ async function terminalPrompt(question: string): Promise<string | null> {
   }
 }
 
+/**
+ * Pergunta no terminal sem eco (para uma chave). Lê em modo cru, caractere a caractere: Enter termina, Backspace
+ * apaga, Ctrl+C cancela (devolve `null`). Nada do que foi digitado é escrito na tela.
+ */
+async function terminalSecret(question: string): Promise<string | null> {
+  const stdin = process.stdin;
+  if (stdin.isTTY !== true) return null;
+  process.stderr.write(question);
+  return new Promise((resolve) => {
+    let value = '';
+    const wasRaw = stdin.isRaw;
+    const finish = (result: string | null): void => {
+      stdin.off('data', onData);
+      stdin.setRawMode(wasRaw);
+      stdin.pause();
+      process.stderr.write('\n');
+      resolve(result);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      for (const char of chunk.toString('utf8')) {
+        if (char === '\r' || char === '\n') {
+          finish(value.trim());
+          return;
+        }
+        if (char === '\u0003' || char === '\u0004') {
+          finish(null);
+          return;
+        }
+        if (char === '\u007f' || char === '\b') value = value.slice(0, -1);
+        else if (char >= ' ') value += char;
+      }
+    };
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.on('data', onData);
+  });
+}
+
+/** Ctrl+C vira cancelamento enquanto o comando quiser (o `ask` encerra o provedor e sai com 130). */
+function watchInterrupt(): { signal: AbortSignal; dispose(): void } {
+  const controller = new AbortController();
+  const onSignal = (): void => controller.abort(new Error('interrompido'));
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      process.off('SIGINT', onSignal);
+      process.off('SIGTERM', onSignal);
+    },
+  };
+}
+
 /** Entrada padrão do processo, lida só por quem pede (modos de hook). O leitor é carregado só quando usado. */
 async function processStdin(limits: StdinLimits): Promise<string | null> {
   if (process.stdin.isTTY === true) return null;
@@ -104,6 +157,9 @@ export async function main(argv: readonly string[]): Promise<void> {
     exec: systemExec,
     readStdin: processStdin,
     exit: flushAndExit,
-    ...(process.stdin.isTTY === true && process.stderr.isTTY === true ? { prompt: terminalPrompt } : {}),
+    watchInterrupt,
+    ...(process.stdin.isTTY === true && process.stderr.isTTY === true
+      ? { prompt: terminalPrompt, promptSecret: terminalSecret }
+      : {}),
   });
 }
