@@ -8,8 +8,8 @@ import { EmbeddingEngine } from '../embeddings/index.ts';
 import type { SyncStep } from '../sync/index.ts';
 import type { BrainConfig, EmbeddingConfig } from '../vault/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
-import type { ConsolidateInput, ConsolidateOutput } from './consolidate.ts';
-import { consolidate } from './consolidate.ts';
+import type { ConsolidateInput, ConsolidateOutput, ConsolidationState } from './consolidate.ts';
+import { consolidate, consolidationState } from './consolidate.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
 import { assertOpen, machineName } from './context.ts';
 import type {
@@ -44,6 +44,8 @@ import type { IngestInput, IngestOptions, IngestOutput } from './ingest.ts';
 import { ingest } from './ingest.ts';
 import type { LintInput, LintOutput } from './lint.ts';
 import { lint } from './lint.ts';
+import type { MapGraphInput, MapGraphOutput } from './map.ts';
+import { mapGraph } from './map.ts';
 import { Mutex } from './mutex.ts';
 import type {
   ReadInput,
@@ -121,6 +123,8 @@ export interface Brain {
   status(): Promise<StatusOutput>;
   /** Vizinhos de uma nota no grafo (1 ou 2 saltos), com tipo, direção e validade de cada relação numa data. */
   graph(input: GraphInput): Promise<GraphOutput>;
+  /** Notas e TODAS as arestas entre elas, para o mapa (`cabecao export canvas`). Só da CLI: não é tool do MCP. */
+  mapGraph(input?: MapGraphInput): Promise<MapGraphOutput>;
   /** Fatos por sujeito, predicado e objeto, e se valem numa data, com a cadeia de versões. */
   facts(input?: FactsInput): Promise<FactsOutput>;
   /** Relatório de saúde por regras (sem LLM, só leitura): cada achado com severidade, caminho e correção. */
@@ -155,6 +159,8 @@ export interface Brain {
    * as tools normais usando o id como `session_handle`; `finish` fecha tudo num commit, uma linha por nota.
    */
   consolidate(input: ConsolidateInput): Promise<ConsolidateOutput>;
+  /** Se a consolidação foi fechada e o que mudou desde o ponto de restauração (só lê; usado pelo `consolidate --run`). */
+  consolidationState(consolidationId: string): Promise<ConsolidationState>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -291,6 +297,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     search: (input) => search(ctx, input),
     read: (input) => read(ctx, input),
     graph: (input) => graph(ctx, input),
+    mapGraph: (input) => mapGraph(ctx, input),
     facts: (input) => facts(ctx, input),
     lint: (input) => lint(ctx, input),
     status: async () => {
@@ -305,6 +312,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     ingest: (input, options) => ingest(ctx, input, options),
     forget: (input, options) => forget(ctx, input, options),
     consolidate: (input) => consolidate(ctx, input),
+    consolidationState: (id) => consolidationState(ctx, id),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {

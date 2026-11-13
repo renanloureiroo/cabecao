@@ -1,8 +1,11 @@
-// Provedor "agente instalado": o Claude Code (`claude -p`), com o login que o usuário já tem. A Anthropic documenta que
-// "the Claude Agent SDK and `claude -p` still draw from your subscription limits"
-// (https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan, consultada em
-// 13/11/2026). É o único agente oferecido: o Antigravity diz na FAQ que embrulhar o `agy` em outro aplicativo "is not
-// supported under consumer plans", e para o Codex não achamos fonte oficial que permita (pesquisa de agentes, 13/11/2026).
+// Provedor "agente instalado": o Claude Code (`claude -p`), com o login que o usuário já tem. Quem pode ser chamado, com
+// que credencial, como achar o executável e qual ambiente ele recebe é a regra comum de `../agents/` (a mesma do
+// `consolidate --run`); o processo também é o de lá, com o cancelamento por `AbortSignal` acrescentado para o `ask`. A
+// Anthropic documenta que "the Claude Agent SDK and `claude -p` still draw from your subscription limits"
+// (https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan, 13/11/2026). É o
+// único agente oferecido como provedor de respostas: o Antigravity não deixa ser embrulhado em outro aplicativo nos
+// planos pessoais, e o Codex só pode ser chamado com chave de API (`../agents/policy.ts`); com uma chave da OpenAI, a
+// API direta (`--provider openai`) faz o mesmo sem subir um agente que não deixa tirar todas as tools.
 //
 // Para GERAR a resposta o agente não precisa de nada: nenhuma tool embutida (`--tools ""`), nenhum servidor MCP
 // (`--strict-mcp-config` com uma configuração vazia), sem as configurações do usuário, do projeto e locais
@@ -16,11 +19,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Availability, GenerateRequest, GenerateResult, GenerationProvider } from '@cabecao/core';
 import { ProviderError, redact } from '@cabecao/core';
-import { findExecutable } from '../install-client/files.ts';
+import type { AgentProcessOptions, AgentProcessResult } from '../agents/index.ts';
+import { agentEnv, CALLABLE_AGENTS, locateAgent, runAgentProcess } from '../agents/index.ts';
 import type { Env } from '../types.ts';
-import { CLAUDE_CODE_BINARY, CLAUDE_CODE_DEFAULT_MODEL, CLAUDE_CODE_DESTINATION } from './describe.ts';
-import type { ToolessRunOptions, ToolessRunResult } from './process.ts';
-import { runToolless } from './process.ts';
+import { CLAUDE_CODE_DEFAULT_MODEL, CLAUDE_CODE_DESTINATION } from './describe.ts';
 
 export {
   CLAUDE_CODE_BINARY,
@@ -29,73 +31,14 @@ export {
   CLAUDE_CODE_LABEL,
 } from './describe.ts';
 
-/** O que o agente recebe do ambiente: sistema, pastas, rede (proxy e certificados). Nada mais é repassado. */
-const BASE_ENV = [
-  'PATH',
-  'Path',
-  'PATHEXT',
-  'HOME',
-  'USERPROFILE',
-  'HOMEDRIVE',
-  'HOMEPATH',
-  'APPDATA',
-  'LOCALAPPDATA',
-  'PROGRAMDATA',
-  'SystemRoot',
-  'SYSTEMROOT',
-  'windir',
-  'ComSpec',
-  'TEMP',
-  'TMP',
-  'TMPDIR',
-  'USER',
-  'USERNAME',
-  'LOGNAME',
-  'LANG',
-  'LC_ALL',
-  'LC_CTYPE',
-  'TZ',
-  'XDG_CONFIG_HOME',
-  'XDG_DATA_HOME',
-  'XDG_CACHE_HOME',
-  'XDG_STATE_HOME',
-  'XDG_RUNTIME_DIR',
-  'DBUS_SESSION_BUS_ADDRESS',
-  'HTTPS_PROXY',
-  'HTTP_PROXY',
-  'NO_PROXY',
-  'https_proxy',
-  'http_proxy',
-  'no_proxy',
-  'NODE_EXTRA_CA_CERTS',
-  'SSL_CERT_FILE',
-  'SSL_CERT_DIR',
-] as const;
+const CLAUDE = CALLABLE_AGENTS['claude-code'];
 
-/** Variáveis do login do Claude Code (as mesmas do `consolidate --run`). */
-const LOGIN_ENV = [
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_BASE_URL',
-  'CLAUDE_CONFIG_DIR',
-  'CLAUDE_CODE_OAUTH_TOKEN',
-  'CLAUDE_CODE_USE_BEDROCK',
-  'CLAUDE_CODE_USE_VERTEX',
-  'CLAUDE_CODE_USE_FOUNDRY',
-  'AWS_PROFILE',
-  'AWS_REGION',
-  'ANTHROPIC_VERTEX_PROJECT_ID',
-  'CLOUD_ML_REGION',
-] as const;
-
-/** Ambiente mínimo do agente. */
-export function claudeEnv(env: Env): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const name of [...BASE_ENV, ...LOGIN_ENV]) {
-    const value = env[name];
-    if (value !== undefined && value !== '') out[name] = value;
-  }
-  return { ...out, DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1' };
+/** Ambiente mínimo do agente (a regra comum de `../agents/`), sem atualização automática e sem histórico de prompts. */
+export function claudeEnv(env: Env): Env {
+  return agentEnv(env, CLAUDE, CLAUDE.credentials(env), {
+    DISABLE_AUTOUPDATER: '1',
+    CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1',
+  });
 }
 
 /** Argumentos exatos (sem shell). O prompt de sistema vai num arquivo da pasta temporária. */
@@ -160,12 +103,12 @@ const num = (value: unknown): number | null => (typeof value === 'number' && Num
 
 /** Lê a saída do `claude -p --output-format json`. Lança `ProviderError` com mensagem sem segredo. */
 export function parseClaudeOutput(
-  run: ToolessRunResult,
+  run: AgentProcessResult,
   timeoutMs: number,
   secrets: readonly string[],
 ): Omit<GenerateResult, 'durationMs'> {
   const tail = (text: string): string => redact(text.trim().split('\n').slice(-3).join(' ').slice(0, 300), secrets);
-  if (run.cancelled) throw new ProviderError('cancelled', 'cancelado');
+  if (run.interrupted) throw new ProviderError('cancelled', 'cancelado');
   if (run.spawnError !== null) {
     throw new ProviderError('not_installed', `não consegui iniciar o Claude Code: ${tail(run.spawnError)}`);
   }
@@ -174,7 +117,6 @@ export function parseClaudeOutput(
       retryable: true,
     });
   }
-  if (run.overflow) throw new ProviderError('invalid_output', 'o Claude Code devolveu uma saída grande demais');
   const data = lastJson(run.stdout);
   if (data === null) {
     const detail = tail(run.stderr || run.stdout) || `código de saída ${run.code ?? 'nenhum'}`;
@@ -229,30 +171,29 @@ export interface ClaudeCodeProviderOptions {
   /** Pasta onde criar a pasta temporária de trabalho (padrão: a do sistema). */
   readonly tmpRoot?: string;
   /** Troca o executor (testes com um agente falso). */
-  readonly run?: (file: string, args: readonly string[], options: ToolessRunOptions) => Promise<ToolessRunResult>;
+  readonly run?: (file: string, args: readonly string[], options: AgentProcessOptions) => Promise<AgentProcessResult>;
   /** Troca a busca no PATH (testes). */
   readonly locate?: () => Promise<string | undefined>;
 }
 
-/** Acha o `claude` no PATH; recusa um `.cmd`/`.bat` no Windows (o JSON nos argumentos não passa por shell com segurança). */
+/** Acha o `claude` no PATH (a regra comum: no Windows, um `.cmd`/`.bat` é recusado), sem lançar. */
 export async function locateClaude(
   env: Env,
   platform: NodeJS.Platform,
 ): Promise<{ path: string | null; problem: string | null }> {
-  const found = await findExecutable(CLAUDE_CODE_BINARY, { env, platform });
-  if (found === undefined) return { path: null, problem: 'o comando "claude" não está no PATH desta máquina' };
-  if (platform === 'win32' && /\.(?:cmd|bat)$/i.test(found)) {
-    return {
-      path: null,
-      problem: `${found} é um script .cmd; o Cabeção só roda a versão nativa (.exe) do Claude Code`,
-    };
+  try {
+    const path = await locateAgent({ env, platform }, CLAUDE);
+    return path === null
+      ? { path: null, problem: 'o comando "claude" não está no PATH desta máquina' }
+      : { path, problem: null };
+  } catch (error) {
+    return { path: null, problem: error instanceof Error ? error.message : String(error) };
   }
-  return { path: found, problem: null };
 }
 
 export function createClaudeCodeProvider(options: ClaudeCodeProviderOptions): GenerationProvider {
   const model = options.model ?? CLAUDE_CODE_DEFAULT_MODEL;
-  const run = options.run ?? runToolless;
+  const run = options.run ?? runAgentProcess;
   const locate = async (): Promise<{ path: string | null; problem: string | null }> => {
     if (options.locate !== undefined) {
       const path = (await options.locate()) ?? null;
@@ -261,7 +202,8 @@ export function createClaudeCodeProvider(options: ClaudeCodeProviderOptions): Ge
     return locateClaude(options.env, options.platform);
   };
   // o que pode aparecer numa mensagem e não deve: as credenciais que o agente recebe do ambiente
-  const secrets = LOGIN_ENV.filter((name) => /KEY|TOKEN/.test(name))
+  const secrets = CLAUDE.loginEnv
+    .filter((name) => /KEY|TOKEN/.test(name))
     .map((name) => options.env[name])
     .filter((value): value is string => value !== undefined && value.length >= 8);
   return {

@@ -328,6 +328,21 @@ describe('doctor num cérebro de verdade', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(await readFile(join(m.home, '.cursor', 'mcp.json'), 'utf8')).toContain('"command":"x"');
   });
 
+  it('confere o registro do Antigravity (~/.gemini/config/mcp_config.json) sem executar nada', async () => {
+    const brain = await brainRepo();
+    const m = machine();
+    await mkdir(join(m.home, '.gemini', 'antigravity-cli'), { recursive: true });
+    const before = parseJson(await m.cabecao(['doctor', '--brain', brain, '--json', '--offline']));
+    expect(before.data.checks.find((check: { id: string }) => check.id === 'clients')).toMatchObject({
+      status: 'warn',
+      fix: expect.stringContaining('install-client antigravity'),
+    });
+    expect((await m.cabecao(['install-client', 'antigravity', '--brain', brain])).code).toBe(0);
+    const after = parseJson(await m.cabecao(['doctor', '--brain', brain, '--json', '--offline']));
+    expect(after.data.checks.find((check: { id: string }) => check.id === 'clients')).toMatchObject({ status: 'ok' });
+    expect(m.calls).toEqual([]);
+  });
+
   it('index.lock velho do git aparece como trava órfã', async () => {
     const brain = await brainRepo();
     const lock = join(brain, '.git', 'index.lock');

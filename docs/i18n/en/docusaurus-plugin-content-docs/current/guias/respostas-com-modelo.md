@@ -74,7 +74,7 @@ The default models are the cheapest ones with structured output in each provider
 
 ### Why the installed Antigravity is not offered
 
-The [Antigravity FAQ](https://antigravity.google/docs/faq) (checked on 2026-11-13) says that wrapping `agy` inside another application "is not supported under consumer plans" and that using third-party software to access it violates the terms, putting the account at risk. So Cabeção does not call `agy`. For Google's models, use the **Gemini API with a key** (`--provider gemini`). Codex is not offered either: we found no official source saying its terms allow calling it from another program with a ChatGPT login; use the OpenAI API.
+The [Antigravity FAQ](https://antigravity.google/docs/faq) (checked on 2026-11-13) says that wrapping `agy` inside another application "is not supported under consumer plans" and that using third-party software to access it violates the terms, putting the account at risk. So Cabeção does not call `agy`. For Google's models, use the **Gemini API with a key** (`--provider gemini`). Codex is not offered either: OpenAI only advises calling it from another program with an API key (not a ChatGPT login), and with that key the OpenAI API (`--provider openai`) does the same without starting an agent.
 
 ## What leaves the machine, and what never does
 

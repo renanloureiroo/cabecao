@@ -11,11 +11,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ANSWER_SCHEMA } from '@cabecao/core';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { runAgentProcess } from '../src/agents/index.ts';
 import { claudeArgs, claudeEnv, createClaudeCodeProvider, parseClaudeOutput } from '../src/llm/claude-code.ts';
 import type { CredentialRunner } from '../src/llm/credentials.ts';
 import { deleteKey, maskKey, readKey, storeKey } from '../src/llm/credentials.ts';
 import { agentMarker } from '../src/llm/human.ts';
-import { runToolless } from '../src/llm/process.ts';
 import type { CliResult } from '../src/main.ts';
 import { brainRepo, closeOpened, disposeSandbox, freshDir, machine, parseJson, TEST_TIMEOUT_MS } from './helpers.ts';
 
@@ -463,9 +463,8 @@ describe('Claude Code como provedor (agente falso)', { timeout: TEST_TIMEOUT_MS 
       signal: null,
       stderr: '',
       timedOut: false,
-      cancelled: false,
+      interrupted: false,
       spawnError: null,
-      overflow: false,
       durationMs: 1,
     };
     const ok = parseClaudeOutput(
@@ -504,7 +503,7 @@ describe('Claude Code como provedor (agente falso)', { timeout: TEST_TIMEOUT_MS 
       env: { ...process.env, SEGREDO_QUALQUER: 'nao-deve-passar' },
       platform: process.platform,
       locate: async () => 'claude',
-      run: (_file, args, options) => runToolless(process.execPath, [FAKE_CLAUDE, log, mode, ...args], options),
+      run: (_file, args, options) => runAgentProcess(process.execPath, [FAKE_CLAUDE, log, mode, ...args], options),
     });
   }
 

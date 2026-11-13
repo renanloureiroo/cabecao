@@ -1,4 +1,5 @@
 import type { StatusOutput } from '@cabecao/core';
+import { checkTemplate, schemaState, templateUpdatable } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
 import type { LlmSummary } from '../llm/describe.ts';
 import { llmSummary } from '../llm/describe.ts';
@@ -93,13 +94,39 @@ export function askLine(summary: LlmSummary): string {
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   const root = await resolveBrain(ctx);
   const status = await withBrain(ctx, root, (brain) => brain.status());
-  const ask = await llmSummary(ctx).catch(() => null);
   const text = statusText(status);
-  if (ask === null) return { data: status, text };
-  // a linha do ask vai antes de "Problemas"/"Saúde"
-  const lines = text.split('\n');
-  const at = lines.findIndex((line) => line === 'Problemas:' || line.startsWith('Saúde:'));
-  lines.splice(at === -1 ? lines.length : at, 0, askLine(ask));
+  // a linha do ask (opcional) vai antes de "Problemas"/"Saúde"
+  const ask = await llmSummary(ctx).catch(() => null);
+  const body = text.split('\n');
+  if (ask !== null) {
+    const at = body.findIndex((line) => line === 'Problemas:' || line.startsWith('Saúde:'));
+    body.splice(at === -1 ? body.length : at, 0, askLine(ask));
+  }
   // Avisos (conflitos, sync com erro) não mudam o código de saída: o comando funcionou e mostrou o estado.
-  return { data: { ...status, ask }, text: lines.join('\n') };
+  const lines = [body.join('\n')];
+  const schema = await schemaState(root);
+  if (schema !== null && schema.pending > 0) {
+    lines.push(
+      `Atualização: ${plural(schema.pending, 'migração pendente', 'migrações pendentes')} do esquema ${schema.version} para o ${schema.supported}. Rode "cabecao upgrade".`,
+    );
+  }
+  const template = templateUpdatable(await checkTemplate(root)).map((item) => item.path);
+  if (template.length > 0) {
+    lines.push(
+      `Modelo do cérebro: atualização opcional (${template.join(', ')}). Veja com "cabecao upgrade --template --dry-run".`,
+    );
+  }
+  return {
+    data: {
+      ...status,
+      ...(ask === null ? {} : { ask }),
+      upgrade: {
+        schema_version: schema?.version ?? null,
+        supported: schema?.supported ?? null,
+        pending: schema?.pending ?? 0,
+        template,
+      },
+    },
+    text: lines.join('\n'),
+  };
 }

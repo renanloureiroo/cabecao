@@ -60,6 +60,8 @@ function printed(def: ClientDef, location: Location, launch: Launch): PrintedCli
 function printedText(clients: readonly PrintedClient[]): string {
   const blocks = clients.map((client) => {
     const lines = [`# ${client.label}`];
+    const notice = CLIENTS[client.client].notice;
+    if (notice !== undefined) lines.push(`# aviso: ${notice}`);
     if (client.command !== undefined) {
       lines.push(client.command.map(shellQuote).join(' '), '', '# ou, sem o comando do cliente, direto no arquivo:');
     }

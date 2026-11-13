@@ -171,12 +171,13 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
   it('registra o servidor nos clientes encontrados (pasta do usuário falsa), sem executar nada', async () => {
     const a = machine('a');
     await mkdir(join(a.home, '.cursor'), { recursive: true });
-    await mkdir(join(a.home, '.gemini'), { recursive: true });
+    await mkdir(join(a.home, '.gemini', 'antigravity-cli'), { recursive: true });
     const result = await a.cabecao(['init'], { binPath: join(a.home, 'bin-que-nao-existe.mjs') });
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Clientes de IA:');
     expect(result.stdout).toContain('Cursor: registrado');
-    expect(result.stdout).toContain('Gemini CLI: registrado');
+    expect(result.stdout).toContain('Antigravity: registrado');
+    expect(result.stdout).not.toContain('Gemini CLI');
     const cursor = JSON.parse(await readFile(join(a.home, '.cursor', 'mcp.json'), 'utf8'));
     expect(cursor.mcpServers.cabecao.args.slice(-3)).toEqual(['mcp', '--brain', join(a.home, 'cabecao')]);
     expect(a.calls).toEqual([]);

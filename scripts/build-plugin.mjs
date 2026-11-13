@@ -1,5 +1,6 @@
 // Copia o bundle da CLI (`packages/cli/dist`, gerado por `pnpm build`) para dentro do plugin do Claude Code, em
-// `integrations/claude-code/server/`, e acerta a versão do `plugin.json` com a do pacote `cabecao`.
+// `integrations/claude-code/server/`, e acerta a versão do `plugin.json` (e a do manifesto do pacote `.mcpb` do Claude
+// Desktop, `integrations/mcpb/manifest.json`) com a do pacote `cabecao`.
 //
 // Por que o bundle vai commitado: o Claude Code instala um plugin de marketplace clonando o repositório e copiando a
 // pasta do plugin, sem passo de build, e não copia nada de fora dela (code.claude.com/docs, "Plugin marketplaces" e
@@ -22,6 +23,7 @@ const dist = join(repo, 'packages', 'cli', 'dist');
 const plugin = join(repo, 'integrations', 'claude-code');
 const server = join(plugin, 'server');
 const manifestPath = join(plugin, '.claude-plugin', 'plugin.json');
+const mcpbManifestPath = join(repo, 'integrations', 'mcpb', 'manifest.json');
 const check = process.argv.includes('--check');
 
 const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -49,11 +51,17 @@ if (!VERSION_LINE.test(manifestText)) {
   process.exit(1);
 }
 const nextManifest = manifestText.replace(VERSION_LINE, `  "version": ${JSON.stringify(version)},`);
+const mcpbText = readFileSync(mcpbManifestPath, 'utf8');
+if (!VERSION_LINE.test(mcpbText)) {
+  console.error(`não achei a linha "version" em ${mcpbManifestPath}`);
+  process.exit(1);
+}
+const nextMcpb = mcpbText.replace(VERSION_LINE, `  "version": ${JSON.stringify(version)},`);
 const nextBuild = `${JSON.stringify(build, null, 2)}\n`;
 
 if (check) {
   const current = existsSync(join(server, 'build.json')) ? readFileSync(join(server, 'build.json'), 'utf8') : '';
-  const stale = current !== nextBuild || readFileSync(manifestPath, 'utf8') !== nextManifest;
+  const stale = current !== nextBuild || manifestText !== nextManifest || mcpbText !== nextMcpb;
   console.log(stale ? 'o plugin está defasado: rode "pnpm build:plugin"' : 'o plugin corresponde ao dist atual');
   process.exit(stale ? 1 : 0);
 }
@@ -65,4 +73,5 @@ for (const name of readdirSync(server)) {
 for (const name of files) copyFileSync(join(dist, name), join(server, name));
 writeFileSync(join(server, 'build.json'), nextBuild);
 writeFileSync(manifestPath, nextManifest);
+writeFileSync(mcpbManifestPath, nextMcpb);
 console.log(`plugin do Claude Code: ${files.length} arquivos do bundle ${version} em ${server}`);

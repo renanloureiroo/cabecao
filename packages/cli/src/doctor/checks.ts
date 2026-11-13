@@ -224,8 +224,12 @@ export const checkBrain: Check = (facts) => {
   return {
     id: 'brain',
     title: 'Cérebro',
-    status: 'ok',
+    // esquema anterior: o cérebro funciona, mas há migração pendente (`cabecao upgrade`)
+    status: config.schemaVersion < config.supported ? 'warn' : 'ok',
     message: `${facts.brain.root} (esquema ${config.schemaVersion}${config.schemaVersion === config.supported ? '' : `; esta versão do Cabeção usa o ${config.supported}`})`,
+    ...(config.schemaVersion < config.supported
+      ? { fix: 'Há migração pendente: rode "cabecao sync" e depois "cabecao upgrade".' }
+      : {}),
   };
 };
 
@@ -571,7 +575,7 @@ export const checkClients: Check = (facts) => {
       title: 'Clientes MCP',
       status: 'warn',
       message: 'nenhum cliente de IA encontrado nesta máquina',
-      fix: 'Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Gemini CLI), rode "cabecao install-client --all", ou "cabecao install-client --print" para configurar à mão.',
+      fix: 'Depois de instalar um (Claude Code, Codex, Cursor, VS Code, Antigravity), rode "cabecao install-client --all", ou "cabecao install-client --print" para configurar à mão.',
     };
   }
   const items: string[] = [];

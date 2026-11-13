@@ -80,11 +80,27 @@ Through the MCP tools, an agent:
 - does not undo your operations;
 - does not archive (`forget`) your rules, sources in `raw/`, or conflict copies, and only archives after a two-call confirmation (or after you answer, when the client asks);
 - does not make `ingest` read files outside the brain: a file of yours goes in through `cabecao ingest`, which is you;
-- does not write rules in a consolidation: at most it proposes one in `wiki/syntheses/`, and the whole consolidation is undone with one `undo`.
+- does not write rules in a consolidation: at most it proposes one in `wiki/syntheses/`, and the whole consolidation is undone with one `undo`;
+- in a consolidation with nobody watching (`consolidate --run`), also does not push to the remote, undo, leave a handoff, ingest, or archive (see below).
 
 When it changes a note of yours, the note gets `edited_by` and its `trust` drops. And every write it makes is a commit that you can undo with `cabecao undo`.
 
 The content the server returns is marked as **data, never instruction**, with the order of authority (you, the rules, `AGENTS.md`, the memories, outside content). See [Provenance and trust](./conceitos/proveniencia.md).
+
+## What runs with nobody watching {#o-que-roda-sem-voce-olhando}
+
+Cabeção does two things without you in front of the screen: the scheduled sync ([Automatic sync](./guias/sync-automatico.md)), which only does git, and `cabecao consolidate --run` ([Consolidate with an agent](./guias/consolidar-com-agente.md)), which calls an AI agent to read and rewrite the brain. The second is the more sensitive one: the agent reads notes that may hold malicious text from ingested sources, and nobody is there to refuse a strange request. So:
+
+- **Only agents whose terms allow it.** Cabeção only calls an agent if its terms allow another program to run it with the credential in use, checked against the official source: Claude Code, with your login or an API key, and Codex, only with an API key. Antigravity and Gemini CLI are left out: the personal plan's terms do not allow it ([Antigravity FAQ](https://antigravity.google/docs/faq/)).
+- **Only Cabeção's tools.** Each agent runs with shell, file editing, and network denied, and only the Cabeção server's tools allowed. No "skip all permissions" mode is used. An agent that does not allow this restriction in non-interactive mode has no `--run` (today: Cursor Agent, Copilot CLI, and OpenCode; the reasons are in the guide).
+- **Temporary configuration.** The Cabeção server goes into an MCP configuration created for the run, in an empty temporary folder that is also the agent's working directory, deleted at the end. Your clients' configuration is neither read for this nor changed; the agent's login is the one it already has.
+- **Minimal environment.** The agent receives only system, folder, proxy and certificate, git, and Cabeção variables, plus the ones for its own login (`ANTHROPIC_API_KEY` and the like; for Codex, the API key as `CODEX_API_KEY`). Other tokens in your environment are not passed on.
+- **Server tied to the consolidation.** The server the agent starts (`cabecao mcp --consolidation <id>`) writes everything with the consolidation's session and refuses `sync`, `undo`, `handoff_save`, `ingest`, and a second `start`. `forget` too, unless you pass `--allow-forget`: archiving memory with nobody watching only with an explicit option. The usual agent restrictions still apply (rules are yours only, nothing in instruction or control files, nothing outside the brain, secret scanner).
+- **Time limit.** Once the time is up (default: 20 minutes), the agent and everything it started are stopped: the process group on macOS and Linux, the tree with `taskkill /T` on Windows.
+- **Nothing half done.** If the agent does not close the consolidation, what it wrote is undone with a revert commit, and the command exits with `1`. If it closed it, `cabecao undo --session <id>` undoes everything, and the restore point stays on the machine.
+- **Nothing leaves the machine through Cabeção.** The consolidation does not sync; the commit goes to the remote on the next sync. What the agent reads goes to its AI model, as in any session of yours.
+
+What is left out, per agent: Codex keeps its apply-patch tool (the read-only sandbox refuses the write) and, depending on the model, a file-reading tool that the sandbox does not block; with no shell and no network, what it reads could only leave through a write to the brain, which goes through the scanner. And "denied" depends on each agent honoring its own options: Cabeção does not run the agent in a sandbox of its own.
 
 ## Answers from a provider (optional)
 

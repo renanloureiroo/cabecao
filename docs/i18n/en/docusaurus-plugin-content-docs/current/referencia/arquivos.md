@@ -19,6 +19,7 @@ sidebar_position: 5
 | --- | --- |
 | `machine` | The name of this machine: lowercase letters, digits, and hyphens, up to 32 characters. It appears in commits (`Cabecao-Machine`) and in conflict copies |
 | `defaultBrain` | The brain used when none is given (`--brain` or `CABECAO_BRAIN`) |
+| `agent` | Optional. The agent `cabecao consolidate --run` uses without `--agent`: `claude-code` or `codex`. You write it by hand; `init` keeps it |
 
 Where the folder lives:
 
@@ -86,3 +87,5 @@ Everything there is derived from the notes and from git. If the database has a p
 ## What Cabeção writes outside the brain
 
 Only the AI clients' configuration files, when you run `init` or `install-client`, and only the `cabecao` entry inside them. The first change to each file leaves a `.bak` copy next to it. The list of files per client is in [Connect to AI clients](../comecar/conectar-clientes.md).
+
+`cabecao consolidate --run` creates a temporary folder (the agent's MCP configuration and its working directory), deleted at the end, and keeps the agent's output in `~/.cache/cabecao/consolidate-runs/<id>.log` (on Windows, `%LOCALAPPDATA%\cabecao\consolidate-runs`). It does not change the clients' configuration.

@@ -5,6 +5,7 @@ import type { Readable, Writable } from 'node:stream';
 import { format } from 'node:util';
 import type { EmbeddingProvider } from '@cabecao/core';
 import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
+import type { UnattendedOptions } from './brains.ts';
 import { createBrainProvider } from './brains.ts';
 import { LineLimiter, MAX_MESSAGE_BYTES } from './line-limit.ts';
 import { buildServer } from './server.ts';
@@ -24,6 +25,12 @@ export interface StdioServerOptions {
   ask?: AskRunner;
   /** Runtime de embeddings (a CLI injeta). O modelo carrega na primeira busca que precisa dele, nunca na subida. */
   embeddings?: EmbeddingProvider;
+  /**
+   * Modo sem ninguém olhando, preso a uma consolidação (`cabecao mcp --consolidation <id>`): toda escrita vai com a
+   * sessão da consolidação e sync, undo, handoff_save, ingest e consolidate start são recusados (forget também, sem
+   * `allowForget`).
+   */
+  unattended?: UnattendedOptions;
   /** Limite de uma mensagem JSON-RPC, em bytes. Padrão: `MAX_MESSAGE_BYTES` (10 MiB). Para testes. */
   maxMessageBytes?: number;
   /** Para testes. Sem eles, usa o stdin e o stdout do processo e cuida dos sinais. */
@@ -86,9 +93,12 @@ export function runStdioServer(options: StdioServerOptions): Promise<void> {
       root: options.brainRoot,
       ...(options.machine === undefined ? {} : { machine: options.machine }),
       ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
+      ...(options.unattended === undefined ? {} : { unattended: options.unattended }),
     }),
-    ...(options.syncRunner === undefined ? {} : { syncRunner: options.syncRunner }),
-    ...(options.ask === undefined ? {} : { ask: options.ask }),
+    // sem ninguém olhando, o sync passa pelo cérebro, que o recusa (o processo separado não conhece as travas)
+    ...(options.syncRunner === undefined || options.unattended !== undefined ? {} : { syncRunner: options.syncRunner }),
+    // sem ninguém olhando (consolidação), a tool `ask` não existe: ela chamaria um provedor de fora
+    ...(options.ask === undefined || options.unattended !== undefined ? {} : { ask: options.ask }),
     log: stderrLog,
   };
   // Mensagem grande demais: o transporte do SDK fecharia a conexão em silêncio (e o processo sairia com 0). O

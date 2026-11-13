@@ -1,6 +1,6 @@
 ---
 title: Conectar aos clientes de IA
-description: Registre o servidor MCP do Cabeção no Claude Code, Claude Desktop, Codex, Cursor, VS Code e Gemini CLI.
+description: Registre o servidor MCP do Cabeção no Claude Code, Claude Desktop, Codex, Cursor, VS Code, Antigravity e Gemini CLI.
 sidebar_position: 3
 ---
 
@@ -15,9 +15,35 @@ O `init` já registra o servidor MCP em todo cliente de IA que encontrar nesta m
 | Codex | `codex` | `~/.codex/config.toml` |
 | Cursor | `cursor` | `~/.cursor/mcp.json` |
 | VS Code | `vscode` | `~/.copilot/mcp-config.json` (e o `mcp.json` antigo do perfil, se a pasta existir) |
-| Gemini CLI | `gemini` | `~/.gemini/settings.json` |
+| Antigravity (CLI `agy`, IDE e App) | `antigravity` | `~/.gemini/config/mcp_config.json` (e o caminho antigo `~/.gemini/antigravity/mcp_config.json`, se a pasta existir) |
+| Gemini CLI (legado) | `gemini` | `~/.gemini/settings.json` |
 
-Um cliente conta como "detectado" quando o executável dele está no `PATH` ou a pasta de configuração dele existe.
+Um cliente conta como "detectado" quando o executável dele está no `PATH` ou a pasta de configuração dele existe. A pasta `~/.gemini` é dividida entre o Antigravity e o Gemini CLI: o Antigravity é detectado pelo `agy` ou pelas pastas `antigravity-cli`, `antigravity`, `antigravity-ide` ou `config` dentro dela; o Gemini CLI, pelo `gemini` ou pelo `~/.gemini/settings.json`.
+
+## Antigravity e Gemini CLI
+
+O Google trocou o Gemini CLI pelo **Antigravity CLI** (`agy`), que faz parte da plataforma Antigravity (CLI, IDE e App). Desde 18 de junho de 2026, o Gemini CLI não atende mais contas pessoais (gratuitas, Google AI Pro e Ultra); ele continua para licenças Gemini Code Assist Standard ou Enterprise e chaves pagas de API. O Antigravity guarda os servidores MCP num arquivo próprio, separado do `settings.json` do Gemini CLI:
+
+```text
+$ cabecao install-client antigravity
+Antigravity: registrado
+  ~/.gemini/config/mcp_config.json: registrado
+Reinicie o cliente para ele enxergar a mudança.
+```
+
+O `agy mcp list` mostra o servidor `cabecao` em seguida. O IDE e o App do Antigravity leem o mesmo arquivo. Usar o Cabeção numa sessão do Antigravity é o uso normal do produto; o que o Cabeção não faz é chamar o Antigravity sozinho, pelo `consolidate --run`, porque os termos do plano pessoal não permitem (veja [Consolidar com um agente](../guias/consolidar-com-agente.md#agentes)). Na atualização para a versão 2.0, o caminho antigo (`~/.gemini/antigravity/mcp_config.json`) virou um link para o novo; o Cabeção grava pelo link, sem trocá-lo por um arquivo.
+
+Se você ainda usa o Gemini CLI, `gemini` continua funcionando, com um aviso:
+
+```text
+$ cabecao install-client gemini
+Gemini CLI: registrado
+  aviso: o Gemini CLI deixou de atender contas pessoais em 18/06/2026 e foi substituído pelo Antigravity: se é o seu caso, use "cabecao install-client antigravity"
+  ~/.gemini/settings.json: registrado
+Reinicie o cliente para ele enxergar a mudança.
+```
+
+Quem já tinha registrado o `gemini` não perde nada: o registro fica onde estava, e `cabecao install-client --remove gemini` o tira.
 
 ## Conectar ao Claude Code
 

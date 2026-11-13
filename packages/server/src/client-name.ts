@@ -22,6 +22,7 @@ const KNOWN: readonly (readonly [RegExp, string])[] = [
   [/codex/, 'codex'],
   [/cursor/, 'cursor'],
   [/^(?:visual[-_ ]?studio[-_ ]?code|vs[-_ ]?code)\b/, 'vscode'],
+  [/antigravity|^agy\b/, 'antigravity'],
   [/^gemini/, 'gemini-cli'],
   [/windsurf/, 'windsurf'],
   [/^zed\b/, 'zed'],

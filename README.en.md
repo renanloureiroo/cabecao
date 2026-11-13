@@ -73,6 +73,7 @@ $ cabecao search "testes pagamento"
 - **Memory across sessions and machines.** What you teach in one conversation comes back in the next, in any MCP client.
 - **Everything is reversible.** Every write is an identified commit; `cabecao undo` reverts one operation or a whole agent session.
 - **Agents with limits.** They cannot create rules, edit instruction files or store secrets, and they leave a trace when they change one of your notes.
+- **Maintenance with nobody watching.** `cabecao consolidate --run` calls Claude Code or Codex to consolidate the memory, with only Cabeção's tools, and undoes whatever is left half done.
 
 ## Install
 
@@ -94,7 +95,7 @@ cabecao doctor
 cabecao install-client claude-code
 ```
 
-Restart Claude Code. It also works with Claude Desktop, Codex, Cursor, VS Code and Gemini CLI (`cabecao install-client --all`).
+Restart Claude Code. It also works with Claude Desktop, Codex, Cursor, VS Code, Antigravity and Gemini CLI (`cabecao install-client --all`).
 
 ## Features
 
@@ -105,8 +106,7 @@ Restart Claude Code. It also works with Claude Desktop, Codex, Cursor, VS Code a
 | Keyword search with validity over time (`--as-of`) | Review, consolidation and "forget" for memories |
 | Graph: wikilinks, typed relations, facts and unlinked mentions | Obsidian integration |
 | MCP server with 12 tools and agent restrictions | Claude Desktop package |
-| | Answers with checked citations (`ask`), optional, from the provider you choose |
-| `undo` per operation or session; secret scanner | |
+| `undo` per operation or session; secret scanner | Answers with checked citations (`ask`), optional, from the provider you choose |
 
 ## Documentation
 

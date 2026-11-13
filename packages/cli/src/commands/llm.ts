@@ -203,9 +203,9 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
         hint: 'A FAQ do Antigravity diz que chamar o "agy" de outro aplicativo não é suportado nos planos pessoais. Para os modelos do Google, use a API do Gemini: cabecao llm on --provider gemini.',
       });
     } else if (flagProvider === 'codex') {
-      throw new CliError('o Codex ainda não é oferecido como provedor de respostas', {
+      throw new CliError('o Codex não é oferecido como provedor de respostas', {
         code: 'ELLM_UNSUPPORTED',
-        hint: 'Não achamos fonte oficial dizendo que os termos permitem chamá-lo de outro programa com o login do ChatGPT. Use a API da OpenAI: cabecao llm on --provider openai.',
+        hint: 'Os termos só permitem chamá-lo de outro programa com chave de API (não com o login do ChatGPT), e com essa chave a API da OpenAI faz o mesmo sem subir um agente: cabecao llm on --provider openai.',
       });
     } else {
       throw new UsageError(
