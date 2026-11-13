@@ -87,6 +87,22 @@ export type EmbeddingsFact =
       pending: number | null;
     };
 
+/** Sync periódico pelo agendador do sistema (`cabecao schedule`). */
+export type ScheduleFact =
+  | { kind: 'off' }
+  | {
+      kind: 'on';
+      /** `launchd`, `systemd`, `cron` ou `schtasks`. */
+      mechanism: string;
+      intervalMin: number | null;
+      /** O agendador está com a tarefa; `null` quando não deu para consultar. */
+      loaded: boolean | null;
+      /** Caminhos do comando agendado que não existem mais. */
+      missing: readonly string[];
+      brain: string | null;
+    }
+  | { kind: 'error'; message: string };
+
 /** Tudo o que as verificações precisam saber. Os campos `undefined` não foram coletados (dependiam de outro). */
 export interface DoctorFacts {
   platform: NodeJS.Platform;
@@ -118,6 +134,7 @@ export interface DoctorFacts {
   gpgSign?: boolean;
   identity?: { kind: 'ok'; ident: string } | { kind: 'error'; message: string };
   clients?: { kind: 'skipped' } | { kind: 'read'; detected: readonly ClientId[]; registrations: ClientRegistration[] };
+  schedule?: ScheduleFact;
 }
 
 /** Uma verificação: devolve `null` quando não se aplica (fato não coletado, outro sistema). */
@@ -597,6 +614,59 @@ export const checkClients: Check = (facts) => {
   };
 };
 
+export const checkSchedule: Check = (facts) => {
+  const fact = facts.schedule;
+  if (fact === undefined) return null;
+  const title = 'Sync agendado';
+  if (fact.kind === 'off') {
+    return {
+      id: 'schedule',
+      title,
+      status: 'ok',
+      message: 'desligado (opcional: "cabecao schedule on" sincroniza sozinho a cada 30 min)',
+    };
+  }
+  if (fact.kind === 'error') {
+    return {
+      id: 'schedule',
+      title,
+      status: 'warn',
+      message: `não consegui ler o agendamento: ${fact.message}`,
+      fix: 'Rode "cabecao schedule status" para ver o que está registrado.',
+    };
+  }
+  const every = fact.intervalMin === null ? '' : ` a cada ${fact.intervalMin} min`;
+  if (fact.missing.length > 0) {
+    return {
+      id: 'schedule',
+      title,
+      status: 'warn',
+      message: `registrado${every}, mas o comando agendado aponta para o que não existe mais`,
+      items: [...fact.missing],
+      fix: 'Instale com "npm i -g cabecao" e rode "cabecao schedule on" de novo, ou "cabecao schedule off".',
+    };
+  }
+  if (fact.loaded === false) {
+    return {
+      id: 'schedule',
+      title,
+      status: 'warn',
+      message: `registrado${every}, mas o agendador (${fact.mechanism}) não está com a tarefa carregada`,
+      fix: 'Rode "cabecao schedule on" para registrar de novo.',
+    };
+  }
+  if (fact.brain !== null && facts.brain.kind === 'resolved' && fact.brain !== facts.brain.root) {
+    return {
+      id: 'schedule',
+      title,
+      status: 'warn',
+      message: `o sync agendado é de outro cérebro (${fact.brain})`,
+      fix: 'O sync agendado usa o cérebro padrão desta máquina; rode "cabecao schedule on" depois de trocar o padrão.',
+    };
+  }
+  return { id: 'schedule', title, status: 'ok', message: `ligado${every} (${fact.mechanism})` };
+};
+
 /** Todas as verificações, na ordem em que aparecem. */
 const EMBEDDINGS_ON_FIX = 'Rode "cabecao embeddings on" nesta máquina (usa o modelo já escolhido no cérebro).';
 
@@ -732,6 +802,7 @@ export const CHECKS: readonly Check[] = [
   checkConflicts,
   checkWindowsPath,
   checkClients,
+  checkSchedule,
 ];
 
 export interface DoctorReport {
