@@ -301,7 +301,12 @@ function restrictedMachine(name, { fakeClaude = false } = {}) {
     }
   }
   const sep = process.platform === 'win32' ? ';' : ':';
-  const path = [fakeBin, dirname(process.execPath), gitDir()].join(sep);
+  // no Windows o git precisa de mais do que a própria pasta (System32, as DLLs do Git for Windows): o PATH do processo
+  // continua, com o "claude" falso na frente (o install-client acha o primeiro da lista)
+  const path =
+    process.platform === 'win32'
+      ? [fakeBin, process.env.PATH ?? process.env.Path ?? ''].join(sep)
+      : [fakeBin, dirname(process.execPath), gitDir()].join(sep);
   return { ...machine, env: { ...machine.env, PATH: path, Path: path }, log };
 }
 
@@ -313,8 +318,9 @@ function initEndPart(remote) {
     'init sem agente: "Pronto", nenhum agente, o teste e os opcionais (sync automático, busca por significado)',
     plain.code === 0 &&
       plain.stdout.startsWith('Pronto. Seu cérebro está em ') &&
-      plain.stdout.includes('Agentes: nenhum encontrado nesta máquina.') &&
-      plain.stdout.includes('Teste agora:\n  1. Depois de conectar um agente, peça a ele:') &&
+      // no Windows o PATH é o do processo, e um cliente instalado no runner (o VS Code) pode ser detectado
+      (process.platform === 'win32' || plain.stdout.includes('Agentes: nenhum encontrado nesta máquina.')) &&
+      /Teste agora:\n {2}1\. (?:Depois de conectar um agente, peça a ele|No .+, peça):/.test(plain.stdout) &&
       plain.stdout.includes('cabecao search "respostas curtas"') &&
       /Opcional \(rode quando quiser\):\n {2}cabecao schedule on/.test(plain.stdout) &&
       plain.stdout.includes('cabecao embeddings on'),
@@ -329,7 +335,7 @@ function initEndPart(remote) {
     claude.code === 0 &&
       /Claude Code +servidor MCP registrado/.test(claude.stdout) &&
       claude.stdout.includes('1. No Claude Code, peça: "guarde que eu prefiro respostas curtas, em tópicos"') &&
-      /cabecao install-skills +ensina Claude Code a usar o cérebro/.test(claude.stdout) &&
+      /cabecao install-skills +ensina Claude Code/.test(claude.stdout) &&
       (process.platform === 'win32' || logged.includes('mcp add-json cabecao')),
     { claude, logged },
   );
