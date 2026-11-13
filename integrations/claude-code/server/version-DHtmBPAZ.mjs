@@ -1,0 +1,1 @@
+var e=`1.0.0`,t=`https://github.com/renanloureiroo/cabecao#readme`;const n=`cabecao`,r=e,i=t;export{i as n,r,n as t};

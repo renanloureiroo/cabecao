@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "cabecao",
   "display_name": "Cabeção",
-  "version": "0.1.0-beta.1",
+  "version": "1.0.0",
   "description": "Segundo cérebro pessoal em Markdown e git, servido ao Claude por MCP.",
   "long_description": "O Cabeção guarda a memória de longo prazo dos seus agentes de IA numa pasta de notas em Markdown, versionada com git: preferências, decisões, fatos com validade no tempo, armadilhas e passagens de bastão entre sessões. O Claude lê e grava pelas tools do Cabeção; você lê e corrige no Obsidian ou em qualquer editor. Crie o cérebro antes com `npx cabecao init` e escolha a pasta dele na instalação.",
   "author": {
