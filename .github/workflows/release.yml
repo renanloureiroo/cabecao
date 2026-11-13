@@ -1,10 +1,12 @@
 # Publica o pacote `cabecao` no npm. Só roda quando alguém aperta o botão (workflow_dispatch):
 # nada é publicado por push ou por merge.
 #
-# Não usa NPM_TOKEN. A publicação é por "trusted publishing" (OIDC), que precisa ser ligada uma vez:
-#   1. o pacote já tem de existir no npm (a primeira versão é publicada à mão);
-#   2. em npmjs.com > pacote cabecao > Settings > Trusted Publisher, cadastrar o GitHub Actions com
-#      usuário `renanloureiroo`, repositório `cabecao` e workflow `release.yml`.
+# A publicação normal é por "trusted publishing" (OIDC), sem token guardado no repositório. Ela precisa ser
+# ligada uma vez, em npmjs.com > pacote cabecao > Settings > Trusted Publisher: GitHub Actions, usuário
+# `renanloureiroo`, repositório `cabecao`, workflow `release.yml`.
+#
+# Como o npm só deixa cadastrar o trusted publisher num pacote que já existe, a PRIMEIRA publicação tem duas
+# saídas: publicar à mão, ou rodar este workflow com "usar-token" marcado e um secret NPM_TOKEN temporário.
 # O passo a passo está em docs/13-publicacao.md.
 name: release
 
@@ -15,6 +17,15 @@ on:
         description: Só simular (npm publish --dry-run)
         type: boolean
         default: true
+      tag:
+        description: Etiqueta no npm (beta para versões X.Y.Z-beta.N; latest para versões finais)
+        type: choice
+        options: [beta, latest]
+        default: beta
+      usar-token:
+        description: Usar o secret NPM_TOKEN em vez do trusted publishing (só para a primeira publicação)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,9 +41,9 @@ jobs:
     name: publicar cabecao no npm
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write # cria a tag e a release no GitHub depois de publicar
       id-token: write # OIDC: trusted publishing e atestação de proveniência
     steps:
       - uses: actions/checkout@v7
@@ -43,15 +54,52 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - run: node -v && npm -v && pnpm -v
+      - name: a versão combina com a etiqueta
+        id: version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="$(node -p "require('./packages/cli/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$TAG:$version" in
+            beta:*-beta.*) ;;
+            latest:*-*) echo "::error::a versão $version é de pré-lançamento; não pode sair como latest"; exit 1 ;;
+            latest:*) ;;
+            *) echo "::error::a etiqueta $TAG pede uma versão X.Y.Z-$TAG.N, e a versão é $version"; exit 1 ;;
+          esac
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "::error::a tag v$version já existe; suba a versão antes de publicar"; exit 1
+          fi
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke
-      - name: npm publish
+      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke && pnpm e2e
+      - name: npm publish --dry-run
+        if: inputs.dry-run
         working-directory: packages/cli
         env:
-          DRY_RUN: ${{ inputs.dry-run }}
+          TAG: ${{ inputs.tag }}
+        run: npm publish --dry-run --tag "$TAG"
+      - name: npm publish (trusted publishing)
+        if: ${{ !inputs.dry-run && !inputs.usar-token }}
+        working-directory: packages/cli
+        env:
+          TAG: ${{ inputs.tag }}
+        run: npm publish --tag "$TAG"
+      - name: npm publish (com NPM_TOKEN)
+        if: ${{ !inputs.dry-run && inputs.usar-token }}
+        working-directory: packages/cli
+        env:
+          TAG: ${{ inputs.tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            npm publish --dry-run
-          else
-            npm publish
-          fi
+          test -n "$NODE_AUTH_TOKEN" || { echo "::error::o secret NPM_TOKEN não está definido"; exit 1; }
+          npm publish --tag "$TAG"
+      - name: tag e release no GitHub
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          prerelease=""
+          if [ "$TAG" != "latest" ]; then prerelease="--prerelease"; fi
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "cabecao $VERSION" --generate-notes $prerelease
