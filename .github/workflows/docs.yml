@@ -1,4 +1,4 @@
-# Site de documentação (docs-site/, Docusaurus). Separado do CI do produto: só roda quando o site muda.
+# Site de documentação (docs/, Docusaurus). Separado do CI do produto: só roda quando o site muda.
 # Em PR, só constrói (o build falha com link ou âncora interna quebrada). Na main, constrói e publica no GitHub Pages.
 # O GitHub Pages precisa estar ligado uma vez, com a origem "GitHub Actions" (Settings > Pages > Source).
 name: docs
@@ -7,12 +7,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "docs-site/**"
+      - "docs/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
-      - "docs-site/**"
+      - "docs/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
-          path: docs-site/build
+          path: docs/build
 
   deploy:
     name: publica no GitHub Pages

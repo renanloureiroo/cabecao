@@ -11,7 +11,7 @@ Os recursos abaixo estão em desenvolvimento ou planejados. Eles não estão na 
 
 ### Busca por significado
 
-Hoje a busca é por palavra-chave: ela acha "fila", não "mensageria". A busca por significado vai achar notas pelo assunto, com um modelo de embeddings que roda **na sua máquina**: nada é enviado a um serviço externo. Ela vai ser opcional e desligada por padrão, e o modelo só vai ser baixado quando você a ligar. A escolha do modelo vai ficar no `.cabecao.json` (o campo `embedding`, hoje reservado), para valer em todas as máquinas do cérebro, e os vetores calculados vão viajar pelo git, para uma máquina não recalcular o que outra já calculou.
+Hoje a busca é por palavra-chave: ela acha "fila", não "mensageria". A busca por significado vai achar notas pelo assunto, com um modelo de embeddings que roda **na sua máquina**: nada é enviado a um serviço externo. Ela vai ser opcional e desligada por padrão, e o modelo só vai ser baixado quando você a ligar. A escolha do modelo vai ficar no `.cabecao.json` (o campo `embedding`, hoje reservado), para valer em todas as máquinas do cérebro, e os vetores calculados vão viajar pelo git, para uma máquina não recalcular o que outra já calculou. Você vai poder escolher entre a busca por palavra-chave, a por significado ou as duas combinadas.
 
 ### Compactação do índice
 

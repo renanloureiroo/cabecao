@@ -11,7 +11,7 @@ The features below are in development or planned. They are not in version `0.1.0
 
 ### Semantic search
 
-Today, search is by keyword: it finds "queue", not "messaging". Semantic search will find notes by topic, with an embeddings model that runs **on your machine**: nothing is sent to an external service. It will be optional and off by default, and the model will only be downloaded when you turn it on. The model choice will live in `.cabecao.json` (the `embedding` field, reserved today), so it applies to every machine of the brain, and the computed vectors will travel through git, so one machine does not recompute what another already computed.
+Today, search is by keyword: it finds "queue", not "messaging". Semantic search will find notes by topic, with an embeddings model that runs **on your machine**: nothing is sent to an external service. It will be optional and off by default, and the model will only be downloaded when you turn it on. The model choice will live in `.cabecao.json` (the `embedding` field, reserved today), so it applies to every machine of the brain, and the computed vectors will travel through git, so one machine does not recompute what another already computed. You will be able to choose keyword search, search by meaning, or both combined.
 
 ### Index compaction
 
