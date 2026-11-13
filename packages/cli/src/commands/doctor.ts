@@ -5,8 +5,8 @@ import type { DoctorReport } from '../doctor/checks.ts';
 import { evaluate, renderReport } from '../doctor/checks.ts';
 import type { DoctorIo, GatherOptions } from '../doctor/facts.ts';
 import { gatherFacts } from '../doctor/facts.ts';
-import { llmCheck } from '../llm/doctor.ts';
 import { stableBin } from '../install-client/launch.ts';
+import { llmCheck } from '../llm/doctor.ts';
 import { gatherOptional, optionalSteps, optionalText } from '../optional.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 

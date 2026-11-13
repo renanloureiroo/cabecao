@@ -1,9 +1,9 @@
 import type { StatusOutput } from '@cabecao/core';
 import { checkTemplate, schemaState, templateUpdatable } from '@cabecao/core';
 import { resolveBrain, withBrain } from '../brain.ts';
+import { stableBin } from '../install-client/launch.ts';
 import type { LlmSummary } from '../llm/describe.ts';
 import { agentSummary, llmSummary } from '../llm/describe.ts';
-import { stableBin } from '../install-client/launch.ts';
 import { gatherOptional, optionalSteps, optionalText } from '../optional.ts';
 import { formatWhen, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
