@@ -19,6 +19,8 @@ import {
 import * as z from 'zod';
 import { errorResult, okResult, toToolError } from './results.ts';
 import {
+  consolidateInput,
+  consolidateOutput,
   forgetInput,
   forgetOutput,
   handoffSaveInput,
@@ -168,5 +170,21 @@ export function registerForgetTool(server: McpServer, brainOf: BrainOf, log: (me
         return errorResult(toToolError(error, log));
       }
     },
+  );
+}
+
+/** `consolidate`, registrada logo depois de `sync`. */
+export function registerConsolidateTool(server: McpServer, run: ToolRunner): void {
+  server.registerTool(
+    'consolidate',
+    {
+      title: 'Consolidate',
+      description:
+        'Maintenance you do with the normal tools: start creates a restore point and returns material (repeated episodes, likely duplicates, lint findings) and a consolidation_id to use as session_handle; finish closes everything in one commit, one line per note. undo({ session: id }) reverts it all. Rules can only be proposed in wiki/syntheses/.',
+      inputSchema: consolidateInput,
+      outputSchema: consolidateOutput,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    (args, ctx) => run(ctx, async (brain) => (await brain()).consolidate(args)),
   );
 }

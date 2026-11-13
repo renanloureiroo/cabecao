@@ -8,6 +8,8 @@ import { EmbeddingEngine } from '../embeddings/index.ts';
 import type { SyncStep } from '../sync/index.ts';
 import type { BrainConfig, EmbeddingConfig } from '../vault/index.ts';
 import { readBrainConfig } from '../vault/index.ts';
+import type { ConsolidateInput, ConsolidateOutput } from './consolidate.ts';
+import { consolidate } from './consolidate.ts';
 import type { Actor, BrainContext, WriteStep } from './context.ts';
 import { assertOpen, machineName } from './context.ts';
 import type {
@@ -148,6 +150,11 @@ export interface Brain {
    * com `options.userConfirmed`, que só o servidor MCP passa depois de perguntar ao usuário), executa.
    */
   forget(input: ForgetInput, options?: ForgetOptions): Promise<ForgetOutput>;
+  /**
+   * Consolidação: `start` cria o ponto de restauração e devolve o material e o `consolidation_id`; o agente escreve com
+   * as tools normais usando o id como `session_handle`; `finish` fecha tudo num commit, uma linha por nota.
+   */
+  consolidate(input: ConsolidateInput): Promise<ConsolidateOutput>;
 
   /** Sincroniza com o remoto neste processo e reindexa o que mudou. */
   sync(input?: SyncInput): Promise<SyncOutput>;
@@ -297,6 +304,7 @@ export async function openBrain(root: string, options: OpenBrainOptions): Promis
     handoffSave: (input) => handoffSave(ctx, input),
     ingest: (input, options) => ingest(ctx, input, options),
     forget: (input, options) => forget(ctx, input, options),
+    consolidate: (input) => consolidate(ctx, input),
     sync: (input) => sync(ctx, input),
     undo: (input) => undo(ctx, input),
     listOperations: async (input) => {

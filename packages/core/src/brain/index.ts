@@ -1,6 +1,8 @@
 // API pública da camada de operações do cérebro: o que o servidor MCP e a CLI chamam.
 export type { Brain, OpenBrainOptions } from './brain.ts';
 export { openBrain } from './brain.ts';
+export type { ConsolidateInput, ConsolidateOutput, MaterialNote } from './consolidate.ts';
+export { EPISODE_GROUP_JACCARD } from './consolidate.ts';
 export type { Actor, WriteStep } from './context.ts';
 export type {
   CompactInput,

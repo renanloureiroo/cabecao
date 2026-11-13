@@ -187,3 +187,49 @@ export const forgetOutput = z.object({
   warnings: z.array(issue),
   next_step: z.string(),
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// consolidate
+
+export const consolidateInput = z.object({
+  action: z.enum(['start', 'finish']).describe('start: restore point and material; finish: close in one commit.'),
+  consolidation_id: shortText().describe('finish: the id returned by start.').exactOptional(),
+  scope: shortText().describe('start: "project:<slug>" (plus global) or "global".').exactOptional(),
+  title: shortText().describe('finish: label for the commit.').exactOptional(),
+});
+
+const materialNote = z.object({
+  id: z.string(),
+  path: z.string(),
+  title: z.string().nullable(),
+  type: z.string().nullable(),
+  created: z.string().nullable(),
+});
+
+export const consolidateOutput = z.object({
+  data_notice: dataNotice,
+  action: z.enum(['start', 'finish']),
+  consolidation_id: z.string(),
+  restore_point: z.object({ tag: z.string(), commit: z.string() }),
+  material: z
+    .object({
+      repeated_episodes: z.array(z.object({ notes: z.array(materialNote), terms: z.array(z.string()) })),
+      episodes: z.array(materialNote),
+      duplicates: z.array(
+        z.object({
+          a: materialNote,
+          b: materialNote,
+          verdict: z.enum(['duplicate', 'subsumed', 'complement', 'contradiction', 'ambiguous', 'distinct']),
+          reason: z.string(),
+        }),
+      ),
+      lint: z.array(lintFinding),
+    })
+    .nullable(),
+  instructions: z.array(z.string()),
+  op: z.string().nullable(),
+  commit: z.string().nullable(),
+  squashed: z.boolean(),
+  changes: z.array(z.string()),
+  next_step: z.string(),
+});
