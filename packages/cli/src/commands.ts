@@ -50,6 +50,34 @@ export const COMMANDS: readonly CommandSpec[] = [
     load: () => import('./commands/status.ts'),
   },
   {
+    name: 'recall',
+    summary: 'Briefing do cérebro para uma tarefa (e para o início de sessão do Claude Code)',
+    usage: ['recall "<tarefa>" [--scope <escopo>] [--budget <tokens>]', 'recall --hook'],
+    options: {
+      scope: {
+        type: 'string',
+        valueName: 'escopo',
+        description: '"global" ou "project:<nome>" (que inclui também o global); padrão: todos',
+      },
+      budget: { type: 'string', valueName: 'tokens', description: 'Orçamento aproximado do briefing (padrão: 2000)' },
+      hook: {
+        type: 'boolean',
+        description: 'Modo hook do Claude Code: lê o JSON da sessão no stdin e devolve o JSON do SessionStart',
+      },
+    },
+    details: [
+      'Mostra o que o agente recebe no início de uma tarefa: suas regras, o último handoff, preferências, armadilhas',
+      'e as memórias que casam com a tarefa, nessa ordem de prioridade, e um session_handle novo. Só lê.',
+      '',
+      '--hook é o que o plugin do Claude Code roda quando uma sessão começa: deriva o escopo da pasta do projeto,',
+      'põe as regras de uso e o briefing (marcado como dado, abaixo de 10 mil caracteres) em',
+      'hookSpecificOutput.additionalContext e sai sempre com 0. Sem cérebro, com o banco ocupado ou em qualquer erro, a',
+      'saída é {} e o motivo vai para o stderr: a sessão começa normalmente.',
+    ].join('\n'),
+    ownsStdout: true,
+    load: () => import('./commands/recall.ts'),
+  },
+  {
     name: 'doctor',
     summary: 'Diagnóstico com a correção sugerida para cada problema',
     usage: ['doctor [--offline]'],
@@ -61,7 +89,8 @@ export const COMMANDS: readonly CommandSpec[] = [
       'identidade do git; commit.gpgsign; o remoto (alcançável e com credencial que funciona sem terminal, com tempo',
       'limite curto) e, em HTTPS de provedor conhecido, se o repositório parece público; .gitignore e .gitattributes;',
       'o banco local; travas órfãs e operações interrompidas; conflitos pendentes; no Windows, o tamanho do caminho; e',
-      'o registro do servidor MCP nos clientes de IA (só lê os arquivos, não executa nada).',
+      'o registro do servidor MCP nos clientes de IA (só lê os arquivos, não executa nada); e o sync agendado (só',
+      'consulta o agendador quando o "cabecao schedule on" registrou algo).',
       '',
       'Cada item sai como ok, aviso ou falha, com a correção. O código de saída é 1 se houver alguma falha.',
     ].join('\n'),
@@ -70,12 +99,21 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: 'sync',
     summary: 'Sincroniza o cérebro com o remoto',
-    usage: ['sync [--session <id>]'],
+    usage: ['sync [--session <id>] [--log]', 'sync --detach', 'sync --hook'],
     options: {
       session: {
         type: 'string',
         valueName: 'id',
         description: 'Sessão do agente que pediu o sync (vai para os commits); usado pelo servidor MCP',
+      },
+      log: { type: 'boolean', description: 'Também acrescenta o resultado a .cabecao/logs/sync.log (o agendador usa)' },
+      detach: {
+        type: 'boolean',
+        description: 'Dispara o sync num processo em segundo plano e volta na hora; o resultado vai para o log',
+      },
+      hook: {
+        type: 'boolean',
+        description: 'Fim de sessão do Claude Code: como --detach, mas nunca falha (o motivo vai para o stderr)',
       },
     },
     details: [
@@ -86,8 +124,35 @@ export const COMMANDS: readonly CommandSpec[] = [
       'Código de saída: 0 quando terminou ou quando outro sync já estava rodando; 1 quando foi bloqueado, deu erro ou',
       'o remoto não respondeu (as mudanças ficam em commits locais e vão no próximo sync). Num cérebro sem remoto,',
       'sai com 0 e um aviso. Com --json, devolve a saída completa.',
+      '',
+      '--detach volta em milissegundos e deixa o sync rodando num processo destacado, que sobrevive ao terminal (ou ao',
+      'Claude Code) fechar; o resultado fica em <cérebro>/.cabecao/logs/sync.log. Se outro sync já estiver rodando, o',
+      'novo sai como "outro sync em andamento", sem fazer nada.',
     ].join('\n'),
     load: () => import('./commands/sync.ts'),
+  },
+  {
+    name: 'schedule',
+    summary: 'Sync periódico pelo agendador do sistema',
+    usage: ['schedule on [--interval <min>]', 'schedule off', 'schedule status'],
+    options: {
+      interval: {
+        type: 'string',
+        valueName: 'min',
+        description: 'Minutos entre um sync e outro, de 5 a 1440 (padrão: 30)',
+      },
+    },
+    details: [
+      'Registra "cabecao sync --log" no agendador do sistema, só para o seu usuário e sem administrador: LaunchAgent no',
+      'macOS, timer do systemd --user no Linux (crontab quando não há systemd de usuário) e Agendador de Tarefas',
+      '(schtasks) no Windows. Não há serviço rodando o tempo todo: o sistema inicia o sync a cada intervalo.',
+      '',
+      'O sync agendado usa o cérebro padrão desta máquina (o do "cabecao init") e grava o resultado em',
+      '<cérebro>/.cabecao/logs/sync.log. Ele aponta para este Node e para este arquivo do cabecao: precisa de uma',
+      'instalação estável ("npm i -g cabecao"); rodando por npx, o comando recusa. Rodar "on" de novo atualiza o',
+      'registro (é idempotente); "off" remove só o que o Cabeção criou; "status" mostra o que está registrado.',
+    ].join('\n'),
+    load: () => import('./commands/schedule.ts'),
   },
   {
     name: 'search',

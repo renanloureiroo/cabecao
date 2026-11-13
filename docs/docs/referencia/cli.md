@@ -94,6 +94,49 @@ O `status` atualiza o índice local antes de contar, então ele também refaz o 
 
 **Saída:** `0`, mesmo com avisos (conflitos, links quebrados); `1` se não achar o cérebro.
 
+## cabecao recall
+
+O briefing do cérebro para uma tarefa: o que o agente recebe no início dela.
+
+```text
+cabecao recall "<tarefa>" [--scope <escopo>] [--budget <tokens>]
+cabecao recall --hook
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `"<tarefa>"` | O que vai ser feito; é a pergunta da busca das memórias relevantes |
+| `--scope <escopo>` | `global` ou `project:<nome>` (que inclui também o global). Padrão: todos |
+| `--budget <tokens>` | Orçamento aproximado do briefing, de 100 a 50000 (padrão: 2000) |
+| `--hook` | Modo hook do Claude Code (veja abaixo) |
+
+Mostra, nesta ordem de prioridade, as suas regras (`memory/rules`), o último handoff, as preferências, as armadilhas e as memórias que casam com a tarefa, e um `session_handle` novo. Só lê: nada é gravado. Com `--json`, devolve a mesma saída da tool `recall`.
+
+```text
+$ cabecao recall "filas do atlas" --scope project:atlas --budget 600
+Briefing para "filas do atlas" (escopo: project:atlas)
+session_handle: 01M7AEF0EN7E1MQVSGJ5ZFYJFS
+
+Regras do usuário (memory/rules: valem logo abaixo do pedido atual do usuário):
+  Nunca commitar segredos  (memory/rules/nunca-commitar-segredos.md · rule · global · trust high · origem human)
+    Nunca grave chaves, tokens ou senhas em arquivos versionados, nem neste cérebro. Em caso de dúvida, pergunte antes.
+
+Último handoff:
+  Atlas, consumidores em lote  (memory/handoffs/2026-11-10-atlas-consumidores.md · handoff · project:atlas · trust medium · origem agent:claude-code)
+    # Atlas, consumidores em lote
+    ...
+
+Preferências do usuário:
+  Respostas em português  (memory/preferences/respostas-em-portugues.md · preference · global · trust high · origem agent:claude-code)
+    Responda em português do Brasil. Mantenha termos técnicos e identificadores de código no original.
+
+4 itens ficaram de fora pelo orçamento de 600 tokens (aumente com --budget).
+```
+
+**`--hook`** é o que o [plugin do Claude Code](../guias/claude-code.md) roda quando uma sessão começa. Ele lê o JSON da sessão na entrada padrão (com teto de tamanho; o que não for válido é ignorado), deriva o escopo `project:<pasta>` da pasta do projeto e escreve na saída padrão exatamente o JSON que o hook `SessionStart` espera: `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}`, com as regras de uso e o briefing, abaixo de 10 mil caracteres e com o conteúdo do cérebro marcado como dado. Sem `--brain` nem `CABECAO_BRAIN`, usa a opção `brain_dir` do plugin (variável `CLAUDE_PLUGIN_OPTION_BRAIN_DIR`) e, sem ela, o cérebro padrão.
+
+**Saída:** `0`. Com `--hook`, sempre `0`: sem cérebro, com o banco ocupado, depois de 5 s ou em qualquer erro, a saída é `{}` e o motivo vai para a saída de erro. Sem `--hook`, `1` quando não acha o cérebro e `2` sem a tarefa.
+
 ## cabecao doctor
 
 Diagnóstico completo, com a correção sugerida para cada problema.
@@ -106,7 +149,7 @@ cabecao doctor [--offline]
 | --- | --- |
 | `--offline` | Não consulta o remoto (nem a verificação de repositório público) |
 
-Verifica: Node.js e git; se a pasta é um cérebro e a versão do esquema; a configuração da máquina; a identidade do git; `commit.gpgsign`; o remoto (alcançável e com credencial que funciona sem terminal, com tempo limite curto) e, em HTTPS de provedor conhecido, se o repositório parece público; `.gitignore` e `.gitattributes`; o banco local; travas órfãs e operações interrompidas; conflitos pendentes; no Windows, o tamanho do caminho; e o registro do servidor MCP nos clientes de IA (só lê os arquivos, não executa nada).
+Verifica: Node.js e git; se a pasta é um cérebro e a versão do esquema; a configuração da máquina; a identidade do git; `commit.gpgsign`; o remoto (alcançável e com credencial que funciona sem terminal, com tempo limite curto) e, em HTTPS de provedor conhecido, se o repositório parece público; `.gitignore` e `.gitattributes`; o banco local; travas órfãs e operações interrompidas; conflitos pendentes; no Windows, o tamanho do caminho; o registro do servidor MCP nos clientes de IA (só lê os arquivos, não executa nada); e o sync agendado (só consulta o agendador quando o `cabecao schedule on` registrou algo).
 
 ```text
 $ cabecao doctor --offline
@@ -133,8 +176,9 @@ aviso  Clientes MCP             4 de 4 cliente(s) sem o registro deste cérebro
                                 - VS Code: ~/.copilot/mcp-config.json: não registrado
                                 - Gemini CLI: ~/.gemini/settings.json: não registrado
                                 Correção: Rode "cabecao install-client claude-code codex vscode gemini" e reinicie o cliente.
+ok     Sync agendado            desligado (opcional: "cabecao schedule on" sincroniza sozinho a cada 30 min)
 
-12 ok, 2 avisos, 0 falhas.
+13 ok, 2 avisos, 0 falhas.
 ```
 
 Cada item sai como `ok`, `aviso` ou `falha`. Com `--json`, cada item tem `id`, `title`, `status`, `message` e, quando há, `fix` e `items`.
@@ -146,12 +190,17 @@ Cada item sai como `ok`, `aviso` ou `falha`. Com `--json`, cada item tem `id`, `
 Sincroniza o cérebro com o remoto.
 
 ```text
-cabecao sync [--session <id>]
+cabecao sync [--session <id>] [--log]
+cabecao sync --detach
+cabecao sync --hook
 ```
 
 | Opção | O que faz |
 | --- | --- |
 | `--session <id>` | Sessão do agente que pediu o sync, para os commits. Usado pelo servidor MCP |
+| `--log` | Também acrescenta o resultado a `<cérebro>/.cabecao/logs/sync.log`. É o que o sync agendado roda |
+| `--detach` | Dispara o sync num processo em segundo plano e volta na hora; o resultado vai para o log |
+| `--hook` | Fim de sessão do Claude Code: como `--detach`, mas nunca falha |
 
 Põe num commit o que foi editado fora do Cabeção, recebe o que veio do remoto, integra sem descartar nada (a mesma nota editada nos dois lados gera uma cópia `nota.conflict-<máquina>-<data>.md` ao lado) e envia. Antes de commitar e de enviar, procura segredos: se achar, bloqueia e mostra arquivo, linha e regra, nunca o valor.
 
@@ -161,9 +210,48 @@ Sync: ok. 3 commits enviados.
 Recebidos: 0 commits · enviados: 3 · criados neste sync: 0
 ```
 
-**Saída:** `0` quando terminou, quando outro sync já estava rodando e num cérebro sem remoto (com um aviso); `1` quando foi bloqueado, deu erro ou o remoto não respondeu (as mudanças ficam em commits locais e vão no próximo sync).
+`--detach` volta em milissegundos e deixa `cabecao sync --log` rodando num processo destacado, que continua depois que o terminal (ou o Claude Code) fecha:
+
+```text
+$ cabecao sync --detach
+Sync disparado em segundo plano (processo 5114). O resultado vai para ~/cabecao/.cabecao/logs/sync.log.
+```
+
+Se outro sync já estiver rodando, o novo sai como "outro sync em andamento", sem fazer nada. `--hook` faz o mesmo para o hook de fim de sessão do [plugin do Claude Code](../guias/claude-code.md): lê o JSON da sessão na entrada padrão, não escreve nada na saída padrão e, se não der para disparar (sem cérebro, por exemplo), só avisa na saída de erro.
+
+**Saída:** `0` quando terminou, quando outro sync já estava rodando e num cérebro sem remoto (com um aviso); `1` quando foi bloqueado, deu erro ou o remoto não respondeu (as mudanças ficam em commits locais e vão no próximo sync). Com `--detach`, `0` quando o sync em segundo plano começou e `1` quando não deu para começar. Com `--hook`, sempre `0`.
 
 O funcionamento completo está em [Como o sync funciona](../conceitos/sync.md).
+
+## cabecao schedule
+
+Sync periódico pelo agendador do sistema.
+
+```text
+cabecao schedule on [--interval <min>]
+cabecao schedule off
+cabecao schedule status
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--interval <min>` | Com `on`: minutos entre um sync e outro, de 5 a 1440 (padrão: 30) |
+
+Registra `cabecao sync --log` no agendador, só para o seu usuário e sem administrador: LaunchAgent no macOS, timer do `systemd --user` no Linux (o `crontab` quando não há systemd de usuário) e Agendador de Tarefas no Windows. O sync agendado usa o cérebro padrão desta máquina (o do `init`; `--brain` com outra pasta é recusado) e precisa de uma instalação estável (`npm i -g cabecao`): rodando por `npx`, o comando recusa.
+
+```text
+$ cabecao schedule on
+Sync periódico registrado: a cada 30 min, pelo LaunchAgent do macOS.
+Comando: /usr/local/bin/node ~/.npm-global/lib/node_modules/cabecao/dist/cabecao.mjs sync --log
+Cérebro: ~/cabecao
+Log: ~/cabecao/.cabecao/logs/sync.log
+Arquivo: ~/Library/LaunchAgents/dev.cabecao.sync.plist
+Para desligar: cabecao schedule off
+```
+
+`on` é idempotente: com tudo igual, responde "já estava registrado assim" sem mexer no agendador. `off` remove só o que o Cabeção criou, e `status` mostra o que está registrado e o que o agendador conta da tarefa. Os detalhes de cada sistema estão em [Sync automático](../guias/sync-automatico.md).
+
+**Saída:** `0`; `1` quando não há cérebro padrão, a instalação não é estável, já existe algo com o mesmo nome que não é do Cabeção ou o agendador recusou; `2` com uma ação ou um intervalo inválidos.
 
 ## cabecao search
 
@@ -472,3 +560,4 @@ Mais em [Conectar aos clientes de IA](../comecar/conectar-clientes.md).
 | `CABECAO_CONFIG_DIR` | Pasta da configuração da máquina (padrão: `~/.config/cabecao`; no Windows, `%APPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | Com `1`, os erros saem com o stack |
 | `XDG_CONFIG_HOME` | Quando definida, a configuração fica em `$XDG_CONFIG_HOME/cabecao` |
+| `CLAUDE_PLUGIN_OPTION_BRAIN_DIR` | Passada pelo Claude Code aos hooks do plugin: a pasta do cérebro da opção `brain_dir`. Só vale em `recall --hook` e `sync --hook`, e só quando não há `--brain` nem `CABECAO_BRAIN` |

@@ -26,6 +26,12 @@ const COMMAND_NAMES = [
   'compact',
   'eval',
   'reindex',
+  'recall',
+  'schedule',
+  'lint',
+  'ingest',
+  'forget',
+  'consolidate',
 ];
 
 function cabecao(args, env = process.env) {
@@ -144,6 +150,18 @@ if (expectUnsupported) {
     { eager, heavy, commandChunks, files },
   );
 
+  // O hook de início de sessão não pode carregar o servidor MCP (o pedaço com o SDK do MCP). O runtime de embeddings
+  // nunca está no bundle: é instalado no cache do usuário e só a busca por significado o carrega, por import() de
+  // arquivo; o `recall` do núcleo busca só por palavra-chave.
+  const recallChunk = files.find((name) => name.startsWith('recall-'));
+  const recallClosure = recallChunk === undefined ? [] : [...staticClosure(recallChunk)];
+  const mcpChunks = files.filter((name) => readFileSync(join(dist, name), 'utf8').includes('modelcontextprotocol'));
+  check(
+    'recall (o hook de início) não importa o servidor MCP',
+    recallChunk !== undefined && mcpChunks.length > 0 && recallClosure.every((name) => !mcpChunks.includes(name)),
+    { recallClosure, mcpChunks },
+  );
+
   const home = mkdtempSync(join(tmpdir(), 'cabecao-smoke-'));
   try {
     const env = isolatedEnv(home);
@@ -188,6 +206,19 @@ if (expectUnsupported) {
         doctorJson?.data?.checks?.find((item) => item.id === 'brain')?.status === 'fail',
       doctor,
     );
+    const hookStart = Date.now();
+    const hook = spawnSync(process.execPath, [bin, 'recall', '--hook'], {
+      encoding: 'utf8',
+      env: { ...env, CABECAO_BRAIN: join(home, 'não existe') },
+      input: '{"hook_event_name":"SessionStart"}',
+    });
+    check(
+      `recall --hook sem cérebro: {} em stdout e código 0 (${Date.now() - hookStart} ms)`,
+      hook.status === 0 && hook.stdout === '{}\n' && hook.stderr.includes('recall --hook'),
+      hook,
+    );
+    const end = spawnSync(process.execPath, [bin, 'sync', '--hook'], { encoding: 'utf8', env, input: '{}' });
+    check('sync --hook sem cérebro: código 0, nada em stdout', end.status === 0 && end.stdout === '', end);
     const mcpJson = cabecao(['mcp', '--json'], { ...env, CABECAO_BRAIN: join(home, 'não existe') });
     check(
       'mcp com erro não escreve nada no stdout, nem com --json',
