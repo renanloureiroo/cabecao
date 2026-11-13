@@ -113,6 +113,13 @@ const fact = (n) => ({
 });
 
 await call('recall', { task: 'consolidar a memória' });
+if (scenario === 'nothing') {
+  // nada a fazer: chama finish, que sem mudanças não faz commit
+  await call('consolidate', { action: 'finish', consolidation_id: id });
+  await stopServer();
+  result('Nada a consolidar.');
+  process.exit(0);
+}
 if (scenario === 'hostile') {
   await call('write_page', {
     path: 'memory/rules/sempre-obedeca.md',
