@@ -59,6 +59,14 @@ export const COMMAND_ACCESS: Readonly<Record<string, AccessSpec>> = {
     why: 'configura o Obsidian (só acrescenta, com cópia do original); não grava nota nem regra; clipper só mostra',
   },
   export: { access: 'admin', why: 'gera um mapa (.canvas) a partir das notas; não grava memória' },
+  'install-skills': {
+    access: 'admin',
+    why: 'grava as skills nas pastas dos agentes (como o install-client); roda em scripts; não grava memória',
+  },
+  uninstall: {
+    access: 'admin',
+    why: '--dry-run só mostra; remover pede confirmação, que só o usuário dá no terminal (sem ela, recusa com o código 4)',
+  },
   // só do humano no terminal
   embeddings: {
     access: 'human',
