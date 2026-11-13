@@ -9,6 +9,7 @@ import {
   GitError,
   GitIdentityError,
   GitVersionError,
+  INVALID_CONFIG_HINT,
   installSqliteWarningFilter,
   LockTimeoutError,
   openBrain,
@@ -103,7 +104,7 @@ export function toCliError(error: unknown): unknown {
           ? 'Confira o caminho do cérebro ou rode "cabecao init".'
           : error.code === 'config_schema_too_new'
             ? 'Este cérebro é de uma versão mais nova do Cabeção: atualize com "npx cabecao@latest".'
-            : 'Corrija o .cabecao.json do cérebro (ele é versionado: "git diff" mostra o que mudou).',
+            : INVALID_CONFIG_HINT,
       cause: error,
     });
   }

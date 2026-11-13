@@ -150,7 +150,7 @@ export function registerTools(server: McpServer, runtime: ServerRuntime): void {
     {
       title: 'Write page',
       description:
-        "Create, overwrite or append to a note by path. Validated against the schema, scanned for secrets and committed to git; undo reverts it. raw/ holds immutable sources (create only); the brain's control files (AGENTS.md, CLAUDE.md, index.md, log.md) and memory/rules/ are user-only. Editing a user's note lowers its trust to medium and records edited_by.",
+        "Create, overwrite or append to a note by path. Validated against the schema, scanned for secrets and committed to git; undo reverts it. raw/ holds immutable sources (create only); the brain's control files (index.md, log.md), files named like AI-client instructions (AGENTS.md, CLAUDE.md, GEMINI.md...) in any folder, sync conflict copies (*.conflict-*) and memory/rules/ are user-only. Editing a note not created by an agent records edited_by (and lowers trust: high to medium).",
       inputSchema: writePageInput,
       outputSchema: writeOutput,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },

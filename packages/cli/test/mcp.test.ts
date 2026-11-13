@@ -40,6 +40,7 @@ const SYNC_DATA = {
   reason: null,
   remote_error: null,
   recovered: [],
+  config_problem: null,
 };
 
 describe('mcp', { timeout: TEST_TIMEOUT_MS }, () => {

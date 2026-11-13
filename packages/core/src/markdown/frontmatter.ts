@@ -31,6 +31,63 @@ function collectLinks(node: unknown, property: string, lineOf: (offset: number) 
   }
 }
 
+/** Um texto do frontmatter (valor ou chave, em qualquer profundidade), já decodificado, com a posição no arquivo. */
+export interface FrontmatterString {
+  /** O texto como o parser o entrega: sem aspas e com os escapes do YAML (`\x01`, `\e`, `g`) já resolvidos. */
+  readonly value: string;
+  /** Linha do arquivo (a partir de 1) em que o texto começa. */
+  readonly line: number;
+  /** Coluna (a partir de 1) em que o texto começa. */
+  readonly column: number;
+  /** As linhas do arquivo que o texto ocupa, como estão no arquivo (sem `\r`), unidas por `\n`. */
+  readonly source: string;
+}
+
+/**
+ * Todos os textos do frontmatter de uma nota (chaves e valores, dentro de listas e mapas), já decodificados. É o que
+ * o scanner de segredos olha além do texto cru: no YAML, `"\x01ghp_..."` ou `"\x67hp_..."` escondem do texto cru um
+ * token que o parser entrega inteiro. O YAML com erro também é percorrido (outro programa pode lê-lo de outro jeito).
+ * Sem frontmatter, a lista vem vazia.
+ */
+export function frontmatterStrings(text: string): FrontmatterString[] {
+  const source = text.charCodeAt(0) === BOM ? text.slice(1) : text;
+  const match = FRONTMATTER_RE.exec(source);
+  if (match === null) return [];
+  const raw = match[1] ?? '';
+  const rawLines = raw.split('\n').map((line) => line.replace(/\r$/, ''));
+  const lineCounter = new LineCounter();
+  const out: FrontmatterString[] = [];
+  const add = (node: unknown): void => {
+    if (!isScalar(node) || typeof node.value !== 'string' || node.range == null) return;
+    const start = lineCounter.linePos(node.range[0]);
+    const end = lineCounter.linePos(Math.max(node.range[0], node.range[1] - 1));
+    out.push({
+      value: node.value,
+      // o YAML começa na linha 2 do arquivo, depois do `---` de abertura
+      line: start.line + 1,
+      column: start.col,
+      source: rawLines.slice(start.line - 1, end.line).join('\n'),
+    });
+  };
+  const walk = (node: unknown): void => {
+    if (isAlias(node)) return;
+    if (isScalar(node)) add(node);
+    else if (isSeq(node)) for (const item of node.items) walk(item);
+    else if (isMap(node)) {
+      for (const pair of node.items) {
+        walk(pair.key);
+        walk(pair.value);
+      }
+    }
+  };
+  try {
+    walk(parseDocument(raw, { lineCounter }).contents);
+  } catch {
+    // o parser não lança com YAML inválido; isto é só defesa
+  }
+  return out;
+}
+
 /**
  * Separa frontmatter e corpo. Tira o BOM e aceita `\r\n`.
  * Um `---` de abertura sem fechamento não é frontmatter: o texto inteiro é corpo, sem erro (como no Obsidian).

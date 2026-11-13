@@ -115,25 +115,60 @@ export function isPrivateTarget(realRoot: string, realTarget: string): boolean {
 }
 
 /**
- * Arquivos da raiz que são do cérebro (ou do repositório) e não notas: as instruções dos agentes (`AGENTS.md`,
- * `CLAUDE.md`), o catálogo e o diário (`index.md`, `log.md`) e os arquivos comuns de um repositório (`README.md`,
- * `LICENSE.md`...). Num vault adotado com `noteDirs: ["."]` eles ficam dentro das pastas de notas, mas um agente
- * nunca grava neles. Os que não são `.md` (`.cabecao.json`, `.gitignore`, `.gitattributes`) já são recusados como
- * caminho de nota.
+ * Arquivos de instrução que clientes de IA carregam sozinhos como instrução (e não como dado), em minúsculas. É a
+ * ÚNICA lista deles no código. Um cliente carrega o da pasta em que está trabalhando e o das pastas de cima (o Gemini
+ * CLI também os das subpastas; o Claude Code, o de uma subpasta quando lê arquivos dela), e em macOS e Windows
+ * `claude.md` abre `CLAUDE.md`: por isso valem em QUALQUER nível do cérebro e sem diferenciar maiúsculas.
+ *
+ * - `agents.md` (Codex, Cursor, Copilot, Zed, opencode e outros), `agents.override.md` (Codex);
+ * - `agent.md` (Amp e Zed);
+ * - `claude.md` e `claude.local.md` (Claude Code);
+ * - `gemini.md` (Gemini CLI) e `qwen.md` (Qwen Code, derivado do Gemini CLI).
+ *
+ * Os demais arquivos de instrução conhecidos ficam em pasta ou arquivo oculto (`.cursorrules`, `.windsurfrules`,
+ * `.clinerules`, `.rules`, `.github/copilot-instructions.md`, `.cursor/rules/`, `.claude/`, `.kiro/`, `.junie/`) ou
+ * não terminam em `.md`; esses já não passam por `assertNotePath`, que recusa caminho oculto e exige `.md`.
  */
-export const ROOT_CONTROL_FILE_RE =
-  /^(?:readme|license|licence|copying|changelog|contributing|agents|claude|index|log)\.md$/i;
+export const CLIENT_INSTRUCTION_FILES: readonly string[] = [
+  'agents.md',
+  'agents.override.md',
+  'agent.md',
+  'claude.md',
+  'claude.local.md',
+  'gemini.md',
+  'qwen.md',
+];
 
 /**
- * Verdadeiro se `relPath` (canônico) é um arquivo de controle do cérebro: um dos de `ROOT_CONTROL_FILE_RE` na raiz,
- * `log.md` ou o catálogo (`config.indexMd`, onde quer que ele esteja). Sem diferenciar maiúsculas.
+ * Verdadeiro se o NOME do arquivo de `relPath` é um arquivo de instrução de cliente de IA (`CLIENT_INSTRUCTION_FILES`),
+ * em qualquer pasta e sem diferenciar maiúsculas: `wiki/Claude.md`, `memory/GEMINI.md`, `AGENTS.override.md`.
+ */
+export function isClientInstructionFile(relPath: string): boolean {
+  const path = normalizeRelPath(relPath);
+  return CLIENT_INSTRUCTION_FILES.includes(path.slice(path.lastIndexOf('/') + 1).toLowerCase());
+}
+
+/**
+ * Arquivos da raiz que são do cérebro (ou do repositório) e não notas: o catálogo e o diário (`index.md`, `log.md`)
+ * e os arquivos comuns de um repositório (`README.md`, `LICENSE.md`...). Num vault adotado com `noteDirs: ["."]`
+ * eles ficam dentro das pastas de notas, mas não são gravados como nota. Os arquivos de instrução dos clientes de IA
+ * (`CLIENT_INSTRUCTION_FILES`) também são de controle na raiz; fora dela, só para agentes (`isClientInstructionFile`).
+ * Os que não são `.md` (`.cabecao.json`, `.gitignore`, `.gitattributes`) já são recusados como caminho de nota.
+ */
+export const ROOT_CONTROL_FILE_RE = /^(?:readme|license|licence|copying|changelog|contributing|index|log)\.md$/i;
+
+/**
+ * Verdadeiro se `relPath` é um arquivo de controle do cérebro: um dos de `ROOT_CONTROL_FILE_RE` ou de
+ * `CLIENT_INSTRUCTION_FILES` na raiz, `log.md` ou o catálogo (`config.indexMd`, onde quer que ele esteja). Sem
+ * diferenciar maiúsculas; os dois caminhos são comparados na forma canônica (`normalizeRelPath`).
  */
 export function isBrainControlFile(relPath: string, config?: Partial<Pick<BrainConfig, 'indexMd'>>): boolean {
-  const path = normalizeNfc(toPosixPath(relPath)).replace(/^(?:\.\/)+/, '');
+  const path = normalizeRelPath(relPath);
   const key = path.toLowerCase();
   if (key === LOG_MD) return true;
-  if (config?.indexMd !== undefined && key === normalizeNfc(config.indexMd).toLowerCase()) return true;
-  return !path.includes('/') && ROOT_CONTROL_FILE_RE.test(path);
+  if (config?.indexMd !== undefined && key === normalizeRelPath(config.indexMd).toLowerCase()) return true;
+  if (path.includes('/')) return false;
+  return ROOT_CONTROL_FILE_RE.test(path) || CLIENT_INSTRUCTION_FILES.includes(key);
 }
 
 export interface DiskCasePath {

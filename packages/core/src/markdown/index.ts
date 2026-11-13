@@ -8,7 +8,7 @@ export {
   formatHeadingPath,
   HEADING_PATH_SEPARATOR,
 } from './chunks.ts';
-export { splitFrontmatter } from './frontmatter.ts';
+export { type FrontmatterString, frontmatterStrings, splitFrontmatter } from './frontmatter.ts';
 export { normalizeLinkTarget } from './links.ts';
 export { parseNote } from './parse.ts';
 export type {

@@ -15,7 +15,10 @@ export {
   DEFAULT_INDEX_MD,
   DEFAULT_NOTE_DIRS,
   defaultBrainConfig,
+  INVALID_CONFIG_HINT,
+  isInvalidConfigError,
   LOG_MD,
+  parseBrainConfig,
   readBrainConfig,
   SUPPORTED_SCHEMA_VERSION,
   validateBrainConfig,
@@ -40,8 +43,10 @@ export { listNoteFiles } from './list.ts';
 export type { DiskCasePath, ResolveVaultPathOptions } from './paths.ts';
 export {
   assertNotePath,
+  CLIENT_INSTRUCTION_FILES,
   diskCasePath,
   isBrainControlFile,
+  isClientInstructionFile,
   isInNoteDirs,
   isPrivateTarget,
   normalizeRelPath,

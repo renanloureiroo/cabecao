@@ -54,10 +54,37 @@ export function indexLockPath(dbPath: string): string {
   return join(dirname(dbPath), 'locks', 'index.lock');
 }
 
+/** Espera síncrona curta: a API do `node:sqlite` é síncrona, e a troca para WAL precisa tentar de novo. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function isLockedError(error: unknown): boolean {
+  return error instanceof Error && /database is locked|database table is locked|SQLITE_BUSY/i.test(error.message);
+}
+
+/**
+ * Troca o banco para WAL. Quando dois processos abrem ao mesmo tempo um banco que ainda não existe, a troca falha na
+ * hora com "database is locked", sem passar pelo `busy_timeout` (o SQLite não espera para mudar o modo do diário).
+ * Na tentativa seguinte o outro processo já terminou a troca. O prazo é o mesmo do `busy_timeout`.
+ */
+function switchToWal(db: DatabaseSync, busyTimeoutMs: number): void {
+  const deadline = Date.now() + Math.max(0, busyTimeoutMs);
+  for (let delay = 5; ; delay = Math.min(delay * 2, 100)) {
+    try {
+      db.exec('pragma journal_mode = WAL');
+      return;
+    } catch (error) {
+      if (!isLockedError(error) || Date.now() >= deadline) throw error;
+      sleepSync(delay);
+    }
+  }
+}
+
 function configure(db: DatabaseSync, busyTimeoutMs: number): void {
   // `busy_timeout` antes de tudo: até a troca para WAL pode esbarrar em outro processo
   db.exec(`pragma busy_timeout = ${Math.max(0, Math.trunc(busyTimeoutMs))}`);
-  db.exec('pragma journal_mode = WAL');
+  switchToWal(db, busyTimeoutMs);
   db.exec('pragma synchronous = NORMAL');
   db.exec('pragma foreign_keys = ON');
 }

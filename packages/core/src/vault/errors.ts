@@ -22,6 +22,11 @@ export type VaultErrorCode =
   | 'invalid_note'
   /** O frontmatter do arquivo não pôde ser lido, então não dá para alterá-lo com segurança. */
   | 'invalid_frontmatter'
+  /**
+   * O texto que seria gravado não é lido de volta como a escrita pretende (o corpo viraria frontmatter, um campo
+   * mudaria de sentido): nada é gravado.
+   */
+  | 'frontmatter_mismatch'
   /** Regras (`type: rule`) só o usuário cria. */
   | 'rule_requires_human'
   /** Tentativa de trocar `id` ou `type` de uma nota existente. */

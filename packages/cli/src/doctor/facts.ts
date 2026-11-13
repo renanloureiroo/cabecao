@@ -14,6 +14,7 @@ import {
   indexDbPath,
   indexStatus,
   isGitVersionSupported,
+  isInvalidConfigError,
   LOCAL_DIR,
   listConflicts,
   MIN_GIT_VERSION,
@@ -251,7 +252,15 @@ export async function gatherFacts(io: DoctorIo, options: GatherOptions): Promise
     const config = await readBrainConfig(root);
     facts.config = { kind: 'ok', schemaVersion: config.schemaVersion, supported: SUPPORTED_SCHEMA_VERSION };
   } catch (error) {
-    facts.config = { kind: 'error', ...messageOf(error) };
+    const { message, hint } = messageOf(error);
+    facts.config = {
+      kind: 'error',
+      // um `.cabecao.json` quebrado chega também pelo sync, commitado por outro cliente git: a mensagem diz o que é
+      message: isInvalidConfigError(error)
+        ? `a configuração do cérebro (.cabecao.json) está inválida: ${message}`
+        : message,
+      ...(hint === undefined ? {} : { hint }),
+    };
     return facts;
   }
   if (gitFact.kind === 'error') return facts;

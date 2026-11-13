@@ -10,6 +10,12 @@ export const BRAIN_CONFIG_FILE = '.cabecao.json';
 export const SUPPORTED_SCHEMA_VERSION = 1;
 export const DEFAULT_NOTE_DIRS: readonly string[] = ['wiki', 'memory', 'raw'];
 export const DEFAULT_INDEX_MD = 'index.md';
+/**
+ * O que fazer com um `.cabecao.json` inválido (JSON quebrado ou campo errado). Mostrado por `status`, `doctor`, pelas
+ * tools do MCP e pela CLI.
+ */
+export const INVALID_CONFIG_HINT =
+  'Corrija o .cabecao.json do cérebro (é JSON; "git log -p -- .cabecao.json" mostra as versões anteriores, inclusive a última que funcionava) ou desfaça a mudança que o quebrou. O "cabecao sync" continua rodando com a última configuração válida do histórico, então uma correção feita em outra máquina chega por ele.';
 /** Diário append-only, sempre na raiz do cérebro. */
 export const LOG_MD = 'log.md';
 
@@ -87,10 +93,13 @@ export function validateBrainConfig(value: unknown, path: string = BRAIN_CONFIG_
   }
 
   let indexMd = DEFAULT_INDEX_MD;
-  if (typeof value.indexMd !== 'string' || !isSafeRelativePath(value.indexMd) || !/\.md$/i.test(value.indexMd)) {
+  // forma canônica (`/`, NFC, sem `./`, `/./` nem barras repetidas): é com ela que todo o código compara caminhos, e
+  // `wiki//Home.md` precisa ser o mesmo arquivo que `wiki/Home.md` para o catálogo continuar protegido
+  const canonicalIndex = typeof value.indexMd === 'string' ? canonicalRelPath(value.indexMd) : '';
+  if (typeof value.indexMd !== 'string' || !isSafeRelativePath(value.indexMd) || !/\.md$/i.test(canonicalIndex)) {
     problems.push('"indexMd" deveria ser o caminho relativo de um arquivo .md');
   } else {
-    indexMd = normalizeNfc(toPosixPath(value.indexMd)).replace(/^(?:\.\/)+/, '');
+    indexMd = canonicalIndex;
   }
 
   let embedding: EmbeddingConfig | undefined;
@@ -182,6 +191,14 @@ const RESERVED_FIELD_NAMES = new Set([
   'relations',
 ]);
 
+/** Caminho relativo em forma canônica: `/`, NFC, sem segmentos vazios nem `.` (o mesmo que `normalizeRelPath`). */
+function canonicalRelPath(path: string): string {
+  return normalizeNfc(toPosixPath(path))
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.')
+    .join('/');
+}
+
 /** Pasta de notas em formato canônico (`/`, NFC, sem `./` nem barra final), ou `null` se for inválida. */
 function normalizeDir(dir: string): string | null {
   const posix = normalizeNfc(toPosixPath(dir.trim()));
@@ -227,6 +244,14 @@ export async function readBrainConfig(root: string): Promise<BrainConfig> {
     }
     throw cause;
   }
+  return parseBrainConfig(text, path);
+}
+
+/**
+ * Lê e valida o TEXTO de um `.cabecao.json` (do disco ou de um commit). Lança `VaultError` com `config_invalid_json`,
+ * `config_invalid` ou `config_schema_too_new`. `path` só entra na mensagem.
+ */
+export function parseBrainConfig(text: string, path: string = BRAIN_CONFIG_FILE): BrainConfig {
   let value: unknown;
   try {
     // Editores no Windows costumam gravar com BOM, que o JSON.parse não aceita.
@@ -236,6 +261,11 @@ export async function readBrainConfig(root: string): Promise<BrainConfig> {
     throw new VaultError('config_invalid_json', `${path}: o conteúdo não é JSON válido (${detail})`, { path, cause });
   }
   return validateBrainConfig(value, path);
+}
+
+/** `config_invalid_json` ou `config_invalid`: o arquivo existe, mas não vale (não inclui o esquema mais novo). */
+export function isInvalidConfigError(error: unknown): error is VaultError {
+  return error instanceof VaultError && (error.code === 'config_invalid_json' || error.code === 'config_invalid');
 }
 
 /** O objeto que vai para o arquivo: chaves conhecidas na ordem do doc 03, depois as desconhecidas. */

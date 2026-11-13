@@ -64,6 +64,18 @@ function lineIndexOf(starts: readonly number[], position: number): number {
 const COMMENT_DECORATION = /<!--|-->|%%|\/\*|\*\/|\/\/|[#\s]/g;
 
 /**
+ * O marcador `cabecao:allow-secret` libera esta linha: ela o contém, ou a linha anterior é só o marcador (sozinho ou
+ * dentro de um comentário).
+ */
+export function allowMarkerApplies(line: string, previous: string | undefined): boolean {
+  if (line.includes(ALLOW_SECRET_MARKER)) return true;
+  return (
+    previous?.includes(ALLOW_SECRET_MARKER) === true &&
+    previous.replaceAll(ALLOW_SECRET_MARKER, '').replace(COMMENT_DECORATION, '') === ''
+  );
+}
+
+/**
  * Procura segredos no texto. Devolve os achados na ordem em que aparecem; lista vazia quer dizer
  * que nada foi encontrado.
  */
@@ -105,13 +117,7 @@ export function scanSecrets(text: string, options: ScanSecretsOptions = {}): Sec
   const isAllowed = (index: number): boolean => {
     let allowed = allowedLines.get(index);
     if (allowed === undefined) {
-      allowed = lineText(index).includes(ALLOW_SECRET_MARKER);
-      if (!allowed && index > 0) {
-        const previous = lineText(index - 1);
-        allowed =
-          previous.includes(ALLOW_SECRET_MARKER) &&
-          previous.replaceAll(ALLOW_SECRET_MARKER, '').replace(COMMENT_DECORATION, '') === '';
-      }
+      allowed = allowMarkerApplies(lineText(index), index > 0 ? lineText(index - 1) : undefined);
       allowedLines.set(index, allowed);
     }
     return allowed;

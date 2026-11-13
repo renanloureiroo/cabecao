@@ -19,7 +19,14 @@ import {
   uniqueFileName,
 } from './filename.ts';
 import { listNoteFiles } from './list.ts';
-import { assertNotePath, diskCasePath, isBrainControlFile, isInNoteDirs, resolveVaultPath } from './paths.ts';
+import {
+  assertNotePath,
+  CLIENT_INSTRUCTION_FILES,
+  diskCasePath,
+  isBrainControlFile,
+  isInNoteDirs,
+  resolveVaultPath,
+} from './paths.ts';
 import { serializeWrites } from './queue.ts';
 import type { NoteRead } from './read.ts';
 import { readNote } from './read.ts';
@@ -109,6 +116,43 @@ function invalid(path: string, issues: readonly NoteIssue[]): VaultError {
     path,
     issues,
   });
+}
+
+/**
+ * O que uma escrita pretende que o arquivo signifique: o frontmatter (`null` = arquivo sem bloco de frontmatter) e o
+ * corpo. Com `raw`, o bloco de frontmatter foi mantido como estava (YAML que não se lê), e é ele que tem de voltar.
+ */
+interface IntendedNote {
+  readonly frontmatter: Readonly<Record<string, unknown>> | null;
+  readonly raw?: string;
+  readonly body: string;
+}
+
+/**
+ * Confere, ANTES de gravar, que o texto montado é lido pelo parser do Cabeção (`splitFrontmatter`, o mesmo da leitura,
+ * do banco e do catálogo) exatamente como a escrita pretende: o mesmo frontmatter (mesmas chaves e valores) e o mesmo
+ * corpo. Qualquer diferença entre "o que a escrita acha que gravou" e "o que será lido" é recusada
+ * (`frontmatter_mismatch`): um corpo que abre com BOM ou com `---` e vira frontmatter numa nota que não tinha, um
+ * campo cujo YAML significa outra coisa (chave com espaço, `<<`), um trecho de `patch` que cria ou atravessa o
+ * delimitador. Vale para toda escrita do vault, de agente ou do usuário.
+ */
+function assertReadsBack(path: string, text: string, intended: IntendedNote): void {
+  const parsed = splitFrontmatter(text);
+  let same = parsed.body === intended.body;
+  if (intended.frontmatter === null) {
+    same &&= !parsed.hasFrontmatter;
+  } else if (intended.raw !== undefined) {
+    same &&= parsed.hasFrontmatter && parsed.raw === intended.raw;
+  } else {
+    same &&= parsed.hasFrontmatter && parsed.error === null && isDeepStrictEqual(parsed.data, intended.frontmatter);
+  }
+  if (!same) {
+    throw new VaultError(
+      'frontmatter_mismatch',
+      `o texto de ${path} seria lido de outro jeito do que a escrita pede (o frontmatter ou o corpo mudariam ao ser relidos); nada foi gravado`,
+      { path },
+    );
+  }
 }
 
 /** Nomes (como chave, sem `.md`) das notas que já existem numa pasta. Pasta que não existe não tem nenhum. */
@@ -221,6 +265,12 @@ export async function createNote(
     if (hasErrors(issues)) throw invalid(input.path ?? `nova nota do tipo ${input.type}`, issues);
 
     const text = serializeNote(frontmatter, input.body ?? '', config);
+    const yaml = serializeFrontmatter(frontmatter, config);
+    const headerLength = yaml === '' ? 0 : `---\n${yaml}---\n`.length;
+    assertReadsBack(input.path ?? `nova nota do tipo ${input.type}`, text, {
+      frontmatter: yaml === '' ? null : frontmatter,
+      body: text.slice(headerLength),
+    });
     const write = async (path: string): Promise<FileStamp | null> => {
       try {
         return await writeFileAtomic(await resolveVaultPath(root, path, { write: true }), text, {
@@ -277,7 +327,12 @@ export async function createNote(
     const linkIndex = options.linkIndex ?? buildLinkIndex(await listNoteFiles(root, config));
     const separator = FILE_NAME_STYLES[input.type] === 'title' ? ' ' : '-';
     for (let attempt = 0; attempt < 50; attempt++) {
-      const name = uniqueFileName(base, (key) => taken.has(key) || linkIndex.byName.has(key), separator);
+      // um nome gerado nunca é o de um arquivo de instrução de cliente de IA (`Claude.md` viraria instrução)
+      const name = uniqueFileName(
+        base,
+        (key) => taken.has(key) || linkIndex.byName.has(key) || CLIENT_INSTRUCTION_FILES.includes(`${key}.md`),
+        separator,
+      );
       const path = `${dir}/${name}`;
       const stamp = await write(path);
       if (stamp !== null) return resultOf('add', path, frontmatter, true, stamp, issues);
@@ -405,7 +460,13 @@ function render(read: NoteRead, changes: NoteChanges, options: UpdateNoteOptions
   if (bodyChanged && newBody !== '' && !newBody.endsWith('\n')) newBody += '\n';
   // sem frontmatter, um corpo que começa com `---` seria lido como frontmatter
   if (header === '' && bodyChanged && /^---[ \t]*\r?\n/.test(newBody)) newBody = `\n${newBody}`;
-  return { text: `${bom}${header}${newBody}`, frontmatter: after, changed: true, issues };
+  const text = `${bom}${header}${newBody}`;
+  assertReadsBack(path, text, {
+    frontmatter: header === '' ? null : after,
+    ...(header !== '' && note.frontmatterError !== null ? { raw: splitFrontmatter(read.text).raw ?? '' } : {}),
+    body: newBody,
+  });
+  return { text, frontmatter: after, changed: true, issues };
 }
 
 /** Opções com `config` preenchido: o que veio do chamador ou as relações do `.cabecao.json`. */

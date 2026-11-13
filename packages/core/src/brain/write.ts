@@ -20,7 +20,8 @@ import {
   runGit,
   statusPorcelain,
 } from '../git/index.ts';
-import { scanSecrets } from '../security/index.ts';
+import { scanFrontmatterSecrets, scanSecrets } from '../security/index.ts';
+import { isConflictCopyPath } from '../sync/conflict-name.ts';
 import { fileStamp, isUlid, ulid, writeFileAtomic } from '../util/index.ts';
 import type { BrainConfig, NoteIssue, NoteRead, NoteType, WriteResult } from '../vault/index.ts';
 import {
@@ -30,6 +31,7 @@ import {
   diskCasePath,
   hasErrors,
   isBrainControlFile,
+  isClientInstructionFile,
   isInNoteDirs,
   isNoteType,
   isValidScope,
@@ -181,6 +183,9 @@ const RAW_DIR_PREFIX = `${RAW_DIR.toLowerCase()}/`;
  * O que um agente nunca grava, qualquer que seja a tool ou o modo (o usuário, pela CLI, não passa por aqui):
  *
  * - os arquivos de controle do cérebro (`AGENTS.md`, `CLAUDE.md`, catálogo, diário...), mesmo com `noteDirs: ["."]`;
+ * - em QUALQUER pasta, um arquivo com nome de instrução de cliente de IA (`CLIENT_INSTRUCTION_FILES` do vault:
+ *   `wiki/CLAUDE.md`, `memory/gemini.md`...);
+ * - um caminho no formato de cópia de conflito do sync (`nota.conflict-<máquina>-<data>.md`): só o sync as cria;
  * - nada em `memory/rules/`: regras só o usuário cria;
  * - numa alteração (`overwrite`, `append`, `patch_page`), nada em `raw/`, onde ficam as fontes imutáveis.
  *
@@ -198,7 +203,29 @@ function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'create' | '
       },
     );
   }
+  if (isClientInstructionFile(path)) {
+    const name = path.slice(path.lastIndexOf('/') + 1);
+    throw new BrainError(
+      'invalid_path',
+      `${path} tem o nome de um arquivo de instrução de cliente de IA (${name}); clientes como Claude Code, Codex e Gemini CLI o carregariam como instrução, então um agente não cria nem altera arquivo com esse nome em nenhuma pasta do cérebro`,
+      {
+        details: { path },
+        nextStep: `Grave o conteúdo numa nota com outro nome (por exemplo "${name.replace(/\.md$/i, '')} (notas).md"). Instruções para agentes só o usuário escreve.`,
+      },
+    );
+  }
   const key = path.toLowerCase();
+  if (isConflictCopyPath(path) || isConflictCopyPath(key)) {
+    throw new BrainError(
+      'invalid_path',
+      `${path} tem o formato de uma cópia de conflito do sync (nota.conflict-<máquina>-<data>.md); só o sync cria essas cópias, e um agente não cria nem altera uma`,
+      {
+        details: { path },
+        nextStep:
+          'Para resolver um conflito, leia a cópia e junte o que importa na nota original (o caminho sem ".conflict-..."); apagar a cópia é com o usuário. Para uma nota nova, escolha outro nome.',
+      },
+    );
+  }
   if (key.startsWith(RULES_DIR_PREFIX)) throw ruleRefused();
   if (kind === 'update' && key.startsWith(RAW_DIR_PREFIX)) {
     throw new BrainError(
@@ -214,9 +241,11 @@ function assertAgentMayWrite(ctx: BrainContext, path: string, kind: 'create' | '
 }
 
 /**
- * Proveniência de uma nota do usuário (`origin: human` ou `trust: high`) que um agente vai alterar: `trust` cai para
- * `medium` (se era `high`, ou se não havia e a origem é humana) e `edited_by` registra o agente. Sem isso, o texto
- * escrito pelo agente seria servido com a autoridade do usuário. `null` quando não se aplica.
+ * Proveniência de uma nota que NÃO foi criada por um agente (sem `origin`, `origin: human` ou `ingest:<fonte>`, como
+ * as notas de um vault adotado), ou que o usuário marcou com `trust: high`, quando um agente vai alterá-la:
+ * `edited_by` registra o agente, e `trust` cai para `medium` se era `high` (ou se não havia e a origem é humana). Sem
+ * isso, o texto escrito pelo agente seria servido com a autoridade do usuário. `null` quando não se aplica (nota de
+ * agente sem `trust: high`).
  */
 function agentEditProvenance(
   ctx: BrainContext,
@@ -225,16 +254,23 @@ function agentEditProvenance(
   if (ctx.actor === 'human') return null;
   const trust = fieldKey(before.trust);
   const origin = fieldKey(before.origin);
-  if (trust !== 'high' && origin !== 'human') return null;
+  const byAgent = typeof origin === 'string' && origin.startsWith('agent:');
+  if (byAgent && trust !== 'high') return null;
   const lower = trust === 'high' || ((trust === undefined || trust === null || trust === '') && origin === 'human');
   const editedBy = `agent:${ctx.client}`;
   const fields: Record<string, unknown> = { ...(lower ? { trust: 'medium' } : {}), edited_by: editedBy };
+  const whose =
+    trust === 'high'
+      ? 'trust: high'
+      : typeof origin === 'string' && origin !== ''
+        ? `origin: ${String(before.origin).trim()}`
+        : 'sem origin, escrita fora do Cabeção';
   return {
     fields,
     warning: warning(
       'provenance_changed',
-      'trust',
-      `a nota era do usuário (${origin === 'human' ? 'origin: human' : 'trust: high'}); como um agente alterou o conteúdo, ela foi gravada com ${lower ? '"trust: medium" e ' : ''}"edited_by: ${editedBy}"`,
+      lower ? 'trust' : 'edited_by',
+      `a nota não foi criada por um agente (${whose}); como um agente alterou o conteúdo, ela foi gravada com ${lower ? '"trust: medium" e ' : ''}"edited_by: ${editedBy}"`,
     ),
   };
 }
@@ -335,14 +371,134 @@ function newSecrets(
     }));
 }
 
-function frontmatterTargets(fields: Readonly<Record<string, unknown>>, config: BrainConfig): ScanTarget[] {
-  return Object.entries(fields)
-    .filter(([, value]) => value !== undefined && value !== null)
-    .map(([key, value]) => ({
-      where: 'frontmatter' as const,
-      field: key,
-      text: serializeFrontmatter({ [key]: value }, config),
-    }));
+/** Todos os textos de um valor do frontmatter: ele mesmo, os itens das listas e as chaves e valores dos mapas. */
+function stringsIn(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) for (const item of value) stringsIn(item, out);
+  else if (isRecord(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      out.push(key);
+      stringsIn(item, out);
+    }
+  }
+  return out;
+}
+
+/**
+ * O que passa pelo scanner de cada campo do frontmatter: o YAML serializado (o que vai para o arquivo) e, para um
+ * campo novo ou alterado (diferente de `before`), a chave e cada texto do valor, crus. O YAML serializado sozinho não
+ * basta: o serializador escreve um caractere de controle como escape (`"\x01ghp_..."`, `"\aghp_..."`), e a letra do
+ * escape colada no token derruba a fronteira das regras.
+ */
+/**
+ * Possíveis segredos NOVOS nos valores já decodificados do frontmatter de uma edição feita fora do Cabeção (o
+ * texto cru já passou por `newSecrets`; um achado na mesma linha e regra não se repete). O marcador vale (é texto do
+ * usuário), na linha do YAML.
+ */
+function newFrontmatterSecrets(
+  text: string,
+  previous: ReadonlySet<string>,
+  path: string,
+  already: readonly SecretHit[],
+): SecretHit[] {
+  const seen = new Set(already.map((hit) => `${hit.line}\0${hit.rule}`));
+  const out: SecretHit[] = [];
+  for (const finding of scanFrontmatterSecrets(text, { honorAllowMarker: true })) {
+    const key = `${finding.line}\0${finding.rule}`;
+    if (seen.has(key) || previous.has(finding.source)) continue;
+    seen.add(key);
+    out.push({
+      where: 'pending',
+      field: path,
+      line: finding.line,
+      column: finding.column,
+      rule: finding.rule,
+      description: finding.description,
+    });
+  }
+  return out;
+}
+
+function frontmatterTargets(
+  fields: Readonly<Record<string, unknown>>,
+  config: BrainConfig,
+  before: Readonly<Record<string, unknown>> = {},
+): ScanTarget[] {
+  const targets: ScanTarget[] = [];
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null) continue;
+    targets.push({ where: 'frontmatter', field: key, text: serializeFrontmatter({ [key]: value }, config) });
+    if (isDeepStrictEqual(value, before[key])) continue;
+    for (const text of [key, ...stringsIn(value)]) targets.push({ where: 'frontmatter', field: key, text });
+  }
+  return targets;
+}
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: os caracteres de controle são justamente o alvo
+const CONTROL_IN_VALUE_RE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: os caracteres de controle são justamente o alvo
+const CONTROL_IN_NAME_RE = /[\u0000-\u001F\u007F-\u009F]/;
+/**
+ * Caracteres invisíveis de formatação num caminho: espaço de largura zero, marcas e embutidos de direção, BOM, hífen
+ * suave. Fazem um nome parecer outro (`AGENTS\u200B.md` aparece como `AGENTS.md`). O U+200D (que junta emojis)
+ * continua aceito.
+ */
+const INVISIBLE_IN_PATH_RE = /[\u00AD\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/;
+/** Metade de um par substituto do UTF-16 sem a outra metade: não vira UTF-8 válido. */
+const LONE_SURROGATE_RE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/**
+ * Recusa, em texto vindo de agente, caractere de controle (C0, DEL e C1) e metade solta de par substituto; no caminho,
+ * também os invisíveis de formatação. Num valor do frontmatter, `\n` e `\t` são aceitos (texto em várias linhas); no
+ * título, nas chaves e no caminho, nenhum. Esses caracteres
+ * não têm uso numa nota e, no YAML, viram escapes que escondem o que vem colado a eles.
+ */
+function assertAgentText(ctx: BrainContext, text: string, where: string, kind: 'value' | 'name' | 'path'): void {
+  if (ctx.actor === 'human') return;
+  const invisible = kind === 'path' ? INVISIBLE_IN_PATH_RE.exec(text) : null;
+  if (invisible !== null) {
+    const code = (invisible[0].codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0');
+    throw invalid(
+      `${where} tem um caractere invisível (U+${code}) que faz o nome parecer outro`,
+      'Use um caminho só com caracteres visíveis e tente de novo.',
+    );
+  }
+  const control = (kind === 'value' ? CONTROL_IN_VALUE_RE : CONTROL_IN_NAME_RE).exec(text);
+  const lone = control === null ? LONE_SURROGATE_RE.exec(text) : null;
+  const bad = control ?? lone;
+  if (bad === null) return;
+  const code = (bad[0].codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0');
+  throw invalid(
+    `${where} tem um caractere que não pode ir para o cérebro (U+${code}, ${control === null ? 'metade de um par substituto' : 'caractere de controle'})`,
+    kind === 'value'
+      ? 'Tire os caracteres de controle do texto (só quebra de linha e tabulação são aceitas) e tente de novo.'
+      : 'Tire os caracteres de controle (inclusive quebras de linha e tabulações) e tente de novo.',
+  );
+}
+
+/** Confere, recursivamente, as chaves e os textos dos campos do frontmatter enviados por um agente. */
+function assertAgentFields(ctx: BrainContext, fields: Readonly<Record<string, unknown>>): void {
+  if (ctx.actor === 'human') return;
+  for (const [key, value] of Object.entries(fields)) {
+    assertAgentText(ctx, key, `o nome do campo ${JSON.stringify(key)}`, 'name');
+    // o título vira nome de arquivo, assunto de commit e linha do catálogo: nem quebra de linha
+    const kind = key === 'title' ? 'name' : 'value';
+    for (const text of stringsIn(value)) assertAgentText(ctx, text, `o campo "${key}"`, kind);
+  }
+}
+
+/**
+ * Um corpo de agente que começa com BOM (U+FEFF) é recusado: o parser descarta o BOM antes de procurar o frontmatter,
+ * e um `---` logo depois dele viraria frontmatter numa nota que não tinha (a camada do vault ainda confere o texto
+ * relido, de qualquer jeito).
+ */
+function assertNoLeadingBom(ctx: BrainContext, body: string, before = ''): void {
+  // um corpo que já começava com o caractere (nota editada à mão) não trava a escrita: só o que o agente introduz
+  if (ctx.actor === 'human' || body.charCodeAt(0) !== 0xfeff || before.charCodeAt(0) === 0xfeff) return;
+  throw invalid(
+    'o conteúdo começa com o caractere invisível BOM (U+FEFF), que faria o começo do texto ser lido como frontmatter',
+    'Tire o BOM do começo do conteúdo e mande os campos em "frontmatter".',
+  );
 }
 
 function secretError(hits: readonly SecretHit[]): BrainError {
@@ -560,7 +716,10 @@ async function executeWrite(
     for (const path of pending) {
       const data = await readFile(join(ctx.root, ...path.split('/')), 'utf8').catch(() => null); // apagado: nada a ler
       if (data === null) continue;
-      secrets.push(...newSecrets(data, await committedLines(ctx, head, path), 'pending', path, true));
+      const committed = await committedLines(ctx, head, path);
+      const raw = newSecrets(data, committed, 'pending', path, true);
+      secrets.push(...raw);
+      if (/\.md$/i.test(path)) secrets.push(...newFrontmatterSecrets(data, committed, path, raw));
       // a edição do usuário entra num commit `edit` antes da operação: as linhas dela já não são "novas"
       if (path === target) for (const line of linesOf(data)) previous.add(line);
     }
@@ -669,6 +828,7 @@ export async function remember(ctx: BrainContext, input: RememberInput): Promise
   const type: NoteType = input.type;
   if (type === 'rule' && ctx.actor !== 'human') throw ruleRefused();
   if (typeof input.content !== 'string') throw invalid('"content" deveria ser um texto');
+  assertNoLeadingBom(ctx, input.content);
   return executeWrite(ctx, input.session_handle, async (config) => {
     const now = ctx.now();
     const day = localDate(now);
@@ -709,6 +869,7 @@ export async function remember(ctx: BrainContext, input: RememberInput): Promise
       }
     }
 
+    assertAgentFields(ctx, fields);
     const frontmatter: Record<string, unknown> = {
       id: ulid(now.getTime()),
       type,
@@ -811,6 +972,8 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
   if (input.frontmatter !== undefined && !isRecord(input.frontmatter))
     throw invalid('"frontmatter" deveria ser um objeto');
   const given: Readonly<Record<string, unknown>> = input.frontmatter ?? {};
+  assertAgentText(ctx, input.path, 'o caminho', 'path');
+  assertAgentFields(ctx, given);
 
   return executeWrite(ctx, input.session_handle, async (config) => {
     const now = ctx.now();
@@ -870,6 +1033,7 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
       };
       const issues = validateNote({ frontmatter, path }, config);
       if (hasErrors(issues)) throw invalidNote(path, issues);
+      assertNoLeadingBom(ctx, input.content);
       const { type: _type, ...scanned } = fields;
       return {
         target: null,
@@ -929,10 +1093,11 @@ export async function writePage(ctx: BrainContext, input: WritePageInput): Promi
       warnings.push(provenance.warning);
     }
     checkUpdate(read, set, remove, day, config);
+    assertNoLeadingBom(ctx, body, input.mode === 'append' ? read.note.body : '');
     return {
       target: { path: read.path, diskPath: read.diskPath },
       // todos os campos enviados (um que não mudou já está commitado e não é acusado)
-      checks: [{ where: 'content', field: null, text: body }, ...frontmatterTargets(set, config)],
+      checks: [{ where: 'content', field: null, text: body }, ...frontmatterTargets(set, config, before)],
       warnings,
       apply: () =>
         updateNote(
@@ -953,6 +1118,7 @@ export async function patchPage(ctx: BrainContext, input: PatchPageInput): Promi
   if (typeof input.path !== 'string' || input.path === '') throw invalid('"path" deveria ser o caminho da nota');
   if (typeof input.old !== 'string' || input.old === '') throw invalid('"old" deveria ser o trecho exato a substituir');
   if (typeof input.new !== 'string') throw invalid('"new" deveria ser um texto');
+  assertAgentText(ctx, input.path, 'o caminho', 'path');
   return executeWrite(ctx, input.session_handle, async (config) => {
     const read = await existingNote(ctx, input.path);
     const body = read.note.body;
@@ -980,6 +1146,7 @@ export async function patchPage(ctx: BrainContext, input: PatchPageInput): Promi
     }
     const at = body.indexOf(from);
     const patched = body.slice(0, at) + to + body.slice(at + from.length);
+    assertNoLeadingBom(ctx, patched, body);
     const provenance = patched === body ? null : agentEditProvenance(ctx, read.note.frontmatter);
     return {
       target: { path: read.path, diskPath: read.diskPath },

@@ -72,12 +72,16 @@ Vêm da revisão de segurança do marco 1 ([ADR 36](adr/README.md)). Valem para 
 
 - Não cria nem edita notas `type: rule`, e não escreve nada em `memory/rules/`.
 - O `recall` só serve como regra uma nota com `origin: human` dentro de `memory/rules/`. Uma nota com `type: rule` em outro lugar não é tratada como regra.
-- Não escreve nos arquivos de controle: `index.md`, `log.md`, `AGENTS.md`, `CLAUDE.md`, `.cabecao.json`, `.gitignore` e `.gitattributes`.
+- Não escreve nos arquivos de controle: `index.md`, `log.md`, `.cabecao.json`, `.gitignore` e `.gitattributes`.
+- Não cria nem altera, em **nenhuma** pasta do cérebro e sem diferenciar maiúsculas, um arquivo com nome de instrução de cliente de IA: `AGENTS.md`, `AGENTS.override.md`, `AGENT.md`, `CLAUDE.md`, `CLAUDE.local.md`, `GEMINI.md` e `QWEN.md`. Os clientes carregam esses arquivos como instrução também de subpastas (`wiki/CLAUDE.md`, por exemplo), e em macOS e Windows `claude.md` abre `CLAUDE.md`. Ler continua permitido. Os outros arquivos de instrução conhecidos (`.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.cursor/rules/`...) ficam em pasta ou arquivo oculto, ou não terminam em `.md`, e já não são caminho de nota. A lista fica num lugar só no código (`CLIENT_INSTRUCTION_FILES`, em `packages/core/src/vault/paths.ts`).
+- Não cria nem altera uma cópia de conflito (`nota.conflict-<máquina>-<data>.md`): só o sync as cria. Para resolver um conflito, o agente lê a cópia e junta o que importa na nota original; apagar a cópia é com você.
 - Em `raw/` só cria; não altera nem sobrescreve uma fonte.
 - Não grava `trust: high` nem troca o `origin` de uma nota.
-- Quando altera uma nota do usuário (`origin: human` ou `trust: high`), o `trust` cai para `medium` e a nota ganha `edited_by: agent:<cliente>`.
+- Quando altera uma nota que não foi criada por um agente (`origin: human`, `ingest:<fonte>`, ou sem `origin`, como as de um vault adotado) ou que tem `trust: high`, a nota ganha `edited_by: agent:<cliente>`, e o `trust` cai para `medium` se era `high`. Todo conteúdo que o agente lê (`recall`, `search`, `read`) traz `edited_by` ao lado de `trust` e `origin`.
+- Recusa caractere de controle em campo do frontmatter (só quebra de linha e tabulação são aceitas), no título e no caminho, e caractere invisível de formatação no caminho. Recusa também conteúdo que começa com o caractere invisível BOM.
+- Antes de gravar, a nota montada é relida com o mesmo parser da leitura: se o frontmatter ou o corpo relidos não forem exatamente os pedidos (um corpo que viraria frontmatter, por exemplo), nada é gravado. Isso vale também para a CLI.
 - A escrita nunca segue link simbólico.
-- O scanner de segredos roda em toda escrita. O marcador `cabecao:allow-secret` libera uma linha, mas só vale para edição feita por você (Obsidian ou editor); o que o agente escreve é escaneado sem o marcador.
+- O scanner de segredos roda em toda escrita, no texto e também em cada valor e chave do frontmatter já decodificado (no YAML, um escape como `"\x01..."` esconderia o começo de um token). O marcador `cabecao:allow-secret` libera uma linha, mas só vale para edição feita por você (Obsidian ou editor); o que o agente escreve é escaneado sem o marcador.
 
 ## Limites de entrada
 

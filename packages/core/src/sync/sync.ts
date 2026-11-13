@@ -20,6 +20,7 @@ import {
 } from '../util/index.ts';
 import { readBrainConfig, VaultError, writeIndexMd } from '../vault/index.ts';
 import { CatalogCache, isCatalogNote, type NoteMeta, noteMetaFromText, renderCatalog } from './catalog.ts';
+import { keepValidConfig, loadSyncConfig } from './config-guard.ts';
 import { commitMessage, type SyncContext } from './context.ts';
 import { countCommits, git, gitText, handleGitLockError, isAncestor, listTree, revParse } from './git.ts';
 import { integrateDiverged, UnrelatedHistoriesError, withCatalogCommit } from './integrate.ts';
@@ -522,6 +523,15 @@ export async function syncBrain(root: string, options: SyncOptions = {}): Promis
       }
     }
   } finally {
+    if (result.configProblem !== undefined && (await configValidNow(brainRoot))) {
+      // a versão que chegou do remoto corrigiu o `.cabecao.json` daqui
+      delete result.configProblem;
+      result.message =
+        `${result.message} O .cabecao.json desta pasta estava inválido; a versão recebida do remoto o corrigiu.`.trim();
+    } else if (result.configProblem !== undefined) {
+      result.message =
+        `${result.message} Configuração inválida nesta pasta: ${result.configProblem} Corrija o .cabecao.json.`.trim();
+    }
     try {
       state.lastSync = { at: new Date().toISOString(), status: result.status, message: result.message };
       await writeState(layout, state);
@@ -534,6 +544,16 @@ export async function syncBrain(root: string, options: SyncOptions = {}): Promis
   return finish();
 }
 
+/** O `.cabecao.json` da pasta de trabalho vale agora. */
+async function configValidNow(root: string): Promise<boolean> {
+  try {
+    await readBrainConfig(root);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runSync(
   root: string,
   options: SyncOptions,
@@ -542,7 +562,10 @@ async function runSync(
   cache: CatalogCache,
 ): Promise<void> {
   const layout = syncLayout(root);
-  const config = await readBrainConfig(root);
+  // com o `.cabecao.json` daqui inválido, o sync roda com a última versão válida (é por ele que a correção chega)
+  const loaded = await loadSyncConfig(root, LOCAL_TIMEOUT_MS);
+  const config = loaded.config;
+  if (loaded.problem !== undefined) result.configProblem = loaded.problem;
   const ctx: SyncContext = {
     root,
     scratchDir: layout.dir,
@@ -684,6 +707,15 @@ async function runSync(
         integration = merged.kind;
         created += merged.created;
         integrated = merged.conflicts;
+      }
+    }
+    if (target !== null && target !== head) {
+      // um `.cabecao.json` inválido vindo do remoto não entra: fica o daqui, e o do remoto vira cópia de conflito
+      const guarded = await keepValidConfig(ctx, head, target);
+      if (guarded !== null) {
+        target = guarded.commit;
+        created++;
+        integrated = [...integrated, guarded.conflict];
       }
     }
     if (target !== null && state.catalogOk !== target) {

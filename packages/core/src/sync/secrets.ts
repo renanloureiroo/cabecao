@@ -10,7 +10,7 @@
 // de binário E conteúdo de binário (assinatura do formato ou byte nulo no começo). Um `.md` com um byte nulo continua
 // sendo texto e é escaneado.
 import { createReadStream } from 'node:fs';
-import { scanSecrets } from '../security/index.ts';
+import { scanFrontmatterSecrets, scanSecrets } from '../security/index.ts';
 import { type GitContext, git, gitStream, objectSizes, readObjects } from './git.ts';
 import type { SecretLocation } from './types.ts';
 
@@ -27,6 +27,11 @@ const OVERLAP_CHARS = 64 * 1024;
 const HEAD_BYTES = 8000;
 /** Teto de bytes por leitura em lote de blobs pequenos. */
 const BATCH_BYTES = 32 * 1024 * 1024;
+/**
+ * Até onde o começo de um `.md` é guardado para ler o frontmatter (e escanear os valores já decodificados). Um
+ * frontmatter que não fecha antes disso não tem os valores escaneados (o texto cru continua sendo).
+ */
+const FRONTMATTER_MAX_CHARS = 8 * 1024 * 1024;
 
 // --- Binário ------------------------------------------------------------------------------------------------------
 
@@ -208,26 +213,71 @@ class TextScanner {
   }
 }
 
+/** Abertura de frontmatter na primeira linha (com BOM opcional). */
+const FRONTMATTER_OPEN_RE = /^\uFEFF?---[ \t]*\r?\n/;
+/** Linha que fecha o frontmatter (`---` ou `...`), depois da abertura. */
+const FRONTMATTER_CLOSE_RE = /\n(?:---|\.\.\.)[ \t]*\r?\n/;
+
+/**
+ * Guarda o começo de um `.md` até o fim do frontmatter, para o scanner dos valores. Para de guardar assim que sabe
+ * que não há frontmatter, quando ele fecha ou no teto `FRONTMATTER_MAX_CHARS`.
+ */
+class FrontmatterCollector {
+  private readonly decoder = new TextDecoder('utf-8', { ignoreBOM: true });
+  private text = '';
+  private collecting = true;
+
+  push(bytes: Uint8Array): void {
+    if (!this.collecting) return;
+    this.text += this.decoder.decode(bytes, { stream: true });
+    const opened = FRONTMATTER_OPEN_RE.exec(this.text);
+    if (opened === null) {
+      // a primeira linha já chegou inteira e não abre frontmatter: não há o que guardar
+      if (this.text.includes('\n') || this.text.length > 8) this.stop(true);
+    } else if (FRONTMATTER_CLOSE_RE.test(this.text.slice(opened[0].length - 1))) {
+      this.stop(false);
+    } else if (this.text.length > FRONTMATTER_MAX_CHARS) {
+      this.stop(true);
+    }
+  }
+
+  /** O começo do arquivo com o frontmatter inteiro, ou `''` quando não há frontmatter a ler. */
+  end(): string {
+    if (this.collecting) this.text += this.decoder.decode();
+    return this.text;
+  }
+
+  private stop(discard: boolean): void {
+    this.collecting = false;
+    if (discard) this.text = '';
+  }
+}
+
 /**
  * Scanner de um arquivo inteiro entregue aos pedaços: guarda o começo até decidir se é binário. `push` devolve
- * `false` quando o arquivo é claramente binário (não vale a pena ler o resto).
+ * `false` quando o arquivo é claramente binário (não vale a pena ler o resto). Num `.md`, além do texto cru, os
+ * valores do frontmatter são escaneados já decodificados (`scanFrontmatterSecrets`).
  */
 export class FileScanner {
   private readonly path: string;
+  private readonly where: SecretLocation['where'];
   private readonly text: TextScanner;
+  private readonly frontmatter: FrontmatterCollector | null;
   private head: Buffer[] = [];
   private headLength = 0;
   private kind: 'binary' | 'text' | null = null;
 
   constructor(path: string, where: SecretLocation['where']) {
     this.path = path;
+    this.where = where;
     this.text = new TextScanner(path, where);
+    this.frontmatter = /\.md$/i.test(path) ? new FrontmatterCollector() : null;
   }
 
   push(chunk: Uint8Array): boolean {
     if (this.kind === 'binary') return false;
     if (this.kind === 'text') {
-      this.text.push(chunk);
+      this.pushText(chunk);
       return true;
     }
     this.head.push(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
@@ -238,14 +288,38 @@ export class FileScanner {
 
   end(): ScanHit[] {
     if (this.kind === null) this.decide();
-    return this.kind === 'binary' ? [] : this.text.end();
+    if (this.kind === 'binary') return [];
+    const hits = this.text.end();
+    const start = this.frontmatter?.end() ?? '';
+    if (start === '') return hits;
+    // um achado que o texto cru já acusou na mesma linha, com a mesma regra, não se repete
+    const seen = new Set(hits.map((hit) => `${hit.line}\0${hit.rule}`));
+    for (const finding of scanFrontmatterSecrets(start)) {
+      if (seen.has(`${finding.line}\0${finding.rule}`)) continue;
+      seen.add(`${finding.line}\0${finding.rule}`);
+      hits.push({
+        path: this.path,
+        line: finding.line,
+        column: finding.column,
+        rule: finding.rule,
+        description: finding.description,
+        where: this.where,
+        lineText: finding.source,
+      });
+    }
+    return hits;
+  }
+
+  private pushText(chunk: Uint8Array): void {
+    this.text.push(chunk);
+    this.frontmatter?.push(chunk);
   }
 
   private decide(): void {
     const head = Buffer.concat(this.head);
     this.head = [];
     this.kind = isClearlyBinary(this.path, head) ? 'binary' : 'text';
-    if (this.kind === 'text') this.text.push(head);
+    if (this.kind === 'text') this.pushText(head);
   }
 }
 

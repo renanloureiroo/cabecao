@@ -57,17 +57,21 @@ export type SyncBlockReason = 'secrets' | 'unscannable' | 'local-file' | 'git-op
  * versões continuam no cérebro.
  */
 export interface SyncConflict {
-  /** Caminho do arquivo. Em `content`, fica com a versão do remoto. */
+  /** Caminho do arquivo. Em `content`, fica com a versão do remoto; em `invalid`, com a desta máquina. */
   readonly path: string;
   /**
    * - `content`: editada nos dois lados; a versão local foi para `copy`.
    * - `delete`: editada de um lado e apagada do outro; a edição foi mantida em `path`.
+   * - `invalid`: o remoto trouxe um `.cabecao.json` inválido (ou o apagou); ficou a versão desta máquina, e a do
+   *   remoto foi para `copy` (`.cabecao.conflict-<máquina>-<data>.json`).
    */
-  readonly kind: 'content' | 'delete';
-  /** Em `content`: a cópia com a versão local, ao lado do arquivo (`nota.conflict-<máquina>-<data>.md`). */
+  readonly kind: 'content' | 'delete' | 'invalid';
+  /** Em `content`: a cópia com a versão local; em `invalid`: a cópia com a versão do remoto. */
   readonly copy?: string;
   /** Em `delete`: de que lado veio a edição mantida. */
   readonly kept?: 'remote' | 'local';
+  /** Em `invalid`: por que a versão do remoto não vale. */
+  readonly reason?: string;
 }
 
 /** Onde o scanner achou um possível segredo. O segredo em si nunca aparece aqui. */
@@ -123,6 +127,11 @@ export interface SyncResult {
   remoteError?: SyncRemoteError;
   /** O que a recuperação de uma execução interrompida fez, se fez algo. */
   recovered?: string[];
+  /**
+   * Presente quando o `.cabecao.json` da pasta de trabalho está inválido: o motivo e com que configuração o sync
+   * rodou (a última válida do histórico, ou a padrão). O sync roda mesmo assim, para poder receber a correção.
+   */
+  configProblem?: string;
 }
 
 export interface SyncOptions {

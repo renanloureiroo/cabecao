@@ -62,6 +62,10 @@ O sync leva tudo o que o git não ignora ([04](04-sincronizacao.md), ADR 35). Po
 }
 ```
 
+O `indexMd` é lido em forma canônica: `wiki//Home.md` e `wiki/./Home.md` são o mesmo arquivo que `wiki/Home.md`.
+
+**Configuração inválida.** Se o `.cabecao.json` não for JSON válido ou tiver um campo errado, o servidor MCP e a CLI recusam abrir o cérebro e dizem o que fazer: corrigir o arquivo (`git log -p -- .cabecao.json` mostra as versões anteriores). O `cabecao sync` continua rodando nesse caso, com a última versão válida do histórico (ou a configuração padrão, se não houver nenhuma), para que uma correção feita em outra máquina chegue. Um `.cabecao.json` inválido que chega do remoto, commitado por outro cliente git, não entra: o sync mantém a versão desta máquina e guarda a do remoto em `.cabecao.conflict-<máquina>-<data>.json`, num commit próprio, que vai para o remoto. O mesmo vale se o remoto apagar o arquivo. Uma versão válida, ou de esquema mais novo, entra como veio.
+
 O campo `embedding` é do marco 2 (hoje o arquivo não o tem). Ele só existirá depois que você ativar a busca por significado e escolher um modelo. Ele vale para todas as máquinas do cérebro. O exemplo mostra uma das sugestões; as dimensões e o tamanho do registro nos segmentos acompanham o modelo escolhido.
 
 ## Frontmatter
@@ -98,7 +102,8 @@ part_of: ["[[Projeto Atlas]]"]
 `trust`, `origin` e `edited_by` registram quem escreveu e quanto confiar:
 
 - Um agente (cliente MCP) não grava `trust: high` nem troca o `origin` de uma nota.
-- Quando um agente altera uma nota do usuário (`origin: human` ou `trust: high`), o `trust` cai para `medium` e a nota ganha `edited_by: agent:<cliente>`. A nota deixa de passar por "escrita pelo usuário" sem que isso fique registrado ([ADR 36](adr/README.md)).
+- Quando um agente altera uma nota que não foi criada por um agente (`origin: human`, `ingest:<fonte>`, ou sem `origin`, como as notas de um vault adotado) ou que tem `trust: high`, a nota ganha `edited_by: agent:<cliente>`, e o `trust` cai para `medium` se era `high`. Numa nota sem frontmatter, o Cabeção cria o bloco só com esse campo. A nota deixa de passar por "escrita pelo usuário" sem que isso fique registrado ([ADR 36](adr/README.md)). Uma nota com frontmatter ilegível não é alterada por agente, porque a edição não teria como ser registrada.
+- O que o agente lê (`recall`, `search`, `read`) traz `edited_by` junto de `trust` e `origin`.
 
 ### Por que uma propriedade por tipo de relação
 
