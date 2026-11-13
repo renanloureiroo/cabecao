@@ -4,7 +4,7 @@
 // Abertura preguiçosa: subir o processo, responder `initialize`/`server/discover` e `tools/list` não abre o banco,
 // não cria arquivo e não toca no git (alguns clientes sobem o processo duas vezes só para sondar). O cérebro abre na
 // primeira chamada de tool que precisa dele e é reaproveitado nas seguintes.
-import type { Brain } from '@cabecao/core';
+import type { Brain, EmbeddingProvider } from '@cabecao/core';
 import { BrainError, openBrain } from '@cabecao/core';
 
 export interface BrainProviderOptions {
@@ -13,6 +13,11 @@ export interface BrainProviderOptions {
   readonly machine?: string;
   /** Relógio (testes). */
   readonly now?: Date | (() => Date);
+  /**
+   * Runtime de embeddings injetado pela CLI (marco 2). Abrir o cérebro não carrega o modelo: ele carrega na primeira
+   * busca que precisa dele, nunca na subida do servidor.
+   */
+  readonly embeddings?: EmbeddingProvider;
 }
 
 export interface BrainProvider {
@@ -42,6 +47,7 @@ export function createBrainProvider(options: BrainProviderOptions): BrainProvide
           actor: 'agent',
           ...(options.machine === undefined ? {} : { machine: options.machine }),
           ...(options.now === undefined ? {} : { now: options.now }),
+          ...(options.embeddings === undefined ? {} : { embeddings: options.embeddings }),
         });
         const pending = brain;
         opened.set(client, pending);
