@@ -29,7 +29,7 @@ export function readText(output: ReadOutput): string {
     note.content.trimEnd(),
   ];
   if (output.backlinks.length > 0) {
-    lines.push('', `Citada por: ${output.backlinks.map((link) => link.path).join(', ')}`);
+    lines.push('', `Citada por: ${[...new Set(output.backlinks.map((link) => link.path))].join(', ')}`);
   }
   return lines.join('\n');
 }

@@ -155,9 +155,8 @@ export function confirmationText(output: Confirmable, command: string): string |
     'Nada foi feito: esta ação exige o pedido explícito do usuário.',
     `Resumo: ${output.summary ?? ''}`,
     `Por quê: ${(output.reasons ?? []).join('; ')}`,
-    `Se o usuário pediu exatamente isto, repita o mesmo comando com --confirm ${output.confirm_token ?? '<token>'} (vale até ${output.token_expires_at ?? '?'}).`,
+    `Se o usuário pediu exatamente isto, repita "${command}" com os mesmos argumentos e --confirm ${output.confirm_token ?? '<token>'} (vale até ${output.token_expires_at ?? '?'}).`,
     `Próximo passo: ${output.next_step ?? ''}`,
-    `(${command})`,
   ].join('\n');
 }
 
