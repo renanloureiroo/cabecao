@@ -3,7 +3,7 @@
 import { GitError, GitStateError, redactCredentials } from '../git/index.ts';
 import { FileChangedError, LockTimeoutError } from '../util/index.ts';
 import type { NoteIssue } from '../vault/index.ts';
-import { VaultError } from '../vault/index.ts';
+import { INVALID_CONFIG_HINT, VaultError } from '../vault/index.ts';
 
 export const BRAIN_ERROR_CODES = [
   /** A pasta não tem `.cabecao.json`. */
@@ -136,6 +136,7 @@ const VAULT_CODES: Readonly<Record<string, BrainErrorCode>> = {
   note_exists: 'already_exists',
   invalid_note: 'invalid_note',
   invalid_frontmatter: 'invalid_note',
+  frontmatter_mismatch: 'invalid_note',
   immutable_field: 'invalid_note',
   unknown_relation: 'invalid_argument',
   invalid_link_target: 'invalid_argument',
@@ -156,6 +157,15 @@ const NEXT_STEPS: Partial<Record<BrainErrorCode, string>> = {
   conflict: 'Leia a nota de novo com read e refaça a alteração sobre a versão atual.',
   locked: 'Outro processo está gravando no cérebro; tente de novo em alguns segundos.',
   already_exists: 'Use mode "overwrite" ou "append", ou escolha outro caminho.',
+};
+
+/** Próximo passo mais específico que o do código da camada de operações, para alguns códigos do vault. */
+const VAULT_NEXT_STEPS: Readonly<Record<string, string>> = {
+  frontmatter_mismatch:
+    'Não comece o conteúdo com algo que imite um bloco de frontmatter (BOM, "---"); mande os campos em "frontmatter" e tente de novo.',
+  config_invalid_json: INVALID_CONFIG_HINT,
+  config_invalid: INVALID_CONFIG_HINT,
+  config_schema_too_new: 'Este cérebro é de uma versão mais nova do Cabeção: atualize com "npx cabecao@latest".',
 };
 
 /**
@@ -186,8 +196,12 @@ export function toBrainError(error: unknown): BrainError {
       ...(error.issues.length === 0 ? {} : { issues: error.issues.map(issueOutput) }),
       ...(error.occurrences === null ? {} : { occurrences: error.occurrences }),
     };
-    const nextStep = NEXT_STEPS[code];
-    return new BrainError(code, error.message, {
+    const nextStep = VAULT_NEXT_STEPS[error.code] ?? NEXT_STEPS[code];
+    const invalidConfig = error.code === 'config_invalid' || error.code === 'config_invalid_json';
+    const message = invalidConfig
+      ? `a configuração do cérebro (.cabecao.json) está inválida: ${error.message}`
+      : error.message;
+    return new BrainError(code, message, {
       details,
       cause: error,
       ...(nextStep === undefined ? {} : { nextStep }),

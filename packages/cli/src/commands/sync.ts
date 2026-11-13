@@ -1,6 +1,7 @@
 import type { SyncOutput } from '@cabecao/core';
-import { resolveBrain, withBrain } from '../brain.ts';
-import { UsageError } from '../errors.ts';
+import { BrainError, isInvalidConfigError, isUlid, syncBrain, toSyncOutput } from '@cabecao/core';
+import { CLI_CLIENT, readMachine, resolveBrain, withBrain } from '../brain.ts';
+import { CliError, UsageError } from '../errors.ts';
 import { plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
 
@@ -47,6 +48,12 @@ export function syncText(output: SyncOutput): string {
     for (const conflict of output.conflicts) {
       if (conflict.kind === 'content') {
         lines.push(`  ${conflict.path}: ficou com a versão do remoto; a sua está em ${conflict.copy ?? '?'}`);
+      } else if (conflict.kind === 'invalid') {
+        lines.push(
+          conflict.copy === null
+            ? `  ${conflict.path}: apagado no remoto; a versão desta máquina foi mantida`
+            : `  ${conflict.path}: a versão do remoto é inválida (${conflict.reason ?? '?'}); ficou a desta máquina, e a do remoto está em ${conflict.copy}`,
+        );
       } else {
         const side = conflict.kept === 'local' ? 'desta máquina' : 'do remoto';
         lines.push(`  ${conflict.path}: apagada de um lado e editada do outro; a edição ${side} foi mantida`);
@@ -70,13 +77,43 @@ export function syncText(output: SyncOutput): string {
   return lines.join('\n');
 }
 
+/**
+ * Sync sem abrir o cérebro, para quando o `.cabecao.json` da pasta está inválido (`openBrain` recusa abrir): o sync
+ * do núcleo roda com a última configuração válida do histórico, e é justamente por ele que a correção feita em outra
+ * máquina chega. O banco local é reindexado na próxima abertura.
+ */
+async function syncWithoutBrain(ctx: CommandContext, root: string, session: string | undefined): Promise<SyncOutput> {
+  if (session !== undefined && !isUlid(session)) {
+    throw new CliError('"--session" deveria ser o identificador devolvido pelo recall (ULID)', {
+      code: 'invalid_argument',
+    });
+  }
+  const machine = (await readMachine(ctx))?.machine;
+  return toSyncOutput(
+    await syncBrain(root, { client: CLI_CLIENT, session, ...(machine === undefined ? {} : { machine }) }),
+  );
+}
+
+/** O erro de abertura é um `.cabecao.json` inválido (JSON quebrado ou campo errado; não o esquema mais novo). */
+function invalidConfig(error: unknown): boolean {
+  if (!(error instanceof CliError) || error.code !== 'invalid_config') return false;
+  const cause = error.cause instanceof BrainError ? error.cause.cause : error.cause;
+  return isInvalidConfigError(cause);
+}
+
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (ctx.positionals.length > 0) throw new UsageError(`argumento a mais: ${ctx.positionals.join(' ')}`);
-  const session = ctx.values.session;
+  const session = typeof ctx.values.session === 'string' ? ctx.values.session : undefined;
   const root = await resolveBrain(ctx);
   // O sync roda aqui mesmo: `cabecao sync` já é o processo separado que o hook e o servidor MCP disparam.
-  const output = await withBrain(ctx, root, (brain) =>
-    brain.sync(typeof session === 'string' ? { session_handle: session } : {}),
-  );
+  let output: SyncOutput;
+  try {
+    output = await withBrain(ctx, root, (brain) =>
+      brain.sync(session === undefined ? {} : { session_handle: session }),
+    );
+  } catch (error) {
+    if (!invalidConfig(error)) throw error;
+    output = await syncWithoutBrain(ctx, root, session);
+  }
   return { code: syncExitCode(output), data: output, text: syncText(output) };
 }

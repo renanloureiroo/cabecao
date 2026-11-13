@@ -286,6 +286,52 @@ async function revertEnv(dir: string, indexMd: string): Promise<Record<string, s
   };
 }
 
+/**
+ * Troca o commit do revert por um igual (mesmos pais, mensagem e autor) com o `index.md` regenerado na árvore, sem
+ * `commit --amend`. O `--amend` reescreve o que estiver no HEAD na hora: entre conferir o HEAD e reescrever, um
+ * commit de outro programa poderia ser reescrito. Aqui o commit novo é montado só com objetos do git (um índice
+ * temporário em `scratch`) e a branch avança com `update-ref HEAD <novo> <revert>`, que o git só aplica se o HEAD
+ * ainda for o revert, numa operação atômica. Devolve o commit novo, ou `null` se o HEAD já era outro (nada mudou).
+ */
+async function replaceWithCatalog(ctx: BrainContext, revert: string, scratch: string): Promise<string | null> {
+  const indexMd = ctx.config.indexMd;
+  const env = { GIT_INDEX_FILE: join(scratch, 'catalog-index') };
+  const text = async (args: string[], options: { env?: Record<string, string>; input?: string } = {}) =>
+    (await runGit(args, { cwd: ctx.root, ...options })).stdout.trim();
+  const blob = await text(['hash-object', '-w', '--', indexMd]);
+  await text(['read-tree', `${revert}^{tree}`], { env });
+  await text(['update-index', '--add', '--cacheinfo', `100644,${blob},${indexMd}`], { env });
+  const tree = await text(['write-tree'], { env });
+  const shown = (await runGit(['show', '-s', '--format=%an%x00%ae%x00%aI%x00%P%x00%B', revert], { cwd: ctx.root }))
+    .stdout;
+  const [name = '', email = '', date = '', parents = '', ...rest] = shown.split('\0');
+  const commit = await text(
+    [
+      'commit-tree',
+      '--no-gpg-sign',
+      tree,
+      ...parents
+        .split(' ')
+        .filter((parent) => parent !== '')
+        .flatMap((parent) => ['-p', parent]),
+      '-F',
+      '-',
+    ],
+    {
+      input: `${rest.join('\0').trimEnd()}\n`,
+      env: { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_AUTHOR_DATE: date },
+    },
+  );
+  const moved = await runGit(['update-ref', '-m', 'cabecao undo: catálogo regenerado', 'HEAD', commit, revert], {
+    cwd: ctx.root,
+    allowFailure: true,
+  });
+  if (moved.exitCode !== 0) return null;
+  // o índice do git passa a ter o mesmo index.md do commit (a pasta de trabalho já tem)
+  await runGit(['--literal-pathspecs', 'add', '--', indexMd], { cwd: ctx.root });
+  return commit;
+}
+
 export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<UndoOutput> {
   const prefix = ctx.actor === 'human' ? MIN_HUMAN_ID_PREFIX : null;
   const op = identifier(input.op, 'op', prefix);
@@ -412,109 +458,110 @@ export async function undo(ctx: BrainContext, input: UndoInput = {}): Promise<Un
     });
 
     const scratch = await mkdtemp(join(tmpdir(), 'cabecao-undo-'));
-    let sha: string | null;
     try {
-      sha = await revertCommits(
-        ctx.root,
-        targets.map((target) => target.sha),
-        message,
-        { env: await revertEnv(scratch, ctx.config.indexMd) },
-      );
-    } catch (error) {
-      if (error instanceof GitError || error instanceof GitStateError) {
-        const staged = error instanceof GitStateError;
-        throw new BrainError(
-          'conflict',
-          staged
-            ? `não dá para desfazer agora: ${error.message}`
-            : 'não dá para desfazer sem conflito: as notas mudaram depois da operação (ou há edição sem commit nelas). Nada foi alterado.',
-          {
-            details: { ops: reverted },
-            nextStep: staged
-              ? 'Resolva o que está preparado no índice do git e tente de novo.'
-              : 'Rode sync (que commita as edições de fora) e tente de novo, ou corrija a nota à mão com patch_page.',
-            cause: error,
-          },
+      let sha: string | null;
+      try {
+        sha = await revertCommits(
+          ctx.root,
+          targets.map((target) => target.sha),
+          message,
+          { env: await revertEnv(scratch, ctx.config.indexMd) },
         );
-      }
-      throw toBrainError(error);
-    } finally {
-      await rm(scratch, { recursive: true, force: true, maxRetries: 3 });
-    }
-
-    const warnings: IssueOutput[] = [];
-    if (sha === null) {
-      await rescan(ctx);
-      return {
-        op: undoOp,
-        commit: null,
-        undone: [],
-        changed_paths: [],
-        warnings,
-        next_step: 'Desfazer não mudava nada: o conteúdo já estava como antes da operação.',
-      };
-    }
-
-    // O catálogo do commit de revert vem da mesclagem por união; o certo sai do banco, no mesmo commit. O `--amend`
-    // só reescreve o commit do revert: se outro programa (o Obsidian Git, por exemplo) commitou no intervalo, o HEAD
-    // já é outro, e nada é reescrito (o próximo sync ou a próxima escrita leva o catálogo).
-    const headMoved = async (): Promise<boolean> => (await headSha(ctx.root)) !== sha;
-    const movedWarning: IssueOutput = {
-      severity: 'warning',
-      code: 'catalog_not_updated',
-      field: null,
-      message:
-        'outro programa fez um commit logo depois do undo; o commit do undo não foi reescrito, e o index.md fica para o próximo sync',
-    };
-    try {
-      const catalog = await withFreshIndex(ctx, () => catalogFromIndex(ctx));
-      await ctx.faultAt?.('reverted');
-      if (await headMoved()) {
-        warnings.push(movedWarning);
-      } else if (await writeIndexMd(ctx.root, ctx.config, catalog)) {
-        if (await headMoved()) {
-          warnings.push(movedWarning);
-        } else {
-          await runGit(
-            [
-              '--literal-pathspecs',
-              'commit',
-              '--amend',
-              '--no-edit',
-              '--no-verify',
-              '--no-gpg-sign',
-              '--only',
-              '--',
-              ctx.config.indexMd,
-            ],
-            { cwd: ctx.root },
+      } catch (error) {
+        if (error instanceof GitError || error instanceof GitStateError) {
+          const staged = error instanceof GitStateError;
+          throw new BrainError(
+            'conflict',
+            staged
+              ? `não dá para desfazer agora: ${error.message}`
+              : 'não dá para desfazer sem conflito: as notas mudaram depois da operação (ou há edição sem commit nelas). Nada foi alterado.',
+            {
+              details: { ops: reverted },
+              nextStep: staged
+                ? 'Resolva o que está preparado no índice do git e tente de novo.'
+                : 'Rode sync (que commita as edições de fora) e tente de novo, ou corrija a nota à mão com patch_page.',
+              cause: error,
+            },
           );
-          sha = (await headSha(ctx.root)) ?? sha;
         }
+        throw toBrainError(error);
       }
-    } catch (error) {
-      // o undo valeu; só o catálogo ficou para o próximo sync regenerar
-      await runGit(['--literal-pathspecs', 'checkout', sha, '--', ctx.config.indexMd], {
-        cwd: ctx.root,
-        allowFailure: true,
-      }).catch(() => undefined);
-      await rescan(ctx).catch(() => undefined);
-      warnings.push({
+
+      const warnings: IssueOutput[] = [];
+      if (sha === null) {
+        await rescan(ctx);
+        return {
+          op: undoOp,
+          commit: null,
+          undone: [],
+          changed_paths: [],
+          warnings,
+          next_step: 'Desfazer não mudava nada: o conteúdo já estava como antes da operação.',
+        };
+      }
+
+      // O catálogo do commit de revert vem da mesclagem por união; o certo sai do banco e entra no lugar do commit do
+      // revert SEM `commit --amend` (ver `replaceWithCatalog`): se outro programa (o Obsidian Git, por exemplo)
+      // commitou depois do revert, nada é reescrito, e o próximo sync ou a próxima escrita leva o catálogo.
+      const movedWarning: IssueOutput = {
         severity: 'warning',
         code: 'catalog_not_updated',
         field: null,
-        message: `o index.md não pôde ser regenerado (${error instanceof Error ? error.message : String(error)}); o próximo sync corrige`,
-      });
-    }
+        message:
+          'outro programa fez um commit logo depois do undo; o commit do undo não foi reescrito, e o index.md fica para o próximo sync',
+      };
+      const revert = sha;
+      try {
+        const catalog = await withFreshIndex(ctx, () => catalogFromIndex(ctx));
+        await ctx.faultAt?.('reverted');
+        if ((await headSha(ctx.root)) !== revert) {
+          warnings.push(movedWarning);
+        } else if (await writeIndexMd(ctx.root, ctx.config, catalog)) {
+          await ctx.faultAt?.('cataloged');
+          const replaced = await replaceWithCatalog(ctx, revert, scratch);
+          if (replaced === null) {
+            warnings.push(movedWarning);
+            // o catálogo regenerado não entrou em commit nenhum: a pasta volta ao que está commitado
+            await runGit(['--literal-pathspecs', 'checkout', 'HEAD', '--', ctx.config.indexMd], {
+              cwd: ctx.root,
+              allowFailure: true,
+            });
+          } else {
+            sha = replaced;
+          }
+        }
+      } catch (error) {
+        // o undo valeu; só o catálogo ficou para o próximo sync regenerar
+        await runGit(['--literal-pathspecs', 'checkout', revert, '--', ctx.config.indexMd], {
+          cwd: ctx.root,
+          allowFailure: true,
+        }).catch(() => undefined);
+        await rescan(ctx).catch(() => undefined);
+        warnings.push({
+          severity: 'warning',
+          code: 'catalog_not_updated',
+          field: null,
+          message: `o index.md não pôde ser regenerado (${error instanceof Error ? error.message : String(error)}); o próximo sync corrige`,
+        });
+      }
 
-    const { stdout } = await runGit(['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha], { cwd: ctx.root });
-    return {
-      op: undoOp,
-      commit: sha,
-      undone: targets.map((target) => ({ op: target.trailers.op ?? '', commit: target.sha, changes: target.changes })),
-      changed_paths: stdout.split('\0').filter((path) => path !== ''),
-      warnings,
-      next_step: `Para refazer, desfaça este undo: undo({ op: "${undoOp}" }).`,
-    };
+      const { stdout } = await runGit(['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha], {
+        cwd: ctx.root,
+      });
+      return {
+        op: undoOp,
+        commit: sha,
+        undone: targets.map((target) => ({
+          op: target.trailers.op ?? '',
+          commit: target.sha,
+          changes: target.changes,
+        })),
+        changed_paths: stdout.split('\0').filter((path) => path !== ''),
+        warnings,
+        next_step: `Para refazer, desfaça este undo: undo({ op: "${undoOp}" }).`,
+      };
+    } finally {
+      await rm(scratch, { recursive: true, force: true, maxRetries: 3 });
+    }
   });
 }

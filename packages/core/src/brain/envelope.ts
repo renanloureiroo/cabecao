@@ -4,8 +4,8 @@
 // Formato:
 // - Todo resultado de leitura tem `data_notice` (sempre o mesmo texto, `DATA_NOTICE`) no primeiro nível.
 // - Todo pedaço de conteúdo de nota vai num `DataItem`: o texto fica em `content`, separado dos campos de
-//   identificação e de proveniência (`trust`, `origin`, `sources`). O texto NUNCA é alterado (o agente usa o que
-//   leu em `patch_page`); a fronteira entre dado e resto da resposta é o próprio campo JSON, que um texto
+//   identificação e de proveniência (`trust`, `origin`, `edited_by`, `sources`). O texto NUNCA é alterado (o agente
+//   usa o que leu em `patch_page`); a fronteira entre dado e resto da resposta é o próprio campo JSON, que um texto
 //   malicioso não consegue fechar.
 import type { IndexedNote, Validity } from '../db/index.ts';
 
@@ -32,6 +32,11 @@ export interface DataItem {
   readonly trust: string | null;
   /** `human`, `agent:<cliente>` ou `ingest:<fonte>`. */
   readonly origin: string | null;
+  /**
+   * `agent:<cliente>` quando um agente alterou o conteúdo de uma nota que não foi criada por agente (do usuário, de
+   * um vault adotado ou ingerida): o texto não é mais só de quem consta em `origin`. `null` quando não houve.
+   */
+  readonly edited_by: string | null;
   /** Fontes declaradas na nota (wikilinks). */
   readonly sources: readonly string[];
   readonly content_kind: ContentKind;
@@ -52,6 +57,12 @@ export function sourcesOf(frontmatter: Readonly<Record<string, unknown>>): strin
     : [];
 }
 
+/** `edited_by` do frontmatter como texto, ou `null` se não houver. */
+export function editedByOf(frontmatter: Readonly<Record<string, unknown>>): string | null {
+  const value = frontmatter.edited_by;
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
 export function dataItem(
   note: Pick<IndexedNote, 'id' | 'path' | 'type' | 'title' | 'scope' | 'trust' | 'origin' | 'frontmatter'>,
   validity: Validity,
@@ -67,6 +78,7 @@ export function dataItem(
     validity,
     trust: note.trust,
     origin: note.origin,
+    edited_by: editedByOf(note.frontmatter),
     sources: sourcesOf(note.frontmatter),
     content_kind: contentKind,
     content,

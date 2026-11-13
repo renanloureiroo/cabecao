@@ -64,6 +64,7 @@ const dataItemShape = {
   validity: z.enum(['current', 'expired']),
   trust: z.string().nullable(),
   origin: z.string().nullable(),
+  edited_by: z.string().nullable(),
   sources: z.array(z.string()),
   content_kind: z.enum(['note', 'section', 'snippet', 'excerpt']),
   content: z.string(),
@@ -292,9 +293,10 @@ export const syncOutput = z.object({
   conflicts: z.array(
     z.object({
       path: z.string(),
-      kind: z.enum(['content', 'delete']),
+      kind: z.enum(['content', 'delete', 'invalid']),
       copy: z.string().nullable(),
       kept: z.enum(['remote', 'local']).nullable(),
+      reason: z.string().nullable(),
     }),
   ),
   changed_paths: z.array(z.string()),
@@ -316,6 +318,7 @@ export const syncOutput = z.object({
   reason: z.enum(['secrets', 'unscannable', 'local-file', 'git-operation', 'detached-head']).nullable(),
   remote_error: z.object({ category: z.string(), detail: z.string() }).nullable(),
   recovered: z.array(z.string()),
+  config_problem: z.string().nullable(),
   next_step: z.string().exactOptional(),
 });
 

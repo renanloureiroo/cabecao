@@ -141,6 +141,39 @@ describe('sync', { timeout: TEST_TIMEOUT_MS }, () => {
     expect((await m.cabecao(['sync', 'extra', '--brain', brain])).code).toBe(2);
   });
 
+  it('com o .cabecao.json inválido (veio de outra máquina), o sync roda e recebe a correção; status e doctor explicam', async () => {
+    const { a, b } = await twoClones();
+    const m = machine();
+    const valid = await readNote(a, '.cabecao.json');
+    // o estado de antes da correção: o inválido já está commitado nas duas máquinas
+    await writeNote(a, '.cabecao.json', '{ "schemaVersion": 1, "noteDirs": [\n');
+    await git(a, ['commit', '--quiet', '-am', 'quebra (Obsidian Git)']);
+    await git(a, ['push', '--quiet']);
+    await git(b, ['pull', '--quiet', '--no-rebase']);
+
+    const status = await m.cabecao(['status', '--brain', b]);
+    expect(status.code).toBe(1);
+    expect(status.stderr).toContain('configuração do cérebro (.cabecao.json) está inválida');
+    expect(status.stderr).toContain('git log -p -- .cabecao.json');
+    const doctor = await m.cabecao(['doctor', '--brain', b, '--offline', '--json']);
+    expect(JSON.stringify(parseJson(doctor).data)).toContain('configuração do cérebro (.cabecao.json) está inválida');
+
+    const synced = await m.cabecao(['sync', '--brain', b, '--json']);
+    expect(synced.code).toBe(0);
+    const data = parseJson(synced).data;
+    expect(data.status).toBe('ok');
+    expect(String(data.config_problem)).toMatch(/última versão válida/);
+
+    await git(a, ['pull', '--quiet', '--no-rebase']);
+    await writeNote(a, '.cabecao.json', valid);
+    await git(a, ['commit', '--quiet', '-am', 'conserta']);
+    await git(a, ['push', '--quiet']);
+    const fixed = await m.cabecao(['sync', '--brain', b, '--json']);
+    expect(parseJson(fixed).data).toMatchObject({ status: 'ok', config_problem: null });
+    expect(await readNote(b, '.cabecao.json')).toBe(valid);
+    expect((await m.cabecao(['status', '--brain', b])).code).toBe(0);
+  });
+
   it('a pasta não é um cérebro: código 1, com o que fazer', async () => {
     const dir = freshDir('vazia');
     await writeFile(join(dir, 'nota.md'), '# oi\n');

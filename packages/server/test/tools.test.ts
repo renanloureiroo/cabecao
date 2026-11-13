@@ -357,6 +357,7 @@ describe('sync em processo separado (SyncRunner da CLI)', () => {
     reason: null,
     remote_error: null,
     recovered: [],
+    config_problem: null,
     ...overrides,
   });
 

@@ -13,7 +13,7 @@ import type { BrainConfig } from '../vault/index.ts';
 import {
   BRAIN_CONFIG_FILE,
   DEFAULT_NOTE_DIRS,
-  ROOT_CONTROL_FILE_RE,
+  isBrainControlFile,
   VaultError,
   validateBrainConfig,
 } from '../vault/index.ts';
@@ -248,10 +248,10 @@ export async function detectRepoKind(dir: string, options: DetectOptions = {}): 
 }
 
 /**
- * Arquivos da raiz de um vault que não são notas do usuário. É a mesma lista que o vault usa para recusar a escrita
- * de agente nesses arquivos quando `noteDirs` é `["."]`.
+ * Arquivos da raiz de um vault que não são notas do usuário. É a mesma regra que o vault usa para recusar a escrita
+ * nesses arquivos quando `noteDirs` é `["."]` (`isBrainControlFile`, sem o catálogo, que ainda não existe).
  */
-const ROOT_NON_NOTES = ROOT_CONTROL_FILE_RE;
+const isRootNonNote = (path: string): boolean => isBrainControlFile(path);
 
 export interface VaultLayout {
   /** Pastas de notas para o `.cabecao.json`: as padrão do Cabeção e as que já têm `.md`. */
@@ -271,7 +271,7 @@ export interface VaultLayout {
  */
 export function vaultLayout(paths: readonly string[]): VaultLayout {
   const notes = paths.map((path) => normalizeNfc(path)).filter((path) => MARKDOWN_EXT.test(path) && !isHidden(path));
-  const rootNotes = notes.filter((path) => !path.includes('/') && !ROOT_NON_NOTES.test(path)).sort();
+  const rootNotes = notes.filter((path) => !path.includes('/') && !isRootNonNote(path)).sort();
   if (rootNotes.length > 0) return { noteDirs: ['.'], rootNotes };
   const existing = new Set<string>();
   for (const path of notes) {
