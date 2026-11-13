@@ -46,6 +46,10 @@ export const BRAIN_ERROR_CODES = [
   'index_failed',
   /** O cérebro já foi fechado com `close()`. */
   'closed',
+  /** Só o usuário (CLI) faz: configuração de embeddings, compactação da branch de índice. */
+  'human_only',
+  /** A busca por significado não está ativada, está desligada nesta máquina ou o runtime não carrega. */
+  'embeddings_unavailable',
 ] as const;
 export type BrainErrorCode = (typeof BRAIN_ERROR_CODES)[number];
 

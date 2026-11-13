@@ -7,7 +7,7 @@
 //
 // A saída é publicada com `additionalProperties: false`: todo campo que o núcleo devolve tem de estar declarado aqui.
 // `checks.ts` confere isso em tempo de compilação, contra os tipos do núcleo.
-import { NOTE_TYPES, RECALL_PRIORITY, VALIDITIES, WRITE_MODES } from '@cabecao/core';
+import { NOTE_TYPES, RECALL_PRIORITY, SEARCH_MODES, VALIDITIES, WRITE_MODES } from '@cabecao/core';
 import * as z from 'zod';
 import { asOfInput, relatedItem } from './schemas-node.ts';
 
@@ -109,18 +109,28 @@ export const recallOutput = z.object({
 // search
 
 export const searchInput = z.object({
-  query: text(INPUT_LIMITS.query).min(1).describe('Keywords. Matches all terms first, then any term.'),
+  query: text(INPUT_LIMITS.query).min(1).describe('What you are looking for: keywords or a natural-language question.'),
   scope: scope.describe('"project:<slug>" also returns global notes; "global" returns only global.').exactOptional(),
   types: z.array(noteType).describe('Only these note types.').exactOptional(),
   limit: z.number().int().min(1).max(100).describe('Max hits (default 10).').exactOptional(),
   budget_tokens: z.number().int().min(1).exactOptional(),
   as_of: asOfInput.exactOptional(),
+  mode: z
+    .enum(SEARCH_MODES)
+    .describe(
+      'auto (default): hybrid (keywords + meaning) when semantic search is enabled on this machine, else keywords. keyword, semantic or hybrid force a mode; mode_used says what ran.',
+    )
+    .exactOptional(),
 });
 
 export const searchOutput = z.object({
   data_notice: dataNotice,
   query: z.string(),
   mode: z.enum(['and', 'or', 'none']),
+  mode_requested: z.enum(SEARCH_MODES),
+  mode_used: z.enum(['keyword', 'semantic', 'hybrid']),
+  mode_reason: z.string(),
+  warnings: z.array(z.string()),
   terms: z.array(z.string()),
   as_of: z.string(),
   hits: z.array(z.object({ ...dataItemShape, score: z.number(), heading_path: z.array(z.string()) })),
@@ -224,6 +234,28 @@ export const statusOutput = z.object({
       date: z.string(),
     }),
   ),
+  embeddings: z
+    .object({
+      configured: z.boolean(),
+      model: z.string().nullable(),
+      variant: z.string().nullable(),
+      dims: z.number().nullable(),
+      recipe: z.number().nullable(),
+      revision: z.string().nullable(),
+      model_dir: z.string().nullable(),
+      enabled_here: z.boolean(),
+      runtime: z.string(),
+      runtime_detail: z.string().nullable(),
+      loaded: z.boolean(),
+      backend: z.string().nullable(),
+      chunks: z.number(),
+      with_vector: z.number().nullable(),
+      pending: z.number().nullable(),
+      vectors: z.number().nullable(),
+      generation: z.number().nullable(),
+      problem: z.string().nullable(),
+    })
+    .nullable(),
   next_step: z.string().exactOptional(),
 });
 
@@ -324,6 +356,19 @@ export const syncOutput = z.object({
   remote_error: z.object({ category: z.string(), detail: z.string() }).nullable(),
   recovered: z.array(z.string()),
   config_problem: z.string().nullable(),
+  index: z
+    .object({
+      participating: z.boolean(),
+      generation: z.number().nullable(),
+      received: z.number(),
+      computed: z.number(),
+      pushed: z.number(),
+      pending: z.number().nullable(),
+      graph_written: z.boolean(),
+      skipped: z.string().nullable(),
+      error: z.string().nullable(),
+    })
+    .nullable(),
   next_step: z.string().exactOptional(),
 });
 

@@ -11,7 +11,22 @@ const bin = join(dist, 'cabecao.mjs');
 const pkg = JSON.parse(readFileSync(new URL('../packages/cli/package.json', import.meta.url), 'utf8'));
 const expectUnsupported = process.env.SMOKE_EXPECT === 'unsupported';
 /** Comandos registrados; cada um vira um arquivo próprio no bundle, carregado só quando roda. */
-const COMMAND_NAMES = ['init', 'status', 'doctor', 'sync', 'search', 'undo', 'mcp', 'install-client'];
+const COMMAND_NAMES = [
+  'init',
+  'status',
+  'doctor',
+  'sync',
+  'search',
+  'graph',
+  'facts',
+  'undo',
+  'mcp',
+  'install-client',
+  'embeddings',
+  'compact',
+  'eval',
+  'reindex',
+];
 
 function cabecao(args, env = process.env) {
   const result = spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', env });
@@ -113,13 +128,14 @@ if (expectUnsupported) {
   check('o bin não tem import estático', staticClosure('cabecao.mjs').size === 1, [...staticClosure('cabecao.mjs')]);
   const eager = [...staticClosure('main.mjs')];
   const commandChunks = files.filter((name) => COMMAND_NAMES.some((command) => name.startsWith(`${command}-`)));
-  // O núcleo é o pedaço que carrega o `node:sqlite`; o servidor MCP, o que traz o SDK do MCP.
+  // O núcleo é o pedaço que carrega o `node:sqlite`; o servidor MCP, o que traz o SDK do MCP; o runtime de
+  // embeddings, o que gera o `loader.mjs` do onnxruntime.
   const heavy = files.filter((name) => {
     const code = readFileSync(join(dist, name), 'utf8');
-    return code.includes('node:sqlite') || code.includes('modelcontextprotocol');
+    return code.includes('node:sqlite') || code.includes('modelcontextprotocol') || code.includes('onnxruntime-node');
   });
   check(
-    '--version e --help não avaliam o código dos comandos, do núcleo nem do servidor MCP',
+    '--version e --help não avaliam o código dos comandos, do núcleo, do servidor MCP nem do runtime de embeddings',
     commandChunks.length === COMMAND_NAMES.length &&
       heavy.length > 0 &&
       eager.length > 1 && // prova que a leitura dos imports funciona: main.mjs importa o pedaço compartilhado

@@ -1,6 +1,7 @@
 // Busca por palavra-chave (doc 06, "Palavra-chave"): FTS5 com remoção de acentos sobre o texto e o título,
 // pergunta limpa de palavras vazias, AND primeiro e OR como recuo, BM25 com peso maior para o título.
-// A validade é calculada na data da consulta (`asOf`, padrão hoje). Embeddings e fusão são do marco 2.
+// A validade é calculada na data da consulta (`asOf`, padrão hoje). Os candidatos da busca híbrida (trechos com o
+// BM25 cru, para a fusão com os vetores) moram em `semantic.ts`.
 
 import type { SQLInputValue } from 'node:sqlite';
 import { estimateTokens } from '../markdown/index.ts';
@@ -134,6 +135,35 @@ export interface KeywordSearchOptions {
   readonly asOf?: string;
 }
 
+/** Filtros de nota comuns à busca por palavra-chave e à busca por significado. */
+export type NoteFilterOptions = Pick<
+  KeywordSearchOptions,
+  'scope' | 'types' | 'includeArchived' | 'includeConflictCopies'
+>;
+
+/**
+ * Condições SQL (sobre a nota `n`) e parâmetros dos filtros de escopo, tipo, arquivadas e cópias de conflito. Os
+ * valores vão sempre como parâmetros, nunca no texto da consulta.
+ */
+export function noteFilters(options: NoteFilterOptions): { filters: string[]; params: SQLInputValue[] } {
+  const filters: string[] = [];
+  const params: SQLInputValue[] = [];
+  if (options.includeArchived !== true) filters.push('n.archived = 0');
+  if (options.includeConflictCopies !== true) filters.push('n.conflict_of is null');
+  if (options.types !== undefined && options.types.length > 0) {
+    filters.push(`n.type in (${options.types.map(() => '?').join(', ')})`);
+    params.push(...options.types);
+  }
+  if (options.scope !== undefined) {
+    const scopes = typeof options.scope === 'string' ? [options.scope] : [...options.scope];
+    if (scopes.length > 0) {
+      filters.push(`n.scope in (${scopes.map(() => '?').join(', ')})`);
+      params.push(...scopes);
+    }
+  }
+  return { filters, params };
+}
+
 export interface KeywordHit {
   readonly noteId: string;
   readonly path: string;
@@ -223,21 +253,7 @@ export function searchKeyword(index: LocalIndex, options: KeywordSearchOptions):
   // candidatos a mais: vários trechos da mesma nota viram um resultado só
   const candidates = Math.max(50, limit * 8);
 
-  const filters: string[] = [];
-  const params: SQLInputValue[] = [];
-  if (options.includeArchived !== true) filters.push('n.archived = 0');
-  if (options.includeConflictCopies !== true) filters.push('n.conflict_of is null');
-  if (options.types !== undefined && options.types.length > 0) {
-    filters.push(`n.type in (${options.types.map(() => '?').join(', ')})`);
-    params.push(...options.types);
-  }
-  if (options.scope !== undefined) {
-    const scopes = typeof options.scope === 'string' ? [options.scope] : [...options.scope];
-    if (scopes.length > 0) {
-      filters.push(`n.scope in (${scopes.map(() => '?').join(', ')})`);
-      params.push(...scopes);
-    }
-  }
+  const { filters, params } = noteFilters(options);
   const statement = db.prepare(`
     select c.note_id as noteId, n.path, n.title, n.type, n.scope, c.heading_path as headingPath,
       snippet(chunks_fts, 0, '«', '»', '…', 24) as snippet,
