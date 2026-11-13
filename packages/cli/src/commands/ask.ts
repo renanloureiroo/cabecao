@@ -131,7 +131,7 @@ function diagnosticsLines(result: AskResult): string[] {
   );
   lines.push(`  busca: ${d.mode_used} · trechos recuperados ${d.passages_retrieved} · enviados ${d.passages_sent}`);
   lines.push(
-    `  tokens: entrada ${d.usage.input_tokens ?? '?'} · saída ${d.usage.output_tokens ?? '?'}${d.cost_usd === null ? '' : ` · custo US$ ${d.cost_usd.toFixed(4)}`} · ${(d.duration_ms / 1000).toFixed(1)} s`,
+    `  tokens: entrada ${d.usage.input_tokens ?? '?'} · saída ${d.usage.output_tokens ?? '?'}${d.cost_usd === null ? '' : ` · custo US$ ${d.cost_usd.toFixed(4).replace('.', ',')}`} · ${(d.duration_ms / 1000).toFixed(1).replace('.', ',')} s`,
   );
   for (const attempt of d.attempts)
     lines.push(`  tentativa: ${attempt.provider} · ${attempt.kind} · ${oneLine(attempt.message)}`);
