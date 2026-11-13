@@ -26,6 +26,8 @@ const COMMANDS = [
   'lint',
   'forget',
   'consolidate',
+  'recall',
+  'schedule',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present run build",
+    "build:plugin": "pnpm --filter cabecao build && node scripts/build-plugin.mjs",
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -18,7 +19,7 @@
     "docs:build": "pnpm --filter cabecao-docs docs:build",
     "docs:serve": "pnpm --filter cabecao-docs docs:serve",
     "changeset": "changeset",
-    "version-packages": "changeset version"
+    "version-packages": "changeset version && pnpm build:plugin"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",

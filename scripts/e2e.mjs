@@ -98,12 +98,13 @@ function git(args, cwd = root) {
   return result.stdout.trim();
 }
 
-/** Roda o bundle numa máquina. */
-function cabecao(machine, args, cwd = machine.home) {
+/** Roda o bundle numa máquina. `input` vai para o stdin (o JSON que o Claude Code manda a um hook). */
+function cabecao(machine, args, cwd = machine.home, input = undefined) {
   const result = spawnSync(process.execPath, [bin, ...args], {
     cwd,
     env: machine.env,
     encoding: 'utf8',
+    ...(input === undefined ? {} : { input }),
     timeout: STEP_TIMEOUT_MS,
     windowsHide: true,
   });
@@ -411,7 +412,97 @@ async function main() {
     doctorB,
   );
 
+  await hooksPart(A, B, dirA, dirB);
   await embeddingsPart(A, B, dirA, dirB, remote);
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+async function waitFor(condition, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (condition()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return condition();
+}
+
+/** 8. Os hooks do plugin do Claude Code com o bundle de verdade: briefing de início e sync destacado de fim. */
+async function hooksPart(A, B, dirA, dirB) {
+  const project = join(root, 'projetos', 'atlas');
+  mkdirSync(project, { recursive: true });
+  const before = performance.now();
+  const recall = cabecao(
+    A,
+    ['recall', '--hook'],
+    A.home,
+    JSON.stringify({ cwd: project, hook_event_name: 'SessionStart' }),
+  );
+  const recallMs = Math.round(performance.now() - before);
+  const context = json(recall)?.hookSpecificOutput?.additionalContext ?? '';
+  check(
+    `A: recall --hook devolve o JSON do SessionStart com o briefing (${recallMs} ms)`,
+    recall.code === 0 &&
+      json(recall)?.hookSpecificOutput?.hookEventName === 'SessionStart' &&
+      // o cérebro do e2e não tem notas do projeto "atlas": o escopo cai para todos, e isso também é dito
+      /Escopo: .*project:atlas/.test(context) &&
+      context.includes('session_handle desta sessão:') &&
+      context.length < 10_000,
+    recall,
+  );
+  const noBrain = cabecao(A, ['recall', '--hook', '--brain', join(root, 'não existe')], A.home, '{}');
+  check('recall --hook sem cérebro: {} e código 0', noBrain.code === 0 && noBrain.stdout === '{}\n', noBrain);
+
+  write(
+    dirA,
+    'wiki/concepts/Hook de fim.md',
+    '---\ntype: concept\ntitle: Hook de fim\n---\nEditada fora do Cabeção.\n',
+  );
+  const start = performance.now();
+  const detached = cabecao(A, ['sync', '--detach', '--json']);
+  const detachMs = Math.round(performance.now() - start);
+  const pid = json(detached)?.data?.pid;
+  const log = json(detached)?.data?.log;
+  check(
+    `A: sync --detach volta em menos de 1,5 s (${detachMs} ms) com o PID e o log`,
+    detached.code === 0 && typeof pid === 'number' && typeof log === 'string' && detachMs < 1_500,
+    detached,
+  );
+  const finished = await waitFor(
+    () => /· sync · código 0 ---\nSync: ok\./.test(read(dirA, '.cabecao/logs/sync.log') ?? ''),
+    90_000,
+  );
+  check(
+    'A: o sync destacado termina sozinho e grava o resultado no log',
+    finished,
+    read(dirA, '.cabecao/logs/sync.log'),
+  );
+  check(
+    'A: o processo do sync destacado não fica rodando',
+    typeof pid === 'number' && (await waitFor(() => !alive(pid), 30_000)),
+    { pid },
+  );
+  const syncB = cabecao(B, ['sync', '--json']);
+  check(
+    'B: recebe a nota que o sync destacado de A enviou',
+    syncB.code === 0 && read(dirB, 'wiki/concepts/Hook de fim.md') !== null,
+    syncB,
+  );
+  const hook = cabecao(
+    A,
+    ['sync', '--hook'],
+    A.home,
+    JSON.stringify({ hook_event_name: 'SessionEnd', reason: 'other' }),
+  );
+  check('A: sync --hook sai com 0 sem escrever em stdout', hook.code === 0 && hook.stdout === '', hook);
+  await waitFor(() => (read(dirA, '.cabecao/logs/sync.log') ?? '').split('· sync · código').length >= 3, 90_000);
 }
 
 /** A mesma máquina com o embedder falso de teste ligado. */

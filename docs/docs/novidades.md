@@ -20,6 +20,9 @@ npm i -g cabecao@beta
   - `consolidate` e [`cabecao consolidate`](./referencia/cli.md#cabecao-consolidate): manutenção com ponto de restauração, fechada num commit que o `undo` desfaz inteiro.
   - Prompts MCP `ingest`, `review` e `consolidate`.
 - **Memórias velhas nunca confirmadas perdem peso.** Uma preferência, armadilha ou procedimento sem `confirmed` e sem atualização há 180 dias vem mais abaixo na busca, sem sumir.
+- **Plugin do Claude Code.** `/plugin marketplace add renanloureiroo/cabecao` e `/plugin install cabecao@cabecao` instalam o servidor MCP embutido (sem `npx`), o briefing do cérebro no início de cada sessão e o sync em segundo plano no fim, além da skill `cabecao:memory`. Nenhum hook captura a conversa. Veja [Plugin do Claude Code](./guias/claude-code.md).
+- **Sync automático.** `cabecao schedule on|off|status` registra o sync periódico no agendador do sistema (LaunchAgent, timer do systemd de usuário ou crontab, Agendador de Tarefas), sem administrador. Veja [Sync automático](./guias/sync-automatico.md).
+- **Comandos novos:** `cabecao recall` mostra o briefing de uma tarefa no terminal; `cabecao sync` ganha `--detach` (em segundo plano), `--hook` e `--log`. O `doctor` passa a verificar o agendamento.
 - **Menções mais precisas.** Um nome colado a `_`, `/`, `\` ou `@` (como `sqs_fila`, `filas/SQS` ou `ana@sqs`) não conta mais como menção sem link a outra nota.
 
 ## 0.1.0-beta.1

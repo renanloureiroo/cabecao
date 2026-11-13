@@ -1,0 +1,17 @@
+{
+  "name": "cabecao",
+  "owner": {
+    "name": "Renan Pereira Loureiro",
+    "url": "https://github.com/renanloureiroo"
+  },
+  "metadata": {
+    "description": "Marketplace do Cabeção, segundo cérebro em Markdown e git. O plugin do Claude Code mora em integrations/claude-code."
+  },
+  "plugins": [
+    {
+      "name": "cabecao",
+      "source": "./integrations/claude-code",
+      "description": "Segundo cérebro em Markdown e git para o Claude Code: servidor MCP embutido, briefing no início da sessão, sync em segundo plano no fim e uma skill de referência."
+    }
+  ]
+}

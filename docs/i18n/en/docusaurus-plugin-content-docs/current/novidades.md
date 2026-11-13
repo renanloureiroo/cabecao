@@ -20,6 +20,9 @@ npm i -g cabecao@beta
   - `consolidate` and [`cabecao consolidate`](./referencia/cli.md#cabecao-consolidate): maintenance with a restore point, closed in one commit that `undo` reverts entirely.
   - MCP prompts `ingest`, `review`, and `consolidate`.
 - **Old memories never confirmed lose weight.** A preference, gotcha, or procedure without `confirmed` and not updated for 180 days ranks lower in search, without disappearing.
+- **Claude Code plugin.** `/plugin marketplace add renanloureiroo/cabecao` and `/plugin install cabecao@cabecao` install the bundled MCP server (no `npx`), the brain's briefing at the start of every session, and a background sync at the end, plus the `cabecao:memory` skill. No hook captures the conversation. See [Claude Code plugin](./guias/claude-code.md).
+- **Automatic sync.** `cabecao schedule on|off|status` registers a periodic sync with the system scheduler (LaunchAgent, user systemd timer or crontab, Task Scheduler), without administrator rights. See [Automatic sync](./guias/sync-automatico.md).
+- **New commands:** `cabecao recall` shows a task's briefing in the terminal; `cabecao sync` gains `--detach` (background), `--hook`, and `--log`. `doctor` now checks the schedule.
 - **More precise mentions.** A name attached to `_`, `/`, `\`, or `@` (such as `sqs_fila`, `filas/SQS`, or `ana@sqs`) no longer counts as an unlinked mention of another note.
 
 ## 0.1.0-beta.1

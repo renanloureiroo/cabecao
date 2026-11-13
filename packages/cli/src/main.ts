@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { systemExec } from './exec.ts';
 import { execute } from './router.ts';
-import type { CliIo, CommandSpec, Exec } from './types.ts';
+import type { CliIo, CommandSpec, Exec, StdinLimits } from './types.ts';
 
 export { VERSION } from './version.ts';
 
@@ -67,6 +67,19 @@ async function terminalPrompt(question: string): Promise<string | null> {
   }
 }
 
+/** Entrada padrão do processo, lida só por quem pede (modos de hook). O leitor é carregado só quando usado. */
+async function processStdin(limits: StdinLimits): Promise<string | null> {
+  if (process.stdin.isTTY === true) return null;
+  const { readLimited } = await import('./stdin.ts');
+  return readLimited(process.stdin, limits);
+}
+
+/** Sai depois que o que já foi escrito em stdout e stderr chegou ao destino (num pipe do macOS a escrita é assíncrona). */
+function flushAndExit(code: number): void {
+  process.exitCode = code;
+  process.stderr.write('', () => process.stdout.write('', () => process.exit(code)));
+}
+
 /** Entrada usada pelo bin: liga a CLI ao processo de verdade. Nunca rejeita: o bin só trata falha de carga. */
 export async function main(argv: readonly string[]): Promise<void> {
   let cwd: string;
@@ -89,6 +102,8 @@ export async function main(argv: readonly string[]): Promise<void> {
     execPath: process.execPath,
     binPath: process.argv[1],
     exec: systemExec,
+    readStdin: processStdin,
+    exit: flushAndExit,
     ...(process.stdin.isTTY === true && process.stderr.isTTY === true ? { prompt: terminalPrompt } : {}),
   });
 }
