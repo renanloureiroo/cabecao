@@ -28,6 +28,10 @@ const COMMAND_NAMES = [
   'reindex',
   'recall',
   'schedule',
+  'lint',
+  'ingest',
+  'forget',
+  'consolidate',
 ];
 
 function cabecao(args, env = process.env) {
