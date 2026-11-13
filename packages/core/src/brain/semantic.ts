@@ -10,8 +10,10 @@ import {
   DEFAULT_CANDIDATE_DEPTH,
   EXPIRED_SCORE_FACTOR,
   getNote,
+  isStaleMemory,
   keywordCandidates,
   queryTerms,
+  STALE_SCORE_FACTOR,
   validityOf,
 } from '../db/index.ts';
 import { estimateTokens, HEADING_PATH_SEPARATOR } from '../markdown/index.ts';
@@ -93,7 +95,10 @@ export function searchCandidates(
   };
 }
 
-/** Fator de validade de uma nota na data: 1 vigente, 0,5 vencida ou ainda não vigente. */
+/**
+ * Fator de validade de uma nota na data: 1 vigente, 0,5 vencida ou ainda não vigente; vezes 0,8 numa memória velha
+ * nunca confirmada (`isStaleMemory`).
+ */
 export function validityFactor(index: LocalIndex, asOf: string): (noteId: string) => number {
   const cache = new Map<string, number>();
   return (noteId) => {
@@ -101,6 +106,7 @@ export function validityFactor(index: LocalIndex, asOf: string): (noteId: string
     if (factor === undefined) {
       const note = getNote(index, { id: noteId });
       factor = note === null || validityOf(note, asOf) === 'current' ? 1 : EXPIRED_SCORE_FACTOR;
+      if (note !== null && isStaleMemory(note, asOf)) factor *= STALE_SCORE_FACTOR;
       cache.set(noteId, factor);
     }
     return factor;

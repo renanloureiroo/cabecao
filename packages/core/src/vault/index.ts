@@ -99,6 +99,7 @@ export {
 export type { FrontmatterEdit, SerializeOptions } from './serialize.ts';
 export { editFrontmatterText, serializeFrontmatter, serializeNote } from './serialize.ts';
 export type {
+  ArchiveNoteOptions,
   CreateNoteInput,
   CreateNoteOptions,
   NoteChanges,

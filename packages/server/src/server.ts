@@ -4,6 +4,7 @@
 import { PRODUCT_NAME } from '@cabecao/core';
 import { McpServer } from '@modelcontextprotocol/server';
 import { SERVER_INSTRUCTIONS } from './instructions.ts';
+import { registerPrompts } from './prompts.ts';
 import { registerResources } from './resources.ts';
 import type { ServerRuntime } from './tools.ts';
 import { registerTools } from './tools.ts';
@@ -14,7 +15,7 @@ export function serverInfo(version: string): { name: string; version: string } {
 }
 
 /**
- * Uma instância nova do servidor, com as tools, os resources e as instruções. Não abre o cérebro, não cria arquivo e
+ * Uma instância nova do servidor, com as tools, os resources, os prompts e as instruções. Não abre o cérebro, não cria arquivo e
  * não toca no git: isso só acontece na primeira chamada de tool ou leitura de resource.
  */
 export function buildServer(runtime: ServerRuntime): McpServer {
@@ -26,9 +27,11 @@ export function buildServer(runtime: ServerRuntime): McpServer {
       'tools/list': { ttlMs: 300_000, cacheScope: 'public' },
       'resources/list': { ttlMs: 300_000, cacheScope: 'public' },
       'resources/templates/list': { ttlMs: 300_000, cacheScope: 'public' },
+      'prompts/list': { ttlMs: 300_000, cacheScope: 'public' },
     },
   });
   registerTools(server, runtime);
   registerResources(server, runtime);
+  registerPrompts(server);
   return server;
 }

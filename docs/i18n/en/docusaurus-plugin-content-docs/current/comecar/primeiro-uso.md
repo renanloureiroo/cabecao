@@ -44,7 +44,7 @@ An agent that follows the instructions makes the calls below. How many and which
    }
    ```
 
-3. **At the end, the agent leaves a handoff** (`remember` with `type: handoff`): what it did, what is left and where it stopped.
+3. **At the end, the agent leaves a handoff** (`handoff_save`): what it did, what is left, the decisions, and the gotchas.
 
 The saved note is a regular Markdown file that you can open in any editor:
 

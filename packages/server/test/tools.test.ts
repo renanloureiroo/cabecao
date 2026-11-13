@@ -115,6 +115,10 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
         validity: 'current',
       });
 
+      const linted = check('lint', await server.client.call('lint', { limit: 5 }));
+      expect(linted.data_notice).toMatch(/dado/);
+      expect((linted.findings as unknown[]).length).toBeLessThanOrEqual(5);
+
       const status = check('status', await server.client.call('status'));
       expect(status.client).toBe(expectedClient);
       expect(status.machine).toBe('maquina-teste');
@@ -174,8 +178,49 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       );
       expect(related.relation).toMatchObject({ type: 'related_to', to: 'wiki/entities/SQS.md', link: '[[SQS]]' });
 
+      const handoff = check(
+        'handoff_save',
+        await server.client.call('handoff_save', {
+          session_handle: session,
+          scope: 'project:atlas',
+          done: ['Criei a nota do servidor MCP.'],
+          next: ['Testar com um cliente real.'],
+        }),
+      );
+      expect((handoff.handoff as { path: string }).path).toMatch(/^memory\/handoffs\//);
+      expect((handoff.episode as { path: string }).path).toMatch(/^memory\/episodes\//);
+
+      const ingested = check(
+        'ingest',
+        await server.client.call('ingest', {
+          content: 'Ata curta: o Projeto Atlas vai testar o SQS FIFO.\n',
+          title: 'Ata de teste do MCP',
+          session_handle: session,
+        }),
+      );
+      expect((ingested.source as { trust: string }).trust).toBe('low');
+      expect((ingested.plan as { steps: string[] }).steps.length).toBeGreaterThan(0);
+
+      const forgotten = check(
+        'forget',
+        await server.client.call('forget', {
+          id: 'wiki/concepts/Servidor MCP.md',
+          reason: 'nota de teste',
+          session_handle: session,
+        }),
+      );
+      expect(forgotten.status).toBe('confirmation_required');
+
+      const started = check('consolidate', await server.client.call('consolidate', { action: 'start' }));
+      expect(String((started.restore_point as { tag: string }).tag)).toMatch(/^cabecao\/restore\//);
+      const closed = check(
+        'consolidate',
+        await server.client.call('consolidate', { action: 'finish', consolidation_id: started.consolidation_id }),
+      );
+      expect(closed.commit).toBeNull();
+
       const undone = check('undo', await server.client.call('undo', { session: session, session_handle: session }));
-      expect((undone.undone as unknown[]).length).toBe(5);
+      expect((undone.undone as unknown[]).length).toBe(7);
 
       // sem remoto configurado: o sync faz o que é local e diz como ficou
       const synced = check('sync', await server.client.call('sync', { session_handle: session }));

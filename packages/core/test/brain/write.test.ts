@@ -64,7 +64,7 @@ describe('fluxo de escrita', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(result.commit).toBe(await head(dir));
     expect(await commitCount(dir)).toBe(commitsBefore + 1);
 
-    const text = await readText(dir, result.path);
+    const text = await readText(dir, String(result.path));
     expect(text).toMatch(/^---\nid: /);
     expect(text).toMatch(/\norigin: agent:teste\n/);
     expect(text).toMatch(/\ntrust: medium\n/);
@@ -94,7 +94,7 @@ describe('fluxo de escrita', { timeout: TEST_TIMEOUT_MS }, () => {
     const found = await brain.search({ query: 'cache-clear' });
     expect(found.hits.map((hit) => hit.path)).toEqual([result.path]);
     expect(found.hits[0]).toMatchObject({ trust: 'medium', origin: 'agent:teste', validity: 'current' });
-    const read = await brain.read({ path: result.path });
+    const read = await brain.read({ path: String(result.path) });
     expect(read.outgoing_links.map((link) => link.path)).toContain('wiki/entities/Projeto Atlas.md');
   });
 
@@ -115,7 +115,7 @@ describe('fluxo de escrita', { timeout: TEST_TIMEOUT_MS }, () => {
       object: 'sexta',
     });
     expect(fact.path).toMatch(/^memory\/facts\//);
-    expect(await readText(dir, fact.path)).toMatch(/\nsubject: "\[\[Projeto Atlas\]\]"\n/);
+    expect(await readText(dir, String(fact.path))).toMatch(/\nsubject: "\[\[Projeto Atlas\]\]"\n/);
     expect(await porcelain(dir)).toBe('');
   });
 
@@ -194,7 +194,7 @@ describe('fluxo de escrita', { timeout: TEST_TIMEOUT_MS }, () => {
       title: 'Sempre rodar os testes',
       content: 'Rode os testes antes do commit.\n',
     });
-    const text = await readText(dir, rule.path);
+    const text = await readText(dir, String(rule.path));
     expect(text).toMatch(/\ntrust: high\n/);
     expect(text).toMatch(/\norigin: human\n/);
     expect(parseCommitTrailers(await commitMessageOf(dir)).client).toBe('cli');
