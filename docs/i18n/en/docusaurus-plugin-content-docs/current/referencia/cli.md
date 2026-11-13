@@ -283,6 +283,105 @@ $ cabecao search "deploy blog"
 
 More examples in [Search](../guias/buscar.md).
 
+## cabecao ask
+
+Answers with checked citations, using the provider you turned on with [`cabecao llm on`](#cabecao-llm). Optional; without a provider, it shows the passages found and how to turn one on. Full guide in [Answers with a language model](../guias/respostas-com-modelo.md).
+
+```text
+cabecao ask "<pergunta>" [--scope <escopo>] [--type <tipo>...] [--as-of <data>] [--limit <n>] [--verbose] [--show-context]
+```
+
+| Option | What it does |
+| --- | --- |
+| `--scope <escopo>` | `global` or `project:<nome>` (which also includes global) |
+| `--type <tipo>` | Only notes of this type. Repeat it or separate with commas |
+| `--as-of <data>` | `AAAA-MM-DD` date on which validity is calculated (default: today) |
+| `--limit <n>` | Maximum number of notes used as sources, from 1 to 20 (default: 10) |
+| `--verbose` | Adds provider, model, tokens, cost and time (only for you; with `--json`, the `diagnostics` block) |
+| `--show-context` | Shows exactly what would be sent to the provider, without sending anything |
+
+Without a provider turned on (real output, on the example brain; the output is in Portuguese):
+
+```text
+$ cabecao ask "Quem lidera o Projeto Atlas?"
+Nenhum provedor de respostas está ativado nesta máquina, então não há resposta gerada (nada saiu da máquina).
+Para ativar, rode "cabecao llm on" (Anthropic, OpenAI, Gemini, OpenRouter, Groq ou um servidor local).
+
+Trechos que achei no cérebro:
+  - memory/facts/fato-bruno-lidera-atlas.md
+    Bruno Tavares lidera o Projeto Atlas desde setembro de 2026.
+  - wiki/entities/Bruno Tavares.md › Bruno Tavares
+    # Bruno Tavares Engenheiro fictício. Lidera o [[Projeto Atlas]] desde setembro de 2026.
+  ...
+  - memory/facts/fato-ana-lidera-atlas.md (vencido)
+    Ana Prado liderou o Projeto Atlas de janeiro a agosto de 2026.
+```
+
+With a provider (real CLI output; a local test server answered in place of the provider):
+
+```text
+$ cabecao ask "Quem lidera o Projeto Atlas?"
+Bruno Tavares lidera o Projeto Atlas desde setembro de 2026. [1]
+
+Fontes:
+  [1] memory/facts/fato-bruno-lidera-atlas.md · vigente · trust high · origin human
+      "Bruno Tavares lidera o Projeto Atlas desde setembro de 2026."
+```
+
+**Exit:** `0` answered; `3` the brain does not have this; `4` more than half of the claims unsupported; `5` no provider available; `2` usage error. With `--json`, the same object as the [`ask` tool](./mcp.md#ask).
+
+## cabecao llm
+
+The provider that generates `ask` answers on this machine.
+
+```text
+cabecao llm on [--provider <provedor>] [--model <modelo>] [--base-url <url>] [--key-env <VARIÁVEL>] [--store keychain|file]
+cabecao llm off
+cabecao llm status
+cabecao llm test [--provider <provedor>]
+cabecao llm remove <provedor>
+```
+
+| Subcommand | What it does | Needs you in the terminal? |
+| --- | --- | --- |
+| `on` | Detects what already exists (Claude Code installed, key variables), offers that first, shows what leaves and where to, asks for confirmation and runs a test | Yes |
+| `off` | Turns it off without deleting anything | No |
+| `status` | Providers, model, destination, availability and where the key is (masked) | No |
+| `test` | One minimal call, with nothing from the brain: says whether it worked and how long it took | No |
+| `remove` | Deletes the provider and the key Cabeção stored | Yes |
+
+| Option | What it does |
+| --- | --- |
+| `--provider` | `claude-code`, `anthropic`, `openai`, `gemini`, `openrouter`, `groq`, `ollama`, `lmstudio` or `compatible` |
+| `--model` | The model (default: the cheapest with structured output; required for OpenRouter, local servers and `compatible`) |
+| `--base-url` | Address of an OpenAI-compatible service: `https`, or `http` only on `localhost` |
+| `--key-env` | Reads the key from this environment variable, without storing it |
+| `--store` | Where to store a pasted key: `keychain` (system keychain, default) or `file` (`0600` file) |
+
+```text
+$ cabecao llm status
+Respostas (ask): ligadas
+Ordem de uso: ollama
+  ollama: Ollama (servidor local) · modelo llama3.2 · roda nesta máquina
+    ativado em 2026-11-13 · disponível
+Limites: ~3000 tokens de contexto, 2048 de saída e 60 s por chamada
+Configuração: ~/.config/cabecao/llm.json · log: ~/.cache/cabecao/ask.log
+```
+
+The installed Antigravity and Codex are not offered; the reason is in the [guide](../guias/respostas-com-modelo.md#why-the-installed-antigravity-is-not-offered).
+
+**Exit:** `0`; `1` when `on` or `remove` have no terminal (or run inside an agent), when you do not confirm, or when `test` fails; `2` with an invalid provider or option.
+
+## cabecao eval --answers
+
+Measures `ask` answers with your questions and the provider turned on.
+
+```text
+cabecao eval --answers <perguntas.jsonl> [--provider <id>...]
+```
+
+One question per line: `{"query": "...", "expected": "path/to/note.md"}` for the ones the brain answers, and `{"query": "...", "answerable": false}` for the ones it does not. The metrics: valid citations, unsupported claims, right source cited, correct refusal and wrong refusal (each with numerator and denominator), mean time and tokens. No LLM judge. With `--provider`, one report per provider. The project ships a small set on the example brain in `fixtures/eval/respostas.jsonl`. Each question is one call to the provider.
+
 ## cabecao graph
 
 Neighbors of a note in the graph.
@@ -559,5 +658,7 @@ More in [Connect to AI clients](../comecar/conectar-clientes.md).
 | `CABECAO_BRAIN` | Brain folder, like `--brain` |
 | `CABECAO_CONFIG_DIR` | Machine configuration folder (default: `~/.config/cabecao`; on Windows, `%APPDATA%\cabecao`) |
 | `CABECAO_DEBUG` | With `1`, errors include the stack trace |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | Key for the `ask` answer provider; when set, it takes precedence over the stored key |
+| `HTTPS_PROXY`, `NO_PROXY` | Proxy for the answer providers, where Node allows it (see `cabecao llm status`); on Node 24, with `NODE_USE_ENV_PROXY=1` |
 | `XDG_CONFIG_HOME` | When set, the configuration lives in `$XDG_CONFIG_HOME/cabecao` |
 | `CLAUDE_PLUGIN_OPTION_BRAIN_DIR` | Set by Claude Code for the plugin's hooks: the brain folder from the `brain_dir` option. Only used by `recall --hook` and `sync --hook`, and only when there is no `--brain` or `CABECAO_BRAIN` |

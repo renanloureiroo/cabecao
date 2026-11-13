@@ -30,6 +30,32 @@ Onde fica a pasta:
 
 O `init` cria o arquivo. Se ele quebrar, apague-o e rode `cabecao init` de novo: num cérebro que já existe, o `init` só grava o nome da máquina.
 
+## Provedor de respostas: `llm.json`
+
+Só existe se você ativou as [respostas com um modelo de linguagem](../guias/respostas-com-modelo.md) (`cabecao llm on`). Fica na mesma pasta do `config.json`, com permissão `0600`, e **nunca guarda a chave**, só onde ela está:
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "providers": {
+    "anthropic": { "kind": "http", "preset": "anthropic", "model": "claude-haiku-5-5", "key": "keychain", "consented_at": "2026-11-13T12:00:00.000Z" },
+    "claude-code": { "kind": "agent", "agent": "claude-code", "model": null, "consented_at": "2026-11-13T12:05:00.000Z" }
+  },
+  "roles": { "answer": ["anthropic", "claude-code"] },
+  "limits": { "context_tokens": 3000, "max_output_tokens": 2048, "timeout_ms": 60000 }
+}
+```
+
+| Campo | O que é |
+| --- | --- |
+| `enabled` | `false` depois de `cabecao llm off`: nada sai, e o resto continua |
+| `providers` | Cada provedor: `kind` (`http` ou `agent`), `preset` ou `agent`, `model`, `base_url` (serviço compatível), `key` (`env:NOME`, `keychain`, `file` ou `none`) e `consented_at` (a sua confirmação; sem ela, o provedor não é usado) |
+| `roles.answer` | A ordem de uso: se o primeiro não estiver disponível ou falhar, o seguinte responde |
+| `limits` | Contexto por pergunta (500 a 8000 tokens), saída e tempo limite de cada chamada |
+
+Junto dele, quando é o caso: `credentials.json` (chaves guardadas com `--store file`, ou num Linux sem `secret-tool`; permissão `0600`) e, no Windows, `credentials.dpapi.json` (as chaves cifradas com a DPAPI do seu usuário). O log das perguntas, `ask.log`, fica na pasta de cache (`~/.cache/cabecao`; no Windows, `%LOCALAPPDATA%\cabecao`): uma linha por pergunta, com a pergunta cortada, o provedor, o tempo e as contagens, sem trechos do cérebro e sem chave.
+
 ## O cérebro
 
 A pasta do cérebro (padrão `~/cabecao`) é um repositório git comum. A estrutura está em [Estrutura do cérebro](../conceitos/estrutura.md).

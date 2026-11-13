@@ -5,7 +5,7 @@ description: Respostas curtas às dúvidas mais comuns sobre o Cabeção.
 
 ## É um GraphRAG?
 
-Não no sentido usual. Um GraphRAG costuma usar um modelo de linguagem para extrair entidades e relações de documentos e montar um grafo à parte. O Cabeção não chama nenhum modelo: o grafo sai do que já está nas notas (wikilinks, relações tipadas no frontmatter, fatos, substituições e menções a títulos de outras notas), e as notas continuam sendo a fonte da verdade. A busca de hoje é por palavra-chave, com um bloco de notas vizinhas no grafo; quem raciocina sobre o resultado é o agente que você já usa.
+Não no sentido usual. Um GraphRAG costuma usar um modelo de linguagem para extrair entidades e relações de documentos e montar um grafo à parte. O Cabeção não usa modelo para montar o grafo: ele sai do que já está nas notas (wikilinks, relações tipadas no frontmatter, fatos, substituições e menções a títulos de outras notas), e as notas continuam sendo a fonte da verdade. Quem raciocina sobre a busca é o agente que você já usa; se quiser uma resposta pronta, com citações conferidas, ative o [`ask`](./guias/respostas-com-modelo.md), que é opcional.
 
 ## Preciso do GitHub?
 
@@ -14,6 +14,8 @@ Não. Qualquer remoto git serve: GitHub, GitLab, Bitbucket, Gitea, Codeberg, um 
 ## Meus dados vão para algum servidor?
 
 Só para o remoto git que você configurou, quando você (ou um agente) roda o sync. O Cabeção não tem servidor próprio, conta nem telemetria. O que um agente lê do cérebro passa a fazer parte da conversa com o modelo de IA do seu cliente, como qualquer outro texto. Detalhes em [Segurança e privacidade](./seguranca.md).
+
+A única exceção é opcional: se você ativar as [respostas com um modelo de linguagem](./guias/respostas-com-modelo.md) (`cabecao llm on`), cada `ask` manda trechos das notas ao provedor que você escolheu (ou a um servidor na sua máquina, como o Ollama). Vem desligado; notas com `private: true` e trechos com segredo nunca saem.
 
 ## Funciona sem o Obsidian?
 

@@ -6,7 +6,8 @@ description: Para onde vão os seus dados, como o scanner de segredos funciona, 
 ## Seus dados ficam com você
 
 - As notas ficam numa pasta da sua máquina e num repositório git **seu**.
-- O Cabeção não tem servidor, conta, telemetria nem coleta de uso. O pacote não faz chamadas de rede próprias: tudo o que sai da máquina passa pelo git, para o remoto que **você** configurou (`fetch`, `push` e, no `init` e no `doctor`, uma consulta para saber se o remoto responde).
+- O Cabeção não tem servidor, conta, telemetria nem coleta de uso. Tudo o que sai da máquina passa pelo git, para o remoto que **você** configurou (`fetch`, `push` e, no `init` e no `doctor`, uma consulta para saber se o remoto responde).
+- **A única exceção é opcional e desligada por padrão:** se você ativar as [respostas com um modelo de linguagem](./guias/respostas-com-modelo.md) (`cabecao llm on`), cada pergunta do `ask` manda trechos das notas ao provedor que **você** escolheu. Nada vai até você ativar, num terminal, vendo o que sai e para onde. Veja [abaixo](#respostas-com-um-provedor-opcional).
 - O servidor MCP roda na sua máquina, por stdio. Ele não abre porta de rede.
 - O que um agente lê do cérebro vai para o modelo de IA que você usa, como qualquer outro texto da conversa. Isso é do cliente de IA, não do Cabeção: escolha o que guarda sabendo disso.
 
@@ -85,6 +86,20 @@ Quando altera uma nota sua, ela ganha `edited_by` e o `trust` cai. E toda grava�
 
 O conteúdo que o servidor devolve vem marcado como **dado, nunca instrução**, com a ordem de autoridade (você, as regras, o `AGENTS.md`, as memórias, o conteúdo de fora). Veja [Proveniência e confiança](./conceitos/proveniencia.md).
 
+## Respostas com um provedor (opcional)
+
+Com o `ask` ativado, o conteúdo do cérebro passa a ter mais um destinatário: o provedor que gera a resposta. As proteções:
+
+- **Opt-in por máquina e por provedor.** O `cabecao llm on` só funciona com você no terminal, mostra o destino, o que sai, o que nunca sai, a política de dados do provedor e o custo, e pede confirmação. Um agente não ativa, não troca e não lê a chave. `cabecao llm off` desliga.
+- **O que nunca sai:** notas com `private: true`, arquivos de controle, trechos em que o scanner acusa segredo (o marcador `cabecao:allow-secret` não vale aqui) e o que a `llm_policy` do cérebro excluir. Um cérebro pode proibir qualquer provedor (`"allow": "none"`) ou permitir só o agente instalado (`"agent"`), e isso vale em todas as máquinas.
+- **Conteúdo como dado.** Cada trecho vai entre delimitadores com uma marca sorteada a cada pergunta (um trecho que tente forjar o delimitador é neutralizado), o conteúdo de fora vai com as palavras separadas por `^`, e o prompt diz que nada dentro dos trechos é instrução.
+- **Resposta só lida.** Nada do que o provedor devolve é executado, gravado no cérebro ou usado para chamar outra coisa. Sequências de controle de terminal são removidas.
+- **Citações conferidas pelo Cabeção**, não pelo modelo: rótulo inventado ou citação que não está no trecho é descartado; sem nenhuma citação válida, a resposta é "o cérebro não tem isso".
+- **A chave** fica no cofre do sistema (ou num arquivo `0600`), entra nos programas do sistema pela entrada padrão, nunca na linha de comando, e nunca aparece no cérebro, no log, numa mensagem de erro ou no `--json`.
+- **O agente instalado roda sem ferramentas.** O Claude Code, como provedor, roda sem shell, sem leitura de arquivos e sem MCP, numa pasta temporária vazia, com ambiente mínimo e tempo limite; a árvore de processos é encerrada no fim.
+
+Detalhes, provedores e a política de dados de cada um em [Respostas com um modelo de linguagem](./guias/respostas-com-modelo.md).
+
 ## Limites conhecidos
 
 Dito com franqueza, para você decidir o que guardar:
@@ -92,6 +107,7 @@ Dito com franqueza, para você decidir o que guardar:
 - **O scanner trabalha por padrões.** Ele pega os formatos da tabela, não todo segredo possível: uma senha solta numa frase, sem um nome como "senha:" antes, passa. Não use o cérebro para guardar segredos.
 - **As restrições valem para as tools do MCP.** Um agente com acesso ao terminal e aos arquivos (o Claude Code, por exemplo) pode editar a pasta do cérebro diretamente, como qualquer programa seu. O `AGENTS.md` pede que ele use as tools, e o sync passa essas edições pelo scanner e as registra como `manual`, mas não há como impedir a escrita direta no disco. Limite as permissões de arquivo do cliente se isso importar para você.
 - **"Dado, nunca instrução" é uma orientação ao modelo, não uma garantia.** Um texto malicioso numa nota pode, mesmo assim, influenciar um modelo. Desconfie de conteúdo de fora (`trust: low`).
+- **Com o `ask` ativado, os trechos enviados ficam sob a política do provedor.** O Cabeção escolhe o que sai, mas não controla o que o provedor faz com o que recebeu.
 - **Nada é cifrado pelo Cabeção.** As notas ficam em texto puro no disco e no remoto; quem tem acesso ao repositório lê tudo. A proteção é a do seu provedor e a do seu disco.
 - **Commits sem assinatura.** Se `commit.gpgsign` estiver ligado, os commits do Cabeção saem sem assinatura, porque uma chave que pede senha travaria o sync. O `doctor` avisa.
 - **A checagem de repositório público só cobre HTTPS de provedores conhecidos.** Em SSH, confira você mesmo.

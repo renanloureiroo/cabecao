@@ -40,6 +40,7 @@ Only in `type: fact`, and required there.
 | `origin` | `human`, `agent:<cliente>`, or `ingest:<fonte>` | On an agent write, Cabeção fills it in and ignores the value sent |
 | `trust` | `high`, `medium`, or `low` | Default by origin: `human` → `high`, agent → `medium`, `ingest` → `low`. An agent cannot write `high` |
 | `edited_by` | `agent:<cliente>` | The last agent that changed a note that was not created by an agent |
+| `private` | `true` | The note is never sent to an [`ask`](../guias/respostas-com-modelo.md) answer provider. It does not change search or what an agent reads through the tools |
 
 See [Provenance and trust](../conceitos/proveniencia.md).
 
