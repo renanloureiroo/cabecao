@@ -1,0 +1,106 @@
+/*
+ * Tema do site do Cabeção: um caderno pautado.
+ * Tinta azul nos links e na marca, a margem vermelha como único acento quente, papel frio (nunca creme)
+ * e, no modo escuro, o mesmo caderno à noite. As cores são as dos arquivos em assets/.
+ */
+
+:root {
+  --cb-ink: #1c3d8f;
+  --cb-margin: #d92e45;
+  --cb-rule: #d3e0f2;
+  --cb-paper: #f7f9fc;
+  --cb-text: #16203a;
+
+  --ifm-font-family-base: "Atkinson Hyperlegible Next Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ifm-font-family-monospace: "Atkinson Hyperlegible Mono Variable", ui-monospace, "SFMono-Regular", monospace;
+  --ifm-heading-font-weight: 750;
+  --ifm-code-font-size: 90%;
+  --ifm-line-height-base: 1.7;
+
+  --ifm-color-primary: #1c3d8f;
+  --ifm-color-primary-dark: #193781;
+  --ifm-color-primary-darker: #18347a;
+  --ifm-color-primary-darkest: #142b64;
+  --ifm-color-primary-light: #1f439d;
+  --ifm-color-primary-lighter: #2046a4;
+  --ifm-color-primary-lightest: #2551bb;
+
+  --ifm-background-color: var(--cb-paper);
+  --ifm-background-surface-color: #eef3fa;
+  --ifm-font-color-base: var(--cb-text);
+  --ifm-heading-color: var(--cb-text);
+  --ifm-navbar-background-color: #eef3fa;
+  --ifm-footer-background-color: #eef3fa;
+  --ifm-toc-border-color: #dbe4f2;
+  --ifm-hr-border-color: #dbe4f2;
+  --ifm-code-background: #e7edf7;
+  --docusaurus-highlighted-code-line-bg: rgb(28 61 143 / 12%);
+}
+
+:root[data-theme="dark"] {
+  --cb-ink: #a9c1ff;
+  --cb-margin: #ff7385;
+  --cb-rule: #1e3059;
+  --cb-paper: #0f1a33;
+  --cb-text: #eef2fa;
+
+  --ifm-color-primary: #a9c1ff;
+  --ifm-color-primary-dark: #85a6ff;
+  --ifm-color-primary-darker: #7398ff;
+  --ifm-color-primary-darkest: #3d6eff;
+  --ifm-color-primary-light: #cddcff;
+  --ifm-color-primary-lighter: #dfe8ff;
+  --ifm-color-primary-lightest: #ffffff;
+
+  --ifm-background-color: var(--cb-paper);
+  --ifm-background-surface-color: #16244a;
+  --ifm-font-color-base: #d6deee;
+  --ifm-heading-color: var(--cb-text);
+  --ifm-navbar-background-color: #16244a;
+  --ifm-footer-background-color: #16244a;
+  --ifm-toc-border-color: #2b3a64;
+  --ifm-hr-border-color: #2b3a64;
+  --ifm-code-background: #1c2c5c;
+  --docusaurus-highlighted-code-line-bg: rgb(169 193 255 / 14%);
+}
+
+/* O título de cada página ganha a margem vermelha do caderno à esquerda. */
+.theme-doc-markdown > header > h1,
+.theme-doc-markdown > h1:first-child {
+  border-inline-start: 3px solid var(--cb-margin);
+  padding-inline-start: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+/* Links do texto sublinhados como à caneta: fino, com folga. */
+.theme-doc-markdown a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+/* Blocos de terminal: saída real, sem ligaduras. */
+pre code {
+  font-variant-ligatures: none;
+}
+
+.navbar__title {
+  font-weight: 750;
+  color: var(--cb-ink);
+}
+
+.footer--light {
+  border-top: 1px solid var(--ifm-toc-border-color);
+}
+
+/* Títulos de aviso sem caixa alta, como o resto do texto. */
+.theme-admonition [class*="admonitionHeading"] {
+  text-transform: none;
+  font-size: 1rem;
+}
+
+/* Termo buscado marcado com a margem do caderno, sem o amarelo de marca-texto. */
+mark {
+  background-color: rgb(217 46 69 / 18%);
+  color: inherit;
+}
