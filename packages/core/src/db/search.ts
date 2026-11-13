@@ -40,6 +40,11 @@ const STOPWORDS = new Set(
 
 const stripDiacritics = (text: string): string => text.normalize('NFD').replace(/\p{M}+/gu, '');
 
+/** Palavra vazia da busca (português ou inglês), comparada em minúsculas e sem acento. */
+export function isStopword(word: string): boolean {
+  return STOPWORDS.has(stripDiacritics(word.toLowerCase()));
+}
+
 /** Palavra (letras e dígitos) ou identificador composto (`db-reset`, `make_db`, `v1.2`, `user:name`). */
 const TERM_RE = /[\p{L}\p{N}]+(?:[-_.:/'’@][\p{L}\p{N}]+)*(\*)?/gu;
 

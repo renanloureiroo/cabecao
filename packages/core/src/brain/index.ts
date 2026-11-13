@@ -55,8 +55,11 @@ export type {
 } from './read.ts';
 export { DEFAULT_RECALL_BUDGET_TOKENS, RECALL_ITEM_MAX_CHARS, RECALL_MEMORY_LIMIT, RECALL_PRIORITY } from './read.ts';
 export type { RelateInput, RelateOutput } from './relate.ts';
+export type { DuplicateCandidate, RememberDecision, RememberOutput } from './remember.ts';
 export type { SearchMode, SearchModeUsed } from './semantic.ts';
 export { SEARCH_MODES } from './semantic.ts';
+export type { DedupComparison, DedupVerdict, MemoryText } from './similarity.ts';
+export { compareMemories, DEDUP_THRESHOLDS } from './similarity.ts';
 export type { SyncInput, SyncOutput } from './sync.ts';
 export { toSyncOutput } from './sync.ts';
 export type {

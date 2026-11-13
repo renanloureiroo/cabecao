@@ -281,6 +281,9 @@ export const rememberInput = z.object({
   expires_at: shortText().describe('YYYY-MM-DD').exactOptional(),
   sources: list().describe('Source notes; become wikilinks.').exactOptional(),
   session_handle: sessionHandle,
+  resolution: shortText()
+    .describe('Answer to decision "needs_resolution": create, skip, update:<id> or supersede:<id> (a candidate id).')
+    .exactOptional(),
 });
 
 export const writePageInput = z.object({
