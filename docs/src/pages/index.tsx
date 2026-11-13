@@ -218,7 +218,7 @@ function cards(): Card[] {
       title: translate({ id: 'home.cards.mcp.title', message: 'Servidor MCP' }),
       body: translate({
         id: 'home.cards.mcp.body',
-        message: 'As 12 tools, os resources e as instruções do servidor, com o que um agente pode e não pode fazer.',
+        message: 'As 17 tools, os resources e as instruções do servidor, com o que um agente pode e não pode fazer.',
       }),
     },
   ];

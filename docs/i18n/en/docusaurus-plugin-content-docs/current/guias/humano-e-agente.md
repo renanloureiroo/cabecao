@@ -40,7 +40,7 @@ The classification lives in a single place in the code (`packages/cli/src/access
 | Class | Commands | Who can |
 | --- | --- | --- |
 | Memory | `recall`, `search`, `read`, `graph`, `facts`, `lint`, `remember`, `write`, `patch`, `relate`, `handoff`, `ingest`, `forget`, `consolidate`, `undo` | Both. As an agent, exactly the MCP server's rules apply |
-| Administration | `init`, `status`, `doctor`, `sync`, `schedule`, `mcp`, `install-client`, `eval`, `reindex`, `obsidian`, `export`, `embeddings status` | Both, including without a terminal: they run from the scheduler, the hooks, and scripts. They do not write memory on anyone's behalf (`sync` commits outside edits as `manual`) |
+| Administration | `init`, `status`, `doctor`, `sync`, `schedule`, `mcp`, `install-client`, `install-skills`, `eval`, `reindex`, `obsidian`, `export`, `embeddings status`, `uninstall --dry-run` | Both, including without a terminal: they run from the scheduler, the hooks, and scripts. They do not write memory on anyone's behalf (`sync` commits outside edits as `manual`). `uninstall` without `--dry-run` only removes with your confirmation in the terminal: without a terminal, it exits with code 4 |
 | Yours only, at the terminal | `embeddings on`, `embeddings off`, `embeddings switch`, `compact`, `upgrade` | Only you. For an agent, or without a terminal, they exit with code 4 and the explanation |
 
 ```text
