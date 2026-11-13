@@ -11,6 +11,7 @@ O plano de arquitetura está **validado por provas de conceito**. O marco 1 (nú
 - **Commits do projeto:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/) (`feat:`, `fix:`, `docs:`, `chore:`...). Os commits que o Cabeção faz no repositório de um cérebro têm um [padrão próprio](docs/12-commits.md).
 - **Idioma:** documentação em português (com versão em inglês planejada); código, identificadores e schema em inglês.
 - **Código:** TypeScript estrito, pnpm, testes com Vitest, lint e formatação com Biome.
+- **Changeset:** PR que muda o produto leva um changeset (`pnpm changeset`, marcando o pacote `cabecao`); é ele que gera a versão nova e a entrada no changelog. O fluxo está em [13 · Publicar no npm](docs/13-publicacao.md#publicar-no-npm).
 - **Antes de abrir um PR:** `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e`. Os comandos estão em [13 · Desenvolvimento, CI e publicação](docs/13-publicacao.md).
 - **Dados de teste:** use o cérebro de exemplo em [`fixtures/vault`](fixtures/README.md), que só tem dados inventados.
 
