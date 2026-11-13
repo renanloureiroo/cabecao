@@ -1,48 +1,15 @@
 {
-  "home.feature.files.title": {
-    "message": "Your Markdown and git"
+  "home.audience.body": {
+    "message": "For people who work with AI agents (Claude Code, Codex, Cursor and others) and are tired of repeating the same preferences, decisions and gotchas in every new session. What you teach in one conversation is saved and comes back in the next one, in any client and on any machine."
   },
-  "home.feature.files.body": {
-    "message": "Notes are {md} files in a regular folder. You read and edit them in Obsidian or any editor. There is no database that only Cabeção understands."
+  "home.audience.clients": {
+    "message": "Clients that init registers"
   },
-  "home.feature.hosts.title": {
-    "message": "Any provider"
+  "home.audience.kicker": {
+    "message": "who it is for"
   },
-  "home.feature.hosts.body": {
-    "message": "GitHub, GitLab, Bitbucket, Gitea, your own server or just your machine. Cabeção uses the git and the credentials you already have; it does not depend on any provider's API."
-  },
-  "home.feature.mcp.title": {
-    "message": "Agents over MCP"
-  },
-  "home.feature.mcp.body": {
-    "message": "A local MCP server gives agents search, a graph, facts with time validity and tools to save memories, with rules they cannot get around."
-  },
-  "home.feature.undo.title": {
-    "message": "Everything is reversible"
-  },
-  "home.feature.undo.body": {
-    "message": "Every write is an identified commit. {undo} reverts one operation or an agent's whole session, without rewriting history."
-  },
-  "home.title": {
-    "message": "A second brain your agents can read too"
-  },
-  "home.meta.title": {
-    "message": "Second brain in Markdown and git"
-  },
-  "home.meta.description": {
-    "message": "Your second brain in Markdown and git, for you and your AI agents, served over MCP."
-  },
-  "home.tagline": {
-    "message": "Your notes stay in Markdown, in a git repository you own. AI agents read and write them over MCP, and everything they do becomes a commit you can undo with one command."
-  },
-  "home.cta.start": {
-    "message": "Get started"
-  },
-  "home.cta.github": {
-    "message": "View on GitHub"
-  },
-  "home.beta.title": {
-    "message": "Beta version"
+  "home.audience.title": {
+    "message": "For people who work with AI agents"
   },
   "home.beta.body": {
     "message": "Cabeção is in beta ({version}). It already works for daily use, but the format and the commands may still change before version 1.0. Use a private repository and check the {notes} when you update."
@@ -50,23 +17,200 @@
   "home.beta.notes": {
     "message": "release notes"
   },
-  "home.audience.title": {
-    "message": "Who it is for"
+  "home.beta.title": {
+    "message": "Beta version"
   },
-  "home.audience.body": {
-    "message": "For people who work with AI agents (Claude Code, Codex, Cursor and others) and are tired of repeating the same preferences, decisions and gotchas in every new session. What you teach in one conversation is saved and comes back in the next one, in any client and on any machine."
+  "home.cards.cli.body": {
+    "message": "Every cabecao command, with its options, examples, and exit codes."
   },
-  "home.features.title": {
-    "message": "What sets it apart"
+  "home.cards.cli.title": {
+    "message": "CLI"
   },
-  "home.quick.title": {
-    "message": "In three commands"
+  "home.cards.first.body": {
+    "message": "What to ask the agent, what it saves and how that shows up in the next session."
+  },
+  "home.cards.first.title": {
+    "message": "First use with an agent"
+  },
+  "home.cards.guide": {
+    "message": "get started"
+  },
+  "home.cards.install.body": {
+    "message": "Install Cabeção from npm and check the requirements."
+  },
+  "home.cards.install.title": {
+    "message": "Installation"
+  },
+  "home.cards.mcp.body": {
+    "message": "The 12 tools, the resources and the server's instructions, with what an agent can and cannot do."
+  },
+  "home.cards.mcp.title": {
+    "message": "MCP server"
+  },
+  "home.cards.reference": {
+    "message": "reference"
+  },
+  "home.copy.done": {
+    "message": "Copied"
+  },
+  "home.copy.label": {
+    "message": "Copy command"
+  },
+  "home.cta.github": {
+    "message": "View on GitHub"
+  },
+  "home.cta.start": {
+    "message": "Get started"
+  },
+  "home.demo.init.body": {
+    "message": "One command, no questions: it creates the structure in the empty repository, builds the local index and registers the MCP server in the AI clients it finds. The CLI prints its messages in Portuguese for now."
+  },
+  "home.demo.init.title": {
+    "message": "Create the brain"
+  },
+  "home.demo.kicker": {
+    "message": "in practice"
+  },
+  "home.demo.remember.body": {
+    "message": "In a Claude Code session, you ask it to \"remember that the payment tests only pass with {tz}\". The agent calls the remember tool, and the answer is a new note and a commit."
+  },
+  "home.demo.remember.title": {
+    "message": "The agent remembers"
+  },
+  "home.demo.search.body": {
+    "message": "In the next session, on any machine, the note comes back in the agent's recall. And from the terminal too, in search."
+  },
+  "home.demo.search.title": {
+    "message": "It comes back when needed"
+  },
+  "home.demo.title": {
+    "message": "From init to the next session"
+  },
+  "home.diagram.agents": {
+    "message": "// AI agents"
+  },
+  "home.diagram.commits": {
+    "message": "git: one commit per write"
+  },
+  "home.diagram.editor": {
+    "message": "Obsidian or an editor"
+  },
+  "home.diagram.editorMeta": {
+    "message": "reads and edits the .md"
+  },
+  "home.diagram.index": {
+    "message": "Local index"
+  },
+  "home.diagram.indexMeta": {
+    "message": "search, graph and facts"
+  },
+  "home.diagram.machine": {
+    "message": "// this machine · ~/cabecao"
+  },
+  "home.diagram.mcp": {
+    "message": "Local MCP server"
+  },
+  "home.diagram.mcpMeta": {
+    "message": "cabecao mcp · stdio"
+  },
+  "home.diagram.notes": {
+    "message": "Notes in Markdown"
+  },
+  "home.diagram.notesMeta": {
+    "message": "memories, notes, rules"
+  },
+  "home.diagram.other": {
+    "message": "// another machine"
+  },
+  "home.diagram.otherMeta": {
+    "message": "the same brain"
+  },
+  "home.diagram.others": {
+    "message": "and other MCP clients"
+  },
+  "home.diagram.remote": {
+    "message": "// git remote"
+  },
+  "home.diagram.repo": {
+    "message": "Your private repository"
+  },
+  "home.diagram.repoMeta": {
+    "message": "GitHub, GitLab, Gitea…"
+  },
+  "home.diagram.title": {
+    "message": "Diagram: you edit the notes in Obsidian or an editor; AI agents talk to the local MCP server, which reads and writes the notes and queries the local index; every write is a commit, and sync takes everything to your git repository and to your other machines."
+  },
+  "home.diagram.you": {
+    "message": "// you"
+  },
+  "home.feature.files.body": {
+    "message": "Notes are {md} files in a regular folder. You read and edit them in Obsidian or any editor. There is no database that only Cabeção understands."
+  },
+  "home.feature.files.title": {
+    "message": "Your Markdown and git"
+  },
+  "home.feature.hosts.body": {
+    "message": "GitHub, GitLab, Bitbucket, Gitea, your own server or just your machine. Cabeção uses the git and the credentials you already have; it does not depend on any provider's API."
+  },
+  "home.feature.hosts.title": {
+    "message": "Any provider"
+  },
+  "home.feature.mcp.body": {
+    "message": "A local MCP server gives agents search, a graph, facts with time validity and tools to save memories, with rules they cannot get around."
+  },
+  "home.feature.mcp.title": {
+    "message": "Agents over MCP"
+  },
+  "home.feature.undo.body": {
+    "message": "Every write is an identified commit. {undo} reverts one operation or an agent's whole session, without rewriting history."
+  },
+  "home.feature.undo.title": {
+    "message": "Everything is reversible"
+  },
+  "home.hero.kicker": {
+    "message": "memory for AI agents"
+  },
+  "home.hero.meta": {
+    "message": "Node.js 22.16+ or 24 · git 2.38+ · MIT license · beta 0.1.0-beta.1"
+  },
+  "home.how.body": {
+    "message": "Notes live in a regular folder, versioned with git. Agents read and write through an MCP server that runs on your machine, and every write becomes a commit. Sync takes everything to your repository and from there to your other machines."
+  },
+  "home.how.kicker": {
+    "message": "how it works"
+  },
+  "home.how.title": {
+    "message": "Files, git and an MCP server on your machine"
+  },
+  "home.meta.description": {
+    "message": "Your second brain in Markdown and git, for you and your AI agents, served over MCP."
+  },
+  "home.meta.title": {
+    "message": "Second brain in Markdown and git"
   },
   "home.quick.body": {
     "message": "{init} clones the repository, creates the structure (or adopts what is already there), builds the local index and registers the MCP server in the AI clients it finds. The step-by-step guide is in {link}."
   },
   "home.quick.link": {
     "message": "Installation"
+  },
+  "home.quick.title": {
+    "message": "In three commands"
+  },
+  "home.start.kicker": {
+    "message": "get started"
+  },
+  "home.tagline": {
+    "message": "Your notes stay in Markdown, in a git repository you own. AI agents read and write them over MCP, and everything they do becomes a commit you can undo with one command."
+  },
+  "home.title": {
+    "message": "A second brain your agents can read too"
+  },
+  "home.what.kicker": {
+    "message": "what it is"
+  },
+  "home.what.title": {
+    "message": "Markdown and git underneath, MCP on top"
   },
   "theme.ErrorPageContent.title": {
     "message": "This page crashed.",
