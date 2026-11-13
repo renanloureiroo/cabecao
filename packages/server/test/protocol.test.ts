@@ -83,7 +83,8 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
         expect(typeof annotations.idempotentHint, tool.name).toBe('boolean');
       }
       const byName = new Map(tools.map((tool) => [tool.name, tool]));
-      for (const name of ['recall', 'search', 'read', 'status']) {
+      expect(TOOL_NAMES).toHaveLength(17);
+      for (const name of ['recall', 'search', 'read', 'status', 'lint']) {
         expect(byName.get(name)?.annotations?.readOnlyHint, name).toBe(true);
         expect(byName.get(name)?.annotations?.destructiveHint, name).toBe(false);
       }
@@ -91,7 +92,14 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
         expect(byName.get(name)?.annotations?.readOnlyHint, name).toBe(false);
       }
       expect(byName.get('remember')?.annotations?.destructiveHint).toBe(false);
-      for (const name of ['write_page', 'patch_page', 'undo']) {
+      for (const name of ['handoff_save', 'ingest']) {
+        expect(byName.get(name)?.annotations?.readOnlyHint, name).toBe(false);
+        expect(byName.get(name)?.annotations?.destructiveHint, name).toBe(false);
+      }
+      expect(byName.get('forget')?.inputSchema.required?.sort()).toEqual(['id', 'reason']);
+      expect(byName.get('handoff_save')?.inputSchema.required).toEqual(['session_handle']);
+      expect(Object.keys(byName.get('forget')?.inputSchema.properties ?? {})).not.toContain('userConfirmed');
+      for (const name of ['write_page', 'patch_page', 'undo', 'forget', 'consolidate']) {
         expect(byName.get(name)?.annotations?.destructiveHint, name).toBe(true);
       }
       expect(byName.get('sync')?.annotations?.openWorldHint).toBe(true);
@@ -100,8 +108,8 @@ describe.each(GENERATIONS)('geração %s', (generation) => {
       expect(byName.get('write_page')?.inputSchema.required?.sort()).toEqual(['content', 'mode', 'path']);
       expect(byName.get('patch_page')?.inputSchema.required?.sort()).toEqual(['new', 'old', 'path']);
       expect(Object.keys(byName.get('remember')?.inputSchema.properties ?? {})).toContain('session_handle');
-      // a lista inteira ocupa contexto do agente: fica de olho no tamanho (cerca de 37 mil caracteres com as 12 tools
-      // dos marcos 1 a 3; as do marco 4 entram com descrições curtas)
+      // a lista inteira ocupa contexto do agente: fica de olho no tamanho. Medido: 36.741 caracteres com as 12 tools
+      // dos marcos 1 a 3 e 52.373 com as 17 do marco 4 (a média por tool ficou em cerca de 3,1 mil nos dois)
       expect(JSON.stringify(tools).length).toBeLessThan(55_000);
       await server.stop();
     },
