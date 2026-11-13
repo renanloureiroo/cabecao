@@ -117,7 +117,7 @@ function instructionsFor(id: string): string[] {
     'Episódios em repeated_episodes que contam a mesma coisa: grave o que se aprendeu como fato, procedimento ou armadilha (remember).',
     'Pares em duplicates: junte numa nota só (remember com resolution "update:<id>" ou "supersede:<id>") e arquive a sobra com forget.',
     'Achados do lint: corrija o que for seguro (link quebrado, fato substituído); o resto, conte ao usuário.',
-    'Algo que deveria virar regra: proponha numa nota type: synthesis em wiki/syntheses/. Regras em memory/rules/ só o usuário grava.',
+    'Algo que deveria virar regra: proponha numa nota type: synthesis em wiki/syntheses/. Gravar em memory/rules/ exige o pedido explícito do usuário (confirmação).',
     `No fim, chame consolidate com action: "finish" e consolidation_id: "${id}".`,
   ];
 }

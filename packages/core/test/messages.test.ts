@@ -28,6 +28,12 @@ const COMMANDS = [
   'consolidate',
   'recall',
   'schedule',
+  'read',
+  'remember',
+  'write',
+  'patch',
+  'relate',
+  'handoff',
 ];
 /** Palavras que seguem "cabecao" em prosa ("o cabecao precisa de..."), não comandos. */
 const PROSE = ['precisa', 'para', 'não'];

@@ -8,7 +8,7 @@ import { estimateTokens, HEADING_PATH_SEPARATOR } from '../markdown/index.ts';
 import type { ConflictCopy, SyncStatusInfo } from '../sync/index.ts';
 import { listConflicts, syncStatus } from '../sync/index.ts';
 import { isSafeRelativePath, ulid } from '../util/index.ts';
-import { isNoteType, isValidScope, NOTE_TYPE_DIRS, readNote } from '../vault/index.ts';
+import { isApprovedByUser, isNoteType, isValidScope, NOTE_TYPE_DIRS, readNote } from '../vault/index.ts';
 import type { BrainContext } from './context.ts';
 import { today, withFreshIndex } from './context.ts';
 import type { EmbeddingsStatusOutput } from './embeddings.ts';
@@ -135,13 +135,16 @@ const costOf = (value: unknown): number => estimateTokens(JSON.stringify(value))
 const RULES_DIR_PREFIX = `${NOTE_TYPE_DIRS.rule.toLowerCase()}/`;
 
 /**
- * Só é servida como regra a nota que o usuário gravou onde as regras moram: `origin: human` e dentro de
- * `memory/rules/`. Defesa em profundidade: as escritas já recusam `type: rule` vindo de agente, mas uma nota com
- * `type: rule` em outro lugar (escrita à mão, chegada pelo sync, gravada por uma versão antiga) não vira autoridade,
- * e fica fora do briefing (o `search` e o `read` ainda a mostram, com a proveniência).
+ * Só é servida como regra a nota que mora em `memory/rules/` e é do usuário: `origin: human`, ou gravada por um agente
+ * com a confirmação do usuário (`approved_by: user`, que só o fluxo confirmado grava; decisão 37). Defesa em
+ * profundidade: uma "regra" de agente SEM a marca (forjada por BOM, escrita à mão imitando um agente, chegada pelo sync
+ * de uma versão antiga) ou uma nota com `type: rule` em outro lugar não vira autoridade, e fica fora do briefing (o
+ * `search` e o `read` ainda a mostram, com a proveniência).
  */
 function isUserRule(note: IndexedNote): boolean {
-  return note.origin === 'human' && note.path.toLowerCase().startsWith(RULES_DIR_PREFIX);
+  if (!note.path.toLowerCase().startsWith(RULES_DIR_PREFIX)) return false;
+  if (note.origin === 'human') return true;
+  return (note.origin ?? '').startsWith('agent:') && isApprovedByUser(note.frontmatter);
 }
 
 export async function recall(ctx: BrainContext, input: RecallInput): Promise<RecallOutput> {

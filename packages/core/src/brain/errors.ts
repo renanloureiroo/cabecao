@@ -26,7 +26,7 @@ export const BRAIN_ERROR_CODES = [
   'already_exists',
   /** O scanner achou um possível segredo; ver `details.secrets` (sem o segredo). */
   'secret_detected',
-  /** Regras (`type: rule`) só o usuário cria e altera. */
+  /** Regra (`type: rule`) vinda de agente fora do fluxo de confirmação (decisão 37). */
   'rule_requires_human',
   /** `patch_page`: o trecho antigo não aparece no corpo. */
   'patch_not_found',
@@ -46,7 +46,7 @@ export const BRAIN_ERROR_CODES = [
   'index_failed',
   /** O cérebro já foi fechado com `close()`. */
   'closed',
-  /** Só o usuário (CLI) faz: configuração de embeddings, compactação da branch de índice. */
+  /** Só o usuário, no terminal: administração da máquina (configuração de embeddings, compactação da branch de índice). */
   'human_only',
   /** A busca por significado não está ativada, está desligada nesta máquina ou o runtime não carrega. */
   'embeddings_unavailable',
@@ -157,7 +157,7 @@ const NEXT_STEPS: Partial<Record<BrainErrorCode, string>> = {
   not_a_brain: 'Rode "cabecao init" nesta pasta ou aponte para a pasta de um cérebro.',
   invalid_note: 'Corrija os campos apontados em details.issues e tente de novo.',
   rule_requires_human:
-    'Regras só o usuário cria. Grave como preferência (type: preference) ou peça ao usuário que crie a regra.',
+    'Regras exigem pedido explícito do usuário: use remember ou write_page, que devolvem o resumo e o confirm_token para confirmar. Sem pedido, grave como preferência (type: preference).',
   patch_not_found: 'Leia a nota de novo com read e copie o trecho exato que quer substituir.',
   ambiguous_patch: 'Inclua mais contexto em old (linhas vizinhas) para o trecho aparecer uma vez só.',
   conflict: 'Leia a nota de novo com read e refaça a alteração sobre a versão atual.',
