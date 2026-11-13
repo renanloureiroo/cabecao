@@ -22,8 +22,10 @@ import {
   specOf,
 } from '../embeddings.ts';
 import { CliError, UsageError } from '../errors.ts';
+import { didYouMean } from '../suggest.ts';
 import { formatBytes } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { RUNTIME_TEXT } from './status.ts';
 
 const SUBCOMMANDS = ['on', 'off', 'status', 'switch'] as const;
 type Subcommand = (typeof SUBCOMMANDS)[number];
@@ -37,9 +39,12 @@ function downloadMb(model: CatalogModel): number {
   return Math.round((variant?.onnxMB ?? 0) + model.tokenizerMB);
 }
 
-/** A tabela de sugestões do doc 06, com tamanho, qualidade e licença. */
+/** A página do site sobre a busca por significado (escolha de modelo, modelo próprio). */
+const SEARCH_GUIDE = 'https://renanloureiroo.github.io/cabecao/guias/buscar';
+
+/** A tabela de sugestões, com tamanho, qualidade e licença. */
 export function catalogTable(): string {
-  const lines = ['Modelos sugeridos (medidos em português; doc 06, "Sugestões testadas"):', ''];
+  const lines = [`Modelos sugeridos (medidos em português; detalhes em ${SEARCH_GUIDE}):`, ''];
   MODEL_CATALOG.forEach((model, i) => {
     const variant = model.variants[model.defaultVariant];
     lines.push(
@@ -47,7 +52,10 @@ export function catalogTable(): string {
     );
     lines.push(`     ${model.indicatedFor}${model.licenseNote ? ` (licença: ${model.licenseNote})` : ''}`);
   });
-  lines.push('', 'Fora da lista, qualquer modelo ONNX do Hugging Face pode ser declarado no .cabecao.json (doc 06).');
+  lines.push(
+    '',
+    `Fora da lista, qualquer modelo ONNX do Hugging Face pode ser declarado no .cabecao.json (${SEARCH_GUIDE}).`,
+  );
   return lines.join('\n');
 }
 
@@ -95,7 +103,7 @@ async function chooseModel(ctx: CommandContext, requested: string | undefined): 
     if (model === undefined) {
       throw new CliError(`modelo desconhecido: "${requested}"`, {
         code: 'unknown_model',
-        hint: `Sugestões: ${CATALOG_MODEL_NAMES.join(', ')}. Um modelo próprio é declarado à mão no .cabecao.json (doc 06).`,
+        hint: `Sugestões: ${CATALOG_MODEL_NAMES.join(', ')}. Um modelo próprio é declarado à mão no .cabecao.json (${SEARCH_GUIDE}).`,
       });
     }
     return model;
@@ -265,7 +273,7 @@ export function statusLines(status: EmbeddingsStatusOutput): string[] {
     `Modelo: ${status.model} (${status.variant}, ${status.dims} dimensões, receita ${status.recipe}${
       status.revision === null ? ', arquivos de main' : `, revisão ${status.revision.slice(0, 12)}`
     })`,
-    `Nesta máquina: ${status.enabled_here ? 'ligada' : 'desligada ("cabecao embeddings on" religa)'} · runtime: ${status.runtime}${
+    `Nesta máquina: ${status.enabled_here ? 'ligada' : 'desligada ("cabecao embeddings on" religa)'} · ${RUNTIME_TEXT[status.runtime] ?? `runtime: ${status.runtime}`}${
       status.runtime_detail === null ? '' : ` (${status.runtime_detail})`
     }`,
     `Trechos: ${status.chunks} · com vetor: ${status.with_vector ?? '?'} · sem vetor (na fila): ${status.pending ?? '?'}`,
@@ -361,7 +369,9 @@ async function switchModel(ctx: CommandContext, root: string): Promise<CommandRe
 export async function run(ctx: CommandContext): Promise<CommandResult> {
   const sub = ctx.positionals[0] ?? 'status';
   if (!(SUBCOMMANDS as readonly string[]).includes(sub)) {
-    throw new UsageError(`subcomando desconhecido: "${sub}" (use ${SUBCOMMANDS.join(', ')})`);
+    throw new UsageError(
+      `subcomando desconhecido: "${sub}" (use ${SUBCOMMANDS.join(', ')}).${didYouMean(sub, SUBCOMMANDS, 'embeddings ')}`,
+    );
   }
   const root = await resolveBrain(ctx);
   switch (sub as Subcommand) {
