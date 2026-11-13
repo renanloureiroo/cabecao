@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Cabeção">
+  <!-- O "C" é a cabeça; dentro dela, notas ligadas fecham o arco. Para fundo claro. -->
+  <path d="M47.3 19.1A20 20 0 1 0 47.3 44.9" fill="none" stroke="#1C3D8F" stroke-width="8" stroke-linecap="round"/>
+  <path d="M47.3 19.1L28 29.5L38.5 38.5L47.3 44.9" fill="none" stroke="#1C3D8F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="47.3" cy="19.1" r="5.6" fill="#1C3D8F"/>
+  <circle cx="47.3" cy="44.9" r="5.6" fill="#1C3D8F"/>
+  <circle cx="38.5" cy="38.5" r="3.6" fill="#1C3D8F"/>
+  <circle cx="28" cy="29.5" r="5.2" fill="#D92E45"/>
+</svg>
