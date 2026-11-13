@@ -36,6 +36,8 @@ O `init` não pergunta nada: cria o cérebro num repositório vazio, só baixa u
 | `cabecao graph "<nota>"` | Vizinhos de uma nota no grafo |
 | `cabecao facts` | Fatos e se valem numa data |
 | `cabecao undo` | Desfaz uma operação ou uma sessão de agente |
+| `cabecao ask "<pergunta>"` | Resposta com citações conferidas, pelo provedor que você ativar (opcional) |
+| `cabecao llm on\|off\|status\|test\|remove` | O provedor das respostas do `ask`: desligado por padrão; nada sai da máquina até você ativar |
 | `cabecao install-client <cliente>` | Registra o servidor MCP num cliente de IA |
 | `cabecao mcp` | O servidor MCP por stdio, que os clientes iniciam |
 

@@ -11,6 +11,7 @@ npm i -g cabecao@beta
 
 ## Not yet released
 
+- **Answers with a language model, optional.** [`cabecao ask`](./referencia/cli.md#cabecao-ask) and the [`ask`](./referencia/mcp.md#ask) tool answer with citations checked by Cabeção (an invented citation is dropped; with no valid one, "the brain does not have this"), using the provider you turn on with [`cabecao llm on`](./referencia/cli.md#cabecao-llm): Claude Code installed, the Anthropic, OpenAI, Gemini, OpenRouter and Groq APIs, or a local server (Ollama, LM Studio). Off by default: nothing leaves the machine until you turn it on. Notes with `private: true` and passages with secrets never leave, and `.cabecao.json` gains `llm_policy`. `eval` gains `--answers`. See [Answers with a language model](./guias/respostas-com-modelo.md).
 - **The memory lifecycle.** Five new MCP server tools and four CLI commands:
   - `handoff_save`: the handoff, with an expiry, plus the session's episode; `recall` delivers the project's latest handoff and warns when it was already delivered to another session.
   - `remember` handles duplicates and contradictions in the same scope and type: the same memory is skipped, one that complements updates, a fact with another object supersedes the old one, and the ambiguous case goes back to the agent to decide.

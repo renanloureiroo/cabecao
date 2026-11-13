@@ -30,6 +30,32 @@ Where the folder lives:
 
 `init` creates the file. If it breaks, delete it and run `cabecao init` again: in a brain that already exists, `init` only saves the machine name.
 
+## Answer provider: `llm.json`
+
+Only exists if you turned on [answers with a language model](../guias/respostas-com-modelo.md) (`cabecao llm on`). It sits in the same folder as `config.json`, with `0600` permission, and **never stores the key**, only where it is:
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "providers": {
+    "anthropic": { "kind": "http", "preset": "anthropic", "model": "claude-haiku-5-5", "key": "keychain", "consented_at": "2026-11-13T12:00:00.000Z" },
+    "claude-code": { "kind": "agent", "agent": "claude-code", "model": null, "consented_at": "2026-11-13T12:05:00.000Z" }
+  },
+  "roles": { "answer": ["anthropic", "claude-code"] },
+  "limits": { "context_tokens": 3000, "max_output_tokens": 2048, "timeout_ms": 60000 }
+}
+```
+
+| Field | What it is |
+| --- | --- |
+| `enabled` | `false` after `cabecao llm off`: nothing leaves, and the rest stays |
+| `providers` | Each provider: `kind` (`http` or `agent`), `preset` or `agent`, `model`, `base_url` (compatible service), `key` (`env:NAME`, `keychain`, `file` or `none`) and `consented_at` (your confirmation; without it, the provider is not used) |
+| `roles.answer` | The order of use: if the first one is unavailable or fails, the next one answers |
+| `limits` | Context per question (500 to 8000 tokens), output and the time limit of each call |
+
+Next to it, when applicable: `credentials.json` (keys stored with `--store file`, or on Linux without `secret-tool`; `0600` permission) and, on Windows, `credentials.dpapi.json` (keys encrypted with your user's DPAPI). The question log, `ask.log`, lives in the cache folder (`~/.cache/cabecao`; on Windows, `%LOCALAPPDATA%\cabecao`): one line per question, with the truncated question, the provider, the time and the counts, without brain passages and without the key.
+
 ## The brain
 
 The brain folder (default `~/cabecao`) is a regular git repository. The structure is described in [Brain structure](../conceitos/estrutura.md).

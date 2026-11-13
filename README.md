@@ -105,6 +105,7 @@ Reinicie o Claude Code. Também funciona com Claude Desktop, Codex, Cursor, VS C
 | Busca por palavra-chave com validade no tempo (`--as-of`) | Revisão, consolidação e "esquecer" memórias |
 | Grafo: wikilinks, relações tipadas, fatos e menções sem link | Integração com o Obsidian |
 | Servidor MCP com 12 tools e restrições a agentes | Pacote para o Claude Desktop |
+| | Respostas com citações conferidas (`ask`), opcionais, com o provedor que você escolher |
 | `undo` por operação ou sessão; scanner de segredos | |
 
 ## Documentação

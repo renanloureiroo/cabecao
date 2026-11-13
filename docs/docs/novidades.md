@@ -11,6 +11,7 @@ npm i -g cabecao@beta
 
 ## Ainda não publicado
 
+- **Respostas com um modelo de linguagem, opcionais.** [`cabecao ask`](./referencia/cli.md#cabecao-ask) e a tool [`ask`](./referencia/mcp.md#ask) respondem com citações conferidas pelo Cabeção (citação inventada é descartada; sem nenhuma válida, "o cérebro não tem isso"), usando o provedor que você ativar com [`cabecao llm on`](./referencia/cli.md#cabecao-llm): o Claude Code instalado, as APIs da Anthropic, da OpenAI, do Gemini, do OpenRouter e da Groq, ou um servidor local (Ollama, LM Studio). Desligado por padrão: nada sai da máquina até você ativar. Notas com `private: true` e trechos com segredo nunca saem, e o `.cabecao.json` ganha a `llm_policy`. O `eval` ganha `--answers`. Veja [Respostas com um modelo de linguagem](./guias/respostas-com-modelo.md).
 - **O ciclo de vida da memória.** Cinco tools novas no servidor MCP e quatro comandos na CLI:
   - `handoff_save`: a passagem de bastão, com validade, e o episódio da sessão; o `recall` entrega o último handoff do projeto e avisa quando ele já foi entregue a outra sessão.
   - O `remember` trata duplicatas e contradições no mesmo escopo e tipo: igual é ignorado, o que complementa atualiza, um fato com outro objeto substitui o antigo, e o caso ambíguo volta para o agente decidir.

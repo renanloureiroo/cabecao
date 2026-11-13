@@ -27,5 +27,6 @@ Um comando para medir a qualidade da busca no seu próprio cérebro, com as suas
 - **Apagar de vez** (`cabecao purge`): tirar uma nota do histórico do git, para o caso raro de algo que não podia estar lá. Hoje o `forget` arquiva, e o arquivado continua no git.
 - **Integração com o Obsidian**: configuração do vault e painéis prontos em `dashboards/`.
 - **Pacote para o Claude Desktop**, para instalar o servidor com um clique.
+- **Mais do provedor de respostas** (o [`ask`](./guias/respostas-com-modelo.md) já chega na próxima versão): resumos por tema e ajuda na consolidação escritos pelo provedor, sempre com as mesmas restrições de um agente; um modelo que rode embutido, sem servidor; e busca por significado com o Ollama.
 
 Quer acompanhar ou opinar? Abra uma [issue](https://github.com/renanloureiroo/cabecao/issues).
