@@ -58,7 +58,7 @@ export function optionalSteps(facts: OptionalFacts, max = 3): OptionalStep[] {
     steps.push({
       id: 'skills',
       command: 'cabecao install-skills',
-      why: `ensina ${listText(facts.skillClients.map((id) => CLIENTS[id].label))} a usar o cérebro pela linha de comando (skills)`,
+      why: `skills que ensinam ${listText(facts.skillClients.map((id) => CLIENTS[id].label))} a usar o cérebro`,
     });
   }
   if (facts.hasRemote && !facts.scheduleOn) {
@@ -67,8 +67,8 @@ export function optionalSteps(facts: OptionalFacts, max = 3): OptionalStep[] {
       command: 'cabecao schedule on',
       why: `${
         facts.pluginActive
-          ? 'sincroniza sozinho a cada 30 min (o plugin do Claude Code já sincroniza no fim da sessão; isto cobre os outros agentes)'
-          : 'sincroniza sozinho a cada 30 min; sem isso, o que o agente grava só vai às outras máquinas com "cabecao sync"'
+          ? 'sincroniza sozinho a cada 30 min, também para os agentes sem o plugin'
+          : 'sincroniza sozinho a cada 30 min, sem precisar do "cabecao sync"'
       }${facts.stableInstall ? '' : `. Precisa do Cabeção instalado: "npm i -g cabecao@${channel()}"`}`,
     });
   }
@@ -76,20 +76,20 @@ export function optionalSteps(facts: OptionalFacts, max = 3): OptionalStep[] {
     steps.push({
       id: 'embeddings',
       command: 'cabecao embeddings on',
-      why: `este cérebro usa busca por significado (${facts.embeddingsModel ?? 'modelo do .cabecao.json'}): ligue nesta máquina, com o mesmo modelo`,
+      why: `busca por significado: este cérebro já usa (${facts.embeddingsModel ?? 'modelo do .cabecao.json'}), falta ligar aqui`,
     });
   } else if (facts.embeddings === 'off') {
     steps.push({
       id: 'embeddings',
       command: 'cabecao embeddings on',
-      why: 'busca por significado, que roda nesta máquina (baixa um runtime e um modelo: centenas de MB)',
+      why: 'busca por significado, nesta máquina (baixa centenas de MB)',
     });
   }
   if (facts.obsidian) {
     steps.push({
       id: 'obsidian',
       command: 'cabecao obsidian setup',
-      why: 'achei o Obsidian neste cérebro: grafo colorido por tipo, propriedades e painéis',
+      why: 'Obsidian: grafo colorido por tipo, propriedades e painéis',
     });
   }
   return steps.slice(0, max);

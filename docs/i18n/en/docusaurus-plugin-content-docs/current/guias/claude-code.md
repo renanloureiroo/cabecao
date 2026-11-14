@@ -13,7 +13,7 @@ The plugin is the most complete way to use Cabeção in Claude Code. It brings:
 
 ## Before installing
 
-- Node.js 22.16+ or 24+ on the `PATH` (the same Cabeção already requires).
+- Node.js 22.16 or newer on the `PATH` (the same Cabeção already requires).
 - A brain on this machine: run [`npx cabecao init`](../comecar/init.md) first, or have a brain folder at hand.
 
 ## Install
@@ -125,7 +125,7 @@ The plugin follows the published versions of the `cabecao` package: the program 
 
 | Symptom | What to do |
 | --- | --- |
-| `claude mcp list` shows `plugin:cabecao:cabecao ... Failed to connect` | Run `cabecao doctor`. Check that the `node` on the `PATH` is 22.16+ or 24+ and that `brain_dir` (or the default brain) points to a brain |
+| `claude mcp list` shows `plugin:cabecao:cabecao ... Failed to connect` | Run `cabecao doctor`. Check that the `node` on the `PATH` is 22.16 or newer and that `brain_dir` (or the default brain) points to a brain |
 | The agent does not receive the briefing | Run the hook by hand and read standard error: `echo '{}' \| node <plugin folder>/server/cabecao.mjs recall --hook` |
 | The session-end sync did not happen | Look at `<brain>/.cabecao/logs/sync.log` |
 | The tools show up twice | Remove the old registration: `cabecao install-client --remove claude-code` |

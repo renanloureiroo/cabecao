@@ -34,6 +34,24 @@ export interface ControllingTerminal {
   prompt(question: string): Promise<string | null>;
   /** Como `prompt`, mas sem mostrar o que é digitado (uma chave de API). */
   promptSecret?(question: string): Promise<string | null>;
+  /**
+   * Lista para escolher com as setas (`term-select.ts`). Devolve o índice escolhido, ou `null` se o usuário cancelou
+   * (Esc, Ctrl+C) ou não deu para abrir o terminal. Só existe num terminal que sabe mover o cursor: sem ela, quem
+   * pergunta cai na lista numerada, pelo `prompt`.
+   */
+  select?(question: string, options: readonly SelectOption[], initial?: number): Promise<number | null>;
+}
+
+/** Uma opção de `select`: o nome e, ao lado e mais apagada, uma dica curta. */
+export interface SelectOption {
+  label: string;
+  hint?: string | undefined;
+}
+
+/** Quais saídas aceitam cor e animação: é um terminal, sem `NO_COLOR` e sem `TERM=dumb` (`ui.ts`). */
+export interface OutputStyle {
+  stdout: boolean;
+  stderr: boolean;
 }
 
 /** Tudo o que a CLI enxerga do processo. É passado por parâmetro: nenhum comando lê `process` direto. */
@@ -46,6 +64,8 @@ export interface CliIo {
   stderr: Writer;
   /** Largura do terminal da saída (`process.stdout.columns`), só quando a saída é um terminal. */
   columns?: number | undefined;
+  /** Cor e animação por saída. Sem isto (testes, pipes, agentes), tudo sai como texto puro. */
+  style?: OutputStyle | undefined;
   platform: NodeJS.Platform;
   /** Pasta do usuário usada quando `HOME`/`USERPROFILE` não estão em `env`. */
   homedir?: string | undefined;
@@ -126,6 +146,10 @@ export interface CommandContext extends CliIo {
   prompt?: ((question: string) => Promise<string | null>) | undefined;
   /** Como `prompt`, sem eco (uma chave de API). Também só para o usuário num terminal. */
   promptSecret?: ((question: string) => Promise<string | null>) | undefined;
+  /** Escolha com as setas, também só para o usuário num terminal (e só onde o terminal permite). */
+  select?:
+    | ((question: string, options: readonly SelectOption[], initial?: number) => Promise<number | null>)
+    | undefined;
 }
 
 export interface CommandResult {

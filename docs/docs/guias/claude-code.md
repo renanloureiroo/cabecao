@@ -13,7 +13,7 @@ O plugin é a forma mais completa de usar o Cabeção no Claude Code. Ele traz:
 
 ## Antes de instalar
 
-- Node.js 22.16+ ou 24+ no `PATH` (o mesmo que o Cabeção já pede).
+- Node.js 22.16 ou mais novo no `PATH` (o mesmo que o Cabeção já pede).
 - Um cérebro nesta máquina: rode [`npx cabecao init`](../comecar/init.md) antes, ou tenha à mão a pasta de um cérebro.
 
 ## Instalar
@@ -125,7 +125,7 @@ O plugin acompanha as versões publicadas do pacote `cabecao`: o programa e as s
 
 | Sintoma | O que fazer |
 | --- | --- |
-| `claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect` | Rode `cabecao doctor`. Confira se o `node` do `PATH` é 22.16+ ou 24+ e se `brain_dir` (ou o cérebro padrão) aponta para um cérebro |
+| `claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect` | Rode `cabecao doctor`. Confira se o `node` do `PATH` é 22.16 ou mais novo e se `brain_dir` (ou o cérebro padrão) aponta para um cérebro |
 | O agente não recebe o briefing | Rode o hook à mão e leia a saída de erro: `echo '{}' \| node <pasta do plugin>/server/cabecao.mjs recall --hook` |
 | O sync do fim de sessão não aconteceu | Veja `<cérebro>/.cabecao/logs/sync.log` |
 | As tools aparecem duas vezes | Tire o registro antigo: `cabecao install-client --remove claude-code` |

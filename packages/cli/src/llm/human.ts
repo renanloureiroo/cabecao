@@ -5,15 +5,18 @@
 import { CliError } from '../errors.ts';
 import type { CommandContext } from '../types.ts';
 
-export type HumanIo = Pick<CommandContext, 'env'> & { prompt: NonNullable<CommandContext['prompt']> };
+export type HumanIo = Pick<CommandContext, 'env' | 'select'> & { prompt: NonNullable<CommandContext['prompt']> };
 
 /** Lança `human_only` (código 4) se quem roda não é o usuário num terminal. `action` começa a frase. */
-export function requireHuman(ctx: Pick<CommandContext, 'env' | 'prompt' | 'actor'>, action: string): HumanIo {
+export function requireHuman(
+  ctx: Pick<CommandContext, 'env' | 'prompt' | 'select' | 'actor'>,
+  action: string,
+): HumanIo {
   if (ctx.actor.actor !== 'human' || ctx.prompt === undefined) {
     throw new CliError(`${action} é com você, no seu terminal: ${ctx.actor.explanation}`, {
       code: 'human_only',
       hint: 'Rode no seu terminal. Um agente não ativa, não troca, não testa e não lê a chave do provedor de respostas.',
     });
   }
-  return { env: ctx.env, prompt: ctx.prompt };
+  return { env: ctx.env, prompt: ctx.prompt, select: ctx.select };
 }

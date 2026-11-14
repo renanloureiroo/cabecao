@@ -36,7 +36,7 @@ Only three things, about 490 kB:
 | `icon.png` | The icon |
 | `server/*.mjs` | The same program published on npm, with no dependencies |
 
-The server runs on the Node.js that Claude Desktop ships. Cabeção needs Node.js 22.16+ or 24+: on an older Node, the server does not start and the message says so. The system git is still needed for sync.
+The server runs on the Node.js that Claude Desktop ships. Cabeção needs Node.js 22.16 or newer: on an older Node, the server does not start and the message says so. The system git is still needed for sync.
 
 ## Updating
 

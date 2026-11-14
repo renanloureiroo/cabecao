@@ -41,23 +41,21 @@ Repositório vazio: estrutura do cérebro criada na branch main e enviada para g
 Índice local: 0 notas indexadas em 2 ms.
 
 Agentes:
-  Codex   servidor MCP registrado em ~/.codex/config.toml
-  Cursor  servidor MCP registrado em ~/.cursor/mcp.json
-  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
+  Codex   servidor MCP registrado
+  Cursor  servidor MCP registrado
+  Reinicie os que estiverem abertos.
 
 Teste agora:
   1. No Codex, peça: "guarde que eu prefiro respostas curtas, em tópicos"
   2. Numa conversa nova, pergunte: "como eu prefiro as respostas?"
   3. Ou confira aqui: cabecao search "respostas curtas"
 
-Opcional (rode quando quiser):
-  cabecao install-skills  ensina Codex e Cursor a usar o cérebro pela linha de
-                          comando (skills)
-  cabecao schedule on     sincroniza sozinho a cada 30 min; sem isso, o que o
-                          agente grava só vai às outras máquinas com
+Opcional:
+  cabecao install-skills  skills que ensinam Codex e Cursor a usar o cérebro
+  cabecao schedule on     sincroniza sozinho a cada 30 min, sem precisar do
                           "cabecao sync"
-  cabecao embeddings on   busca por significado, que roda nesta máquina (baixa
-                          um runtime e um modelo: centenas de MB)
+  cabecao embeddings on   busca por significado, nesta máquina (baixa centenas
+                          de MB)
 
 Diagnóstico: 18 ok, 0 avisos, 0 falhas. Detalhes: cabecao doctor
 
@@ -101,8 +99,8 @@ Cérebro existente: clonado em ~/cabecao (branch main).
 Índice local: 0 notas indexadas em 2 ms.
 
 Agentes:
-  Claude Code  servidor MCP registrado (pelo comando "claude mcp", escopo user)
-  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
+  Claude Code  servidor MCP registrado
+  Reinicie os que estiverem abertos.
 ```
 
 Nada no repositório muda. O índice local é montado a partir das notas, e as memórias gravadas na primeira máquina já aparecem para os agentes desta. Para manter as duas em dia, veja [Sincronizar entre máquinas](../guias/sincronizar-maquinas.md).

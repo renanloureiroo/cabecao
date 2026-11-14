@@ -73,4 +73,4 @@ A primeira versão publicada.
 - **Restrições a agentes**: não criam regras, não escrevem em arquivos de controle nem de instrução de clientes, e ao editar uma nota sua deixam `edited_by` e baixam o `trust`.
 - **`cabecao install-client`** para Claude Code, Claude Desktop, Codex, Cursor, VS Code e Gemini CLI, preservando o resto do arquivo de cada cliente.
 - **`cabecao doctor`** com a correção sugerida para cada problema, e **`cabecao status`**.
-- Um pacote só, sem dependências de runtime nem binários nativos. Requer Node.js 22.16+ ou 24+ e git 2.38+.
+- Um pacote só, sem dependências de runtime nem binários nativos. Requer Node.js 22.16 ou mais novo e git 2.38+.

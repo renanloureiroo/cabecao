@@ -34,7 +34,7 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
     expect(result.stdout).toContain('Teste agora:\n');
     expect(result.stdout).toContain('peça a ele: "guarde que eu prefiro respostas curtas, em tópicos"');
     expect(result.stdout).toContain('cabecao search "respostas curtas"');
-    expect(result.stdout).toMatch(/Opcional \(rode quando quiser\):\n {2}cabecao schedule on/);
+    expect(result.stdout).toMatch(/Opcional:\n {2}cabecao schedule on/);
     expect(result.stdout).toContain('cabecao embeddings on');
     expect(result.stdout).toMatch(/Diagnóstico: \d+ ok, /);
     expect(result.stdout).toContain(`Em outra máquina, rode cabecao init ${remote}`);
@@ -185,12 +185,12 @@ describe('init', { timeout: TEST_TIMEOUT_MS }, () => {
     const result = await a.cabecao(['init'], { binPath: join(a.home, 'bin-que-nao-existe.mjs') });
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Agentes:');
-    expect(result.stdout).toMatch(/Cursor +servidor MCP registrado em ~[\\/]\.cursor[\\/]mcp\.json/);
+    expect(result.stdout).toMatch(/Cursor +servidor MCP registrado\n/);
     expect(result.stdout).toMatch(/Antigravity +servidor MCP registrado/);
     expect(result.stdout).not.toContain('Gemini CLI');
     expect(result.stdout).toContain('1. No Cursor, peça:');
     // os dois leem skills: o opcional aparece, com o comando
-    expect(result.stdout).toMatch(/cabecao install-skills +ensina Cursor e Antigravity a usar o cérebro/);
+    expect(result.stdout).toMatch(/cabecao install-skills +skills que ensinam Cursor e Antigravity a usar o/);
     const cursor = JSON.parse(await readFile(join(a.home, '.cursor', 'mcp.json'), 'utf8'));
     expect(cursor.mcpServers.cabecao.args.slice(-3)).toEqual(['mcp', '--brain', join(a.home, 'cabecao')]);
     expect(a.calls).toEqual([]);

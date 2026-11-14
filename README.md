@@ -34,18 +34,17 @@ Repositório vazio: estrutura do cérebro criada na branch main e enviada para g
 Índice local: 0 notas indexadas em 2 ms.
 
 Agentes:
-  Codex   servidor MCP registrado em ~/.codex/config.toml
-  Cursor  servidor MCP registrado em ~/.cursor/mcp.json
-  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.
+  Codex   servidor MCP registrado
+  Cursor  servidor MCP registrado
+  Reinicie os que estiverem abertos.
 
 Teste agora:
   1. No Codex, peça: "guarde que eu prefiro respostas curtas, em tópicos"
   2. Numa conversa nova, pergunte: "como eu prefiro as respostas?"
   3. Ou confira aqui: cabecao search "respostas curtas"
 
-Opcional (rode quando quiser):
-  cabecao install-skills  ensina Codex e Cursor a usar o cérebro pela linha de
-                          comando (skills)
+Opcional:
+  cabecao install-skills  skills que ensinam Codex e Cursor a usar o cérebro
   ...
 ```
 
@@ -82,7 +81,7 @@ $ cabecao search "testes pagamento"
 
 ## Instalação
 
-Requer Node.js 22.16+ ou 24+ e git 2.38+. Crie antes um repositório **vazio e privado**.
+Requer Node.js 22.16 ou mais novo e git 2.38+. Crie antes um repositório **vazio e privado**.
 
 ```bash
 npm i -g cabecao

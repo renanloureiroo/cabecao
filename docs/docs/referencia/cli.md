@@ -46,7 +46,9 @@ Com `CABECAO_DEBUG=1`, os erros saem com o stack, para relatar um problema.
 
 ## A ajuda
 
-`cabecao --help` agrupa os comandos (uso diário, configuração, notas e grafo, manutenção), e `cabecao <comando> --help` mostra o uso, **exemplos**, as opções e uma linha com as opções globais (`cabecao help` e `cabecao help <comando>` fazem o mesmo). O texto se ajusta à largura do terminal (até 100 colunas; 80 quando a saída não é um terminal, ou o valor de `COLUMNS`). Não há cor: a saída é igual com ou sem `NO_COLOR` e num leitor de tela.
+`cabecao --help` agrupa os comandos (uso diário, configuração, notas e grafo, manutenção), e `cabecao <comando> --help` mostra o uso, **exemplos**, as opções e uma linha com as opções globais (`cabecao help` e `cabecao help <comando>` fazem o mesmo). O texto se ajusta à largura do terminal (até 100 colunas; 80 quando a saída não é um terminal, ou o valor de `COLUMNS`). A ajuda não tem cor: sai igual com ou sem `NO_COLOR` e num leitor de tela.
+
+No resto, quando a saída é um terminal, o Cabeção usa a cor da marca com parcimônia (títulos, o `✓` de cada passo, o símbolo na abertura do `init`) e, nas perguntas, uma lista para escolher com as setas (`↑` `↓`, um número ou `j`/`k`; Enter confirma, Esc cancela). Nada disso aparece num pipe, com `--json`, para um agente, com `NO_COLOR` definido ou com `TERM=dumb`: aí sai texto puro, e as perguntas voltam a ser de uma linha (`[s/N]`, ou o número da opção). Toda pergunta tem uma opção de linha de comando equivalente.
 
 Um comando, uma opção, um subcomando ou um cliente com erro de digitação recebe uma sugestão:
 

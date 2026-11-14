@@ -1,0 +1,1 @@
+import{t as e}from"./errors-BbmPYJnW.mjs";function t(t,n){if(t.actor.actor!==`human`||t.prompt===void 0)throw new e(`${n} é com você, no seu terminal: ${t.actor.explanation}`,{code:`human_only`,hint:`Rode no seu terminal. Um agente não ativa, não troca, não testa e não lê a chave do provedor de respostas.`});return{env:t.env,prompt:t.prompt,select:t.select}}export{t};

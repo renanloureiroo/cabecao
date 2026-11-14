@@ -77,7 +77,7 @@ O sync para com `Sync: bloqueado. Possível segredo em ...` e diz arquivo, linha
 
 ```text
 $ cabecao --version
-cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: v20.12.2. Atualize em https://nodejs.org
+cabecao precisa de Node.js 22.16 ou mais novo. Versão atual: v20.12.2. Atualize em https://nodejs.org
 ```
 
 Instale o Node.js 24 (LTS). A linha 23 também não é aceita. Se você usa um gerenciador de versões (nvm, fnm, Volta), lembre que os clientes de IA podem enxergar outro Node: o registro feito por uma instalação global aponta direto para o Node que estava ativo no `install-client`. Depois de trocar de versão, rode `cabecao install-client --all` de novo.

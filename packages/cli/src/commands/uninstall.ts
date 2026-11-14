@@ -23,6 +23,7 @@ import { scheduleOff, scheduleStatus } from '../schedule/system.ts';
 import { readRegistry, removeFrom, writeRegistry } from '../skills/install.ts';
 import { displayPath } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { confirm } from '../ui.ts';
 
 interface Plan {
   clients: { id: ClientId; label: string; files: string[] }[];
@@ -184,8 +185,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
     );
   }
   ctx.stderr.write(`${text}\n\n`);
-  const answer = (await ctx.prompt('Remover? [s/N] '))?.trim().toLowerCase();
-  if (answer !== 's' && answer !== 'sim' && answer !== 'y' && answer !== 'yes') {
+  if (!(await confirm(ctx, 'Remover?'))) {
     return { code: 1, data: { action: 'cancelled', ...plan }, text: 'Nada foi removido.' };
   }
 

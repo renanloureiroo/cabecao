@@ -46,7 +46,9 @@ With `CABECAO_DEBUG=1`, errors include the stack trace, so you can report a prob
 
 ## The help
 
-`cabecao --help` groups the commands (daily use, configuration, notes and graph, maintenance), and `cabecao <command> --help` shows the usage, **examples**, the options, and a line with the global options (`cabecao help` and `cabecao help <command>` do the same). The text adapts to the terminal width (up to 100 columns; 80 when the output is not a terminal, or the value of `COLUMNS`). There is no color: the output is the same with or without `NO_COLOR` and in a screen reader.
+`cabecao --help` groups the commands (daily use, configuration, notes and graph, maintenance), and `cabecao <command> --help` shows the usage, **examples**, the options, and a line with the global options (`cabecao help` and `cabecao help <command>` do the same). The text adapts to the terminal width (up to 100 columns; 80 when the output is not a terminal, or the value of `COLUMNS`). The help has no color: it is the same with or without `NO_COLOR` and in a screen reader.
+
+Everywhere else, when the output is a terminal, Cabeção uses the brand color sparingly (headings, the `✓` of each step, the symbol that opens `init`) and, for questions, a list you pick from with the arrow keys (`↑` `↓`, a number or `j`/`k`; Enter confirms, Esc cancels). None of this shows up in a pipe, with `--json`, for an agent, with `NO_COLOR` set or with `TERM=dumb`: the output is plain text, and questions go back to one line (`[s/N]`, or the option number). Every question has an equivalent command-line option.
 
 A command, option, subcommand or client with a typo gets a suggestion:
 

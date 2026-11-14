@@ -16,6 +16,8 @@ import type { OptionalStep } from '../optional.ts';
 import { gatherOptional, optionalSteps, optionalText } from '../optional.ts';
 import { displayPath, indent, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import type { Paint } from '../ui.ts';
+import { banner, paint, progress } from '../ui.ts';
 import { runDoctor } from './doctor.ts';
 
 const STEP_TEXT: Readonly<Record<InitStep, string>> = {
@@ -26,6 +28,17 @@ const STEP_TEXT: Readonly<Record<InitStep, string>> = {
   commit: 'fazendo o commit inicial',
   config: 'gravando a configuração desta máquina',
   push: 'enviando ao remoto',
+};
+
+/** Os mesmos passos, como aparecem no progresso do terminal. */
+const STEP_LABEL: Readonly<Record<InitStep, string>> = {
+  probe: 'Consultando o remoto',
+  clone: 'Baixando o repositório',
+  detect: 'Vendo o que há no repositório',
+  scaffold: 'Criando a estrutura do cérebro',
+  commit: 'Commit inicial',
+  config: 'Configurando esta máquina',
+  push: 'Enviando ao remoto',
 };
 
 /** Como ligar um remoto a um cérebro criado só local (o comando `cabecao remote` chega num marco seguinte). */
@@ -144,7 +157,7 @@ const AGENT_ACTION: Readonly<Record<string, string>> = {
 };
 
 /** Uma linha por agente detectado: o que ficou configurado nele. */
-function agentLines(clients: ClientsStep, plugin: PluginState | undefined, home: string): string[] {
+function agentLines(clients: ClientsStep, plugin: PluginState | undefined, home: string, p: Paint): string[] {
   if (clients.skipped) {
     return ['Agentes: pulados (--no-clients). Para registrar depois: cabecao install-client --all'];
   }
@@ -158,7 +171,7 @@ function agentLines(clients: ClientsStep, plugin: PluginState | undefined, home:
     ];
   }
   const width = Math.max(...clients.reports.map((report) => report.label.length));
-  const lines = ['Agentes:'];
+  const lines = [p.bold('Agentes:')];
   for (const report of clients.reports) {
     const label = report.label.padEnd(width);
     if (report.status === 'failed') {
@@ -167,13 +180,8 @@ function agentLines(clients: ClientsStep, plugin: PluginState | undefined, home:
       );
       continue;
     }
-    const where =
-      report.method === 'cli'
-        ? ' (pelo comando "claude mcp", escopo user)'
-        : report.files.length > 0
-          ? ` em ${report.files.map((file) => displayPath(file.path, home)).join(', ')}`
-          : '';
-    lines.push(`  ${label}  ${AGENT_ACTION[report.status] ?? OUTCOME_TEXT[report.status]}${where}`);
+    // onde ficou o registro é detalhe do `cabecao doctor`; aqui, só o que aconteceu
+    lines.push(`  ${label}  ${p.dim(AGENT_ACTION[report.status] ?? OUTCOME_TEXT[report.status])}`);
     if (report.replaced !== undefined) lines.push(`    ${replacedText(report.replaced)}`);
     for (const file of report.files) {
       if (file.backup !== undefined) lines.push(`    original guardado em ${displayPath(file.backup, home)}`);
@@ -187,7 +195,7 @@ function agentLines(clients: ClientsStep, plugin: PluginState | undefined, home:
       );
     }
   }
-  lines.push('  Reinicie os agentes que estiverem abertos para eles enxergarem o Cabeção.');
+  lines.push(p.dim('  Reinicie os que estiverem abertos.'));
   return lines;
 }
 
@@ -206,20 +214,20 @@ function testLines(clients: ClientsStep): string[] {
   ];
 }
 
-function successText(data: Required<InitData>, home: string): string {
+function successText(data: Required<InitData>, home: string, p: Paint): string {
   const { init } = data;
   const paragraphs: string[] = [];
   const where = displayPath(init.root, home);
   const machine = init.machine === null ? '' : ` (máquina ${init.machine})`;
   paragraphs.push(
     init.remote === null
-      ? `Pronto. Seu cérebro está em ${where}${machine}, só nesta máquina.`
-      : `Pronto. Seu cérebro está em ${where}${machine} e em ${init.remote}.`,
+      ? `${p.bold('Pronto.')} Seu cérebro está em ${where}${machine}, só nesta máquina.`
+      : `${p.bold('Pronto.')} Seu cérebro está em ${where}${machine} e em ${init.remote}.`,
   );
   const { index } = data;
   paragraphs.push(
     [
-      init.message,
+      init.message.replaceAll(init.root, where),
       ...warningLines(init.warnings),
       'error' in index
         ? `Índice local: não consegui montar agora (${index.error}). Ele é montado no próximo uso.`
@@ -230,25 +238,28 @@ function successText(data: Required<InitData>, home: string): string {
     init.case === 'adopted' ? init.nextSteps.find((step) => step.startsWith('O cérebro é a pasta')) : undefined;
   if (adopted !== undefined) paragraphs.push(`Obsidian: ${adopted.replaceAll(init.root, where)}`);
 
-  paragraphs.push(agentLines(data.clients, data.plugin, home).join('\n'));
-  paragraphs.push(['Teste agora:', ...data.test.map((line) => `  ${line}`)].join('\n'));
+  paragraphs.push(agentLines(data.clients, data.plugin, home, p).join('\n'));
+  paragraphs.push([p.bold('Teste agora:'), ...data.test.map((line) => `  ${line}`)].join('\n'));
   if (data.optional.length > 0) {
-    paragraphs.push(['Opcional (rode quando quiser):', optionalText(data.optional)].join('\n'));
+    paragraphs.push([p.bold('Opcional:'), optionalText(data.optional)].join('\n'));
   }
 
   const { doctor } = data;
   if ('error' in doctor) paragraphs.push(`Diagnóstico: não rodou (${doctor.error}). Rode "cabecao doctor".`);
   else {
     const { ok, warn, fail } = doctor.summary;
-    const pending = doctor.checks.filter((check) => check.status !== 'ok');
-    const head = `Diagnóstico: ${ok} ok, ${plural(warn, 'aviso', 'avisos')}, ${plural(fail, 'falha', 'falhas')}. Detalhes: cabecao doctor`;
+    // os avisos ficam para o `cabecao doctor` (a linha abaixo já os conta); aqui, só o que falhou
+    const pending = doctor.checks.filter((check) => check.status === 'fail');
+    const head = p.dim(
+      `Diagnóstico: ${ok} ok, ${plural(warn, 'aviso', 'avisos')}, ${plural(fail, 'falha', 'falhas')}. Detalhes: cabecao doctor`,
+    );
     paragraphs.push(
       pending.length === 0 ? head : `${head}\n${renderReport({ ...doctor, checks: pending }, '  ').split('\n\n')[0]}`,
     );
   }
 
   const steps = nextSteps(init).filter((step) => step !== adopted);
-  if (steps.length > 0) paragraphs.push(['Depois:', ...steps.map((step) => `  - ${step}`)].join('\n'));
+  if (steps.length > 0) paragraphs.push([p.bold('Depois:'), ...steps.map((step) => `  - ${step}`)].join('\n'));
   return paragraphs.join('\n\n');
 }
 
@@ -276,6 +287,10 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
   if (machine === '') throw new UsageError('a opção --machine precisa de um nome');
   const dir = targetDir(ctx);
 
+  const steps = progress(ctx);
+  if (!ctx.json && ctx.style?.stderr === true) {
+    ctx.stderr.write(`\n${banner(paint(true, ctx.env), 'Cabeção', 'seu segundo cérebro, em Markdown e git')}\n\n`);
+  }
   // 1 e 2: cria, baixa ou adota, conforme o que o núcleo encontrar no remoto.
   let result: InitResult;
   try {
@@ -285,24 +300,33 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
       ...(typeof machine === 'string' ? { machine } : {}),
       configDir: machineConfigDir(ctx),
       hooks: {
-        onStep: (step) => {
-          if (!ctx.json) ctx.stderr.write(`cabecao: ${STEP_TEXT[step]}...\n`);
-        },
+        onStep: (step) => steps.start(STEP_LABEL[step], STEP_TEXT[step]),
       },
     });
   } catch (error) {
+    steps.fail();
     throw toCliError(error);
   }
   if (!result.ok) {
+    steps.fail();
     if (!ctx.json) ctx.stderr.write(`${failureText(result)}\n`);
     return { code: 1, data: { init: result } satisfies InitData };
   }
 
   // 3. Índice local.
-  if (!ctx.json) ctx.stderr.write('cabecao: montando o índice local...\n');
+  steps.start('Montando o índice local', 'montando o índice local');
   const index = await indexStep(ctx, result.root);
+  if ('error' in index) steps.fail();
+  else steps.done(plural(index.notes, 'nota', 'notas'));
   // 4. Clientes de IA.
+  if (ctx.values['no-clients'] !== true) steps.start('Registrando nos agentes');
   const clients = await clientsStep(ctx, result.root);
+  if (!clients.skipped) {
+    if ('error' in clients) steps.fail();
+    else
+      steps.done(clients.reports.length === 0 ? 'nenhum encontrado' : clients.reports.map((r) => r.label).join(', '));
+  }
+  steps.start('Conferindo a instalação');
   // 5. Diagnóstico. O remoto acabou de responder ao próprio init: não é consultado de novo.
   let doctor: DoctorReport | { error: string };
   try {
@@ -329,5 +353,7 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
     test: testLines(clients),
     optional: optionalSteps(facts),
   };
-  return { data, text: successText(data, location.home) };
+  steps.done();
+  if (ctx.style?.stderr === true && !ctx.json) ctx.stderr.write('\n');
+  return { data, text: successText(data, location.home, paint(ctx.style?.stdout === true, ctx.env)) };
 }

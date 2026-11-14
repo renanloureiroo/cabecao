@@ -12,7 +12,7 @@ Suas notas são arquivos Markdown num repositório git seu, em qualquer provedor
 
 ## Começar
 
-Requer Node.js 22.16+ ou 24+ e git 2.38+. Crie antes um repositório vazio e **privado**.
+Requer Node.js 22.16 ou mais novo e git 2.38+. Crie antes um repositório vazio e **privado**.
 
 ```bash
 npm i -g cabecao

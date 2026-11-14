@@ -322,7 +322,7 @@ function initEndPart(remote) {
       (process.platform === 'win32' || plain.stdout.includes('Agentes: nenhum encontrado nesta máquina.')) &&
       /Teste agora:\n {2}1\. (?:Depois de conectar um agente, peça a ele|No .+, peça):/.test(plain.stdout) &&
       plain.stdout.includes('cabecao search "respostas curtas"') &&
-      /Opcional \(rode quando quiser\):\n {2}cabecao schedule on/.test(plain.stdout) &&
+      /Opcional:\n {2}cabecao schedule on/.test(plain.stdout) &&
       plain.stdout.includes('cabecao embeddings on'),
     plain,
   );
@@ -335,7 +335,7 @@ function initEndPart(remote) {
     claude.code === 0 &&
       /Claude Code +servidor MCP registrado/.test(claude.stdout) &&
       claude.stdout.includes('1. No Claude Code, peça: "guarde que eu prefiro respostas curtas, em tópicos"') &&
-      /cabecao install-skills +ensina Claude Code/.test(claude.stdout) &&
+      /cabecao install-skills +skills que ensinam Claude Code/.test(claude.stdout) &&
       (process.platform === 'win32' || logged.includes('mcp add-json cabecao')),
     { claude, logged },
   );
@@ -721,7 +721,7 @@ async function embeddingsPart(plainA, plainB, dirA, dirB, remote) {
   check(
     'segunda máquina num cérebro com busca por significado: o opcional diz o modelo e o comando',
     initThird.code === 0 &&
-      /cabecao embeddings on +este cérebro usa busca por significado\s+\(multilingual-e5-small\)/.test(
+      /cabecao embeddings on +busca por significado: este cérebro já usa\s+\(multilingual-e5-small\)/.test(
         initThird.stdout,
       ),
     initThird,
