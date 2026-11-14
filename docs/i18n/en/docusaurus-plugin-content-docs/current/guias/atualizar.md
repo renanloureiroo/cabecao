@@ -11,7 +11,7 @@ Updating has two parts: the **program** (the `cabecao` package, the Claude Code 
 The command depends on how you installed it. `cabecao doctor` shows the one for your installation on its first line:
 
 ```text
-ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
+ok     Cabeção                  1.1.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ```
 
 | Installed with | To update |

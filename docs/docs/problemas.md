@@ -17,7 +17,7 @@ Sem rede, ou para ser rápido, use `cabecao doctor --offline`: ele não consulta
 $ cabecao doctor --offline --brain ~/pasta-qualquer
 Diagnóstico do Cabeção: ~/pasta-qualquer
 
-ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
+ok     Cabeção                  1.1.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ok     Node.js                  v24.21.0
 ok     git                      2.54.0
 falha  Cérebro                  não achei .cabecao.json em ~/pasta-qualquer: a pasta não é um cérebro do Cabeção. Rode "cabecao init".

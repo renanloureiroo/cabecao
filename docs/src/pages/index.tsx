@@ -86,7 +86,7 @@ function Hero(): ReactNode {
             </Link>
           </div>
           <p className={styles.heroMeta}>
-            <Translate id="home.hero.meta">Node.js 22.16+ · git 2.38+ · licença MIT · versão 1.0.0</Translate>
+            <Translate id="home.hero.meta">Node.js 22.16+ · git 2.38+ · licença MIT · versão 1.1.0</Translate>
           </p>
         </div>
         <div className={styles.heroArt}>
