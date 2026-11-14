@@ -11,7 +11,7 @@ Atualizar tem duas partes: o **programa** (o pacote `cabecao`, o plugin do Claud
 O comando depende de como você instalou. O `cabecao doctor` mostra o da sua instalação na primeira linha:
 
 ```text
-ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
+ok     Cabeção                  1.1.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ```
 
 | Instalou com | Para atualizar |

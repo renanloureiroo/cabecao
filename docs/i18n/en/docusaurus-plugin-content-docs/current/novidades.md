@@ -9,6 +9,15 @@ Versions are published on npm. To update:
 npm i -g cabecao
 ```
 
+## 1.1.0
+
+The terminal is nicer to use. Nothing changes for scripts and agents: color, animation, and lists only appear when the output is a terminal.
+
+- **`init` shows each step.** It opens with the Cabeção symbol in the brand color and shows each step on one line, which ends in `✓` with the result; the final summary is shorter. See [Create or connect a brain](./comecar/init.md).
+- **Questions as lists.** The questions in `llm on`, `embeddings on`, `uninstall`, `forget`, and `upgrade` are now lists you choose from with the arrow keys (`↑` `↓`, a number, or `j`/`k`; Enter confirms, Esc cancels), with a short hint next to each option. In `llm on`, the notice about what leaves the machine fits in four lines, with the full text one Enter away.
+- **Plain text where it matters.** In a pipe, with `--json`, for an agent, with `NO_COLOR` set, or with `TERM=dumb`, everything stays in plain text and the questions go back to one line. The help (`--help`) still has no color. See the [CLI reference](./referencia/cli.md).
+- **The Node version, said one way.** Everywhere, "22.16 or newer". The accepted range has not changed; on the 23 line, the message explains why it does not work.
+
 ## 1.0.0
 
 The first stable version, published without a tag: `npm i -g cabecao` installs the newest version. From it on, the commands, the MCP server tools, and the brain format follow semantic versioning: an incompatible change only in a major version. Besides what came in the betas (below), it brings the graph with validity over time, semantic search, the memory lifecycle, the CLI under the same rules as the MCP server (which now has 17 tools, plus `ask` when you turn on a provider), the skills, the Claude Code plugin, automatic sync, the Obsidian integration, and answers with a language model, optional.

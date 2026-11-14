@@ -9,6 +9,15 @@ As versões são publicadas no npm. Para atualizar:
 npm i -g cabecao
 ```
 
+## 1.1.0
+
+O terminal ficou mais agradável de usar. Nada muda para scripts e agentes: cor, animação e listas só aparecem quando a saída é um terminal.
+
+- **O `init` mostra cada passo.** Ele abre com o símbolo do Cabeção na cor da marca e mostra cada passo numa linha, que termina em `✓` com o resultado; o resumo final ficou mais curto. Veja [Criar ou conectar um cérebro](./comecar/init.md).
+- **Perguntas em lista.** As perguntas do `llm on`, `embeddings on`, `uninstall`, `forget` e `upgrade` viraram listas para escolher com as setas (`↑` `↓`, um número ou `j`/`k`; Enter confirma, Esc cancela), com uma dica curta ao lado de cada opção. No `llm on`, o aviso do que sai da máquina cabe em quatro linhas, com o texto completo a um Enter de distância.
+- **Texto puro onde importa.** Num pipe, com `--json`, para um agente, com `NO_COLOR` definido ou com `TERM=dumb`, tudo continua em texto puro e as perguntas voltam a ser de uma linha. A ajuda (`--help`) segue sem cor. Veja a [referência da CLI](./referencia/cli.md).
+- **A versão do Node dita de um jeito só.** Em todo lugar, "22.16 ou mais novo". A faixa aceita não mudou; na linha 23, a mensagem explica por que ela não serve.
+
 ## 1.0.0
 
 A primeira versão estável, publicada sem etiqueta: `npm i -g cabecao` instala a versão mais nova. A partir dela, os comandos, as tools do servidor MCP e o formato do cérebro seguem o versionamento semântico: mudança incompatível só em versão maior. Além do que veio nas betas (abaixo), ela traz o grafo com validade no tempo, a busca por significado, o ciclo de vida da memória, a CLI com as mesmas regras do servidor MCP (que passa a ter 17 tools, mais o `ask` quando você ativa um provedor), as skills, o plugin do Claude Code, o sync automático, a integração com o Obsidian e as respostas com um modelo de linguagem, opcionais.

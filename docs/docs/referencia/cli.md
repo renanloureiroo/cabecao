@@ -4,7 +4,7 @@ description: Todos os comandos do cabecao, com as opções, exemplos e códigos 
 sidebar_position: 1
 ---
 
-Referência de `cabecao 1.0.0`. `cabecao --help` lista os comandos e `cabecao <comando> --help` mostra as opções de cada um.
+Referência de `cabecao 1.1.0`. `cabecao --help` lista os comandos e `cabecao <comando> --help` mostra as opções de cada um.
 
 ## Opções globais
 
@@ -186,7 +186,7 @@ Verifica: a versão do Cabeção e como ele foi instalado (com o comando que o a
 $ cabecao doctor --offline
 Diagnóstico do Cabeção: ~/cabecao
 
-ok     Cabeção                  1.0.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
+ok     Cabeção                  1.1.0 (instalado com npm -g); para atualizar: npm i -g cabecao@latest
 ok     Node.js                  v24.21.0
 ok     git                      2.54.0
 ok     Cérebro                  ~/cabecao (esquema 1)

@@ -162,7 +162,7 @@
     "message": "memory for AI agents"
   },
   "home.hero.meta": {
-    "message": "Node.js 22.16+ · git 2.38+ · MIT license · version 1.0.0"
+    "message": "Node.js 22.16+ · git 2.38+ · MIT license · version 1.1.0"
   },
   "home.how.body": {
     "message": "Notes live in a regular folder, versioned with git. Agents read and write through an MCP server that runs on your machine, and every write becomes a commit. Sync takes everything to your repository and from there to your other machines."
