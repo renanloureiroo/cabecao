@@ -150,9 +150,14 @@ jobs:
         run: |
           # Versão de pré-lançamento (X.Y.Z-beta.N) só publica com etiqueta explícita.
           tag="$(node -p "(require('./package.json').version.split('-')[1] || 'latest').split('.')[0]")"
-          npm publish --dry-run --tag "$tag" 2>&1 | tee "$RUNNER_TEMP/publish.log"
-          # O CI não tem login no npm, de propósito: o aviso de login é o único tolerado.
-          if grep -Ei 'npm (warn|error)' "$RUNNER_TEMP/publish.log" | grep -v 'requires you to be logged in'; then
+          npm publish --dry-run --tag "$tag" 2>&1 | tee "$RUNNER_TEMP/publish.log" || true
+          # Tolerados: o aviso de login (o CI não tem login no npm, de propósito) e a recusa de publicar por cima de
+          # uma versão que já está no npm. Num PR comum a versão ainda é a publicada: quem sobe é o PR "Version
+          # Packages". Qualquer outro aviso ou erro do npm reprova.
+          if grep -Ei 'npm (warn|error)' "$RUNNER_TEMP/publish.log" \
+            | grep -v 'requires you to be logged in' \
+            | grep -v 'cannot publish over the previously published versions' \
+            | grep -v 'A complete log of this run can be found in'; then
             echo "::error::npm publish --dry-run emitiu aviso ou erro"
             exit 1
           fi
