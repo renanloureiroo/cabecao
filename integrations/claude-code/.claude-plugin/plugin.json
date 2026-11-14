@@ -1,6 +1,6 @@
 {
   "name": "cabecao",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "Cabeção",
   "description": "Segundo cérebro pessoal em Markdown e git: o servidor MCP do Cabeção embutido (sem npx), o briefing do cérebro no início de cada sessão, o sync em segundo plano no fim e as skills do Cabeção.",
   "author": {
