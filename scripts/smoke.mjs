@@ -92,7 +92,7 @@ if (expectUnsupported) {
   check(
     'stderr é só a mensagem clara',
     version.stderr ===
-      `cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: ${process.version}. Atualize em https://nodejs.org\n`,
+      `cabecao precisa de Node.js 22.16 ou mais novo.${process.version.startsWith('v23.') ? ' A linha 23 não serve (falta a busca de texto do SQLite): use a 24.' : ''} Versão atual: ${process.version}. Atualize em https://nodejs.org\n`,
     version,
   );
 } else {

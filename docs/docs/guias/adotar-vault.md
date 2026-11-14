@@ -34,10 +34,10 @@ Vault adotado: .cabecao.json, .gitattributes, .gitignore, AGENTS.md, CLAUDE.md a
 
 Obsidian: O cérebro é a pasta ~/cabecao, um clone novo do vault. Se o Obsidian abre este vault de outra pasta, ele continua abrindo aquela cópia, que não recebe o que os agentes gravam aqui: no Obsidian, use "Abrir pasta como cofre" (Open folder as vault) e escolha ~/cabecao. Depois de conferir que está tudo aqui, apague a cópia antiga ou deixe de usá-la.
 ...
-Opcional (rode quando quiser):
+Opcional:
   ...
-  cabecao obsidian setup  achei o Obsidian neste cérebro: grafo colorido por
-                          tipo, propriedades e painéis
+  cabecao obsidian setup  Obsidian: grafo colorido por tipo, propriedades e
+                          painéis
 ```
 
 :::warning[Agora são duas pastas]

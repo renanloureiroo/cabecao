@@ -176,7 +176,9 @@ export function isSupportedNode(version: string): boolean {
 export const checkNode: Check = (facts) => {
   const problem = isSupportedNode(facts.nodeVersion)
     ? undefined
-    : `o Cabeção precisa do Node.js 22.16+ ou 24+, e este é o v${facts.nodeVersion.replace(/^v/, '')}`;
+    : `o Cabeção precisa do Node.js 22.16 ou mais novo, e este é o v${facts.nodeVersion.replace(/^v/, '')}${
+        /^v?23\./.test(facts.nodeVersion) ? ' (a linha 23 não serve: falta a busca de texto do SQLite)' : ''
+      }`;
   const version = `v${facts.nodeVersion.replace(/^v/, '')}`;
   if (problem !== undefined) {
     return { id: 'node', title: 'Node.js', status: 'fail', message: problem, fix: 'Instale o Node.js 24 (LTS).' };

@@ -11,7 +11,7 @@ Nenhum hook lê, copia ou grava a conversa. O que entra no cérebro é só o que
 
 ## Instalar
 
-Antes: Node.js 22.16+ ou 24+ no `PATH` e um cérebro nesta máquina (`npx cabecao init <url>`, ou uma pasta de cérebro que você vai informar).
+Antes: Node.js 22.16 ou mais novo no `PATH` e um cérebro nesta máquina (`npx cabecao init <url>`, ou uma pasta de cérebro que você vai informar).
 
 Dentro do Claude Code:
 
@@ -71,6 +71,6 @@ Para não mexer na sua configuração do Claude Code, use uma pasta de configura
 
 ## Problemas
 
-- O servidor não conecta (`claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect`): rode `cabecao doctor`; confira se o `node` do `PATH` é 22.16+ ou 24+ e se `brain_dir` aponta para um cérebro.
+- O servidor não conecta (`claude mcp list` mostra `plugin:cabecao:cabecao ... Failed to connect`): rode `cabecao doctor`; confira se o `node` do `PATH` é 22.16 ou mais novo e se `brain_dir` aponta para um cérebro.
 - O briefing não aparece: rode à mão `echo '{}' | node <pasta do plugin>/server/cabecao.mjs recall --hook`; o motivo sai no stderr.
 - O sync do fim de sessão: veja `<cérebro>/.cabecao/logs/sync.log`.

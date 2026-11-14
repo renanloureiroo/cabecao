@@ -11,7 +11,7 @@ import TabItem from '@theme/TabItem';
 
 | Program | Version | Why |
 | --- | --- | --- |
-| Node.js | 22.16 or newer (22 line) or 24 or newer. Recommended: 24 | The local index uses `node:sqlite` with full-text search (FTS5), which only exists from 22.16 on. The 23 line is not supported. |
+| Node.js | 22.16 or newer. Recommended: 24 | The local index uses `node:sqlite` with full-text search (FTS5), which only exists from 22.16 on. The 23 line, already out of support, is the only exception: it lacks that search. |
 | git | 2.38 or newer | Sync merges changes in memory, with no half-finished rebase. |
 
 Check what you have:
@@ -24,7 +24,7 @@ git --version
 With a Node version outside the range, Cabeção does not run and tells you what to do:
 
 ```text
-cabecao precisa de Node.js 22.16+ ou 24+. Versão atual: v20.12.2. Atualize em https://nodejs.org
+cabecao precisa de Node.js 22.16 ou mais novo. Versão atual: v20.12.2. Atualize em https://nodejs.org
 ```
 
 ## Install

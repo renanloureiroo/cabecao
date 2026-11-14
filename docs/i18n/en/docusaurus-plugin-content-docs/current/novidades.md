@@ -74,4 +74,4 @@ The first published version.
 - **Agent restrictions**: they do not create rules, do not write to control files or client instruction files, and when they edit a note of yours they set `edited_by` and lower the `trust`.
 - **`cabecao install-client`** for Claude Code, Claude Desktop, Codex, Cursor, VS Code, and Gemini CLI, preserving the rest of each client's file.
 - **`cabecao doctor`** with the suggested fix for each problem, and **`cabecao status`**.
-- A single package, with no runtime dependencies or native binaries. Requires Node.js 22.16+ or 24+ and git 2.38+.
+- A single package, with no runtime dependencies or native binaries. Requires Node.js 22.16 or newer and git 2.38+.

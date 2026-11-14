@@ -59,15 +59,9 @@ import { requireHuman } from '../llm/human.ts';
 import type { LlmMachine } from '../llm/machine.ts';
 import { buildProvider, describeEntry, detectLlm, enableProxyFromEnv, loadLlmMachine } from '../llm/machine.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { confirm, paint } from '../ui.ts';
 
 const AGENT_ID = 'claude-code';
-
-const yes = (answer: string | null, byDefault: boolean): boolean => {
-  if (answer === null) return false;
-  const a = answer.trim().toLowerCase();
-  if (a === '') return byDefault;
-  return ['s', 'sim', 'y', 'yes'].includes(a);
-};
 
 function credentialIo(ctx: CommandContext, machine: LlmMachine): CredentialIo {
   return {
@@ -97,6 +91,9 @@ async function save(machine: LlmMachine, config: LlmConfig): Promise<void> {
 
 interface Choice {
   readonly label: string;
+  /** Na lista com as setas: o nome curto e, ao lado, a dica. */
+  readonly title?: string;
+  readonly hint?: string;
   readonly agent?: true;
   readonly preset?: HttpPresetId;
   /** A chave vem desta variável (detectada). */
@@ -106,15 +103,33 @@ interface Choice {
 function choices(detected: Awaited<ReturnType<typeof detectLlm>>): { found: Choice[]; others: Choice[] } {
   const found: Choice[] = [];
   if (detected.claude.path !== null) {
-    found.push({ label: `${CLAUDE_CODE_LABEL} (${detected.claude.path}), com o login da sua conta`, agent: true });
+    found.push({
+      label: `${CLAUDE_CODE_LABEL} (${detected.claude.path}), com o login da sua conta`,
+      title: CLAUDE_CODE_LABEL,
+      hint: 'achei nesta máquina · usa o login da sua conta',
+      agent: true,
+    });
   }
   for (const { preset, env } of detected.envKeys) {
-    found.push({ label: `${HTTP_PRESETS[preset].label}, com a chave da variável ${env}`, preset, env });
+    found.push({
+      label: `${HTTP_PRESETS[preset].label}, com a chave da variável ${env}`,
+      title: HTTP_PRESETS[preset].label.replace(/ \(.*\)$/, ''),
+      hint: `achei a chave na variável ${env}`,
+      preset,
+      env,
+    });
   }
   const others: Choice[] = HTTP_PRESET_IDS.map((preset) => ({
     label: HTTP_PRESETS[preset].needsKey
       ? `${HTTP_PRESETS[preset].label} (colar uma chave)`
       : HTTP_PRESETS[preset].label,
+    title: HTTP_PRESETS[preset].label.replace(/ \(.*\)$/, ''),
+    hint:
+      HTTP_PRESETS[preset].baseUrl === null
+        ? 'você informa o endereço'
+        : HTTP_PRESETS[preset].needsKey
+          ? 'colar uma chave de API'
+          : 'servidor local, sem chave',
     preset,
   }));
   return { found, others };
@@ -169,6 +184,48 @@ function disclosure(id: string, entry: ProviderEntry, config: LlmConfig): string
   return lines.join('\n');
 }
 
+/** O essencial do aviso, em quatro linhas: o que vai, o que fica, para onde e quem paga. */
+function disclosureSummary(ctx: CommandContext, entry: ProviderEntry, config: LlmConfig): string {
+  const p = paint(ctx.style?.stderr === true, ctx.env);
+  const d = describeEntry(entry);
+  const row = (name: string, text: string): string => `    ${name.padEnd(5)}  ${p.dim(text)}`;
+  return [
+    '',
+    `  ${p.bold(d.leaves ? 'O que sai da máquina, a cada pergunta' : 'Roda nesta máquina')}`,
+    row('Vai', `a pergunta e trechos das notas que a busca achar (até ~${config.limits.context_tokens} tokens)`),
+    row('Fica', 'notas com "private: true", arquivos de controle, segredos e a chave'),
+    row('Para', `${d.destination} · modelo ${d.model}`),
+    row('Custo', (costLine(entry, config).split('. ')[0] ?? '').replace(/^[^:]+: /, '').replace(/\.$/, '')),
+    '',
+  ].join('\n');
+}
+
+/**
+ * A confirmação de ativar. Com as setas: o resumo, e o texto completo a um Enter de distância ("Ver o texto
+ * completo"). Sem elas: o texto completo, como sempre, e a pergunta de uma linha.
+ */
+async function consent(
+  ctx: CommandContext,
+  human: HumanIo,
+  id: string,
+  entry: ProviderEntry,
+  config: LlmConfig,
+): Promise<boolean> {
+  if (human.select === undefined) {
+    ctx.stderr.write(`${disclosure(id, entry, config)}\n\n`);
+    return confirm(human, 'Ativar?', false);
+  }
+  ctx.stderr.write(`${disclosureSummary(ctx, entry, config)}\n`);
+  const picked = await human.select('Ativar?', [
+    { label: 'Não' },
+    { label: 'Sim' },
+    { label: 'Ver o texto completo', hint: 'política de dados, limites e como desligar' },
+  ]);
+  if (picked !== 2) return picked === 1;
+  ctx.stderr.write(`${disclosure(id, entry, config)}\n\n`);
+  return confirm(human, 'Ativar?', false);
+}
+
 async function ask(human: HumanIo, question: string): Promise<string | null> {
   return human.prompt(question);
 }
@@ -203,11 +260,9 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
     const entry = config.providers[previous] as ProviderEntry;
     const d = describeEntry(entry);
     if (
-      yes(
-        await ask(
-          human,
-          `Religar as respostas com ${d.label} (modelo ${d.model}, envia para ${d.destination})? [S/n] `,
-        ),
+      await confirm(
+        human,
+        `Religar as respostas com ${d.label} (modelo ${d.model}, envia para ${d.destination})?`,
         true,
       )
     ) {
@@ -245,20 +300,36 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
   } else {
     const { found, others } = choices(detected);
     const list = [...found, ...others];
-    const lines = [];
-    if (found.length > 0) {
-      lines.push('Achei nesta máquina:');
-      for (const [i, c] of found.entries()) lines.push(`  ${i + 1}  ${c.label}`);
-      lines.push('Outras opções:');
-    } else lines.push('Nenhum agente nem chave conhecida nesta máquina. Opções:');
-    for (const [i, c] of others.entries()) lines.push(`  ${found.length + i + 1}  ${c.label}`);
-    ctx.stderr.write(`${lines.join('\n')}\n`);
-    const answer = (await ask(human, 'Qual deve gerar as respostas do "cabecao ask"? [1] ')) ?? '';
-    const index = answer.trim() === '' ? 0 : Number(answer.trim()) - 1;
-    const picked = list[index];
-    if (!Number.isInteger(index) || picked === undefined)
-      throw new UsageError(`escolha um número de 1 a ${list.length}`);
-    choice = picked;
+    if (human.select !== undefined) {
+      const picked = await human.select(
+        'Quem gera as respostas do "cabecao ask"?',
+        list.map((c) => ({ label: c.title ?? c.label, hint: c.hint })),
+      );
+      const selected = picked === null ? undefined : list[picked];
+      if (selected === undefined) {
+        return {
+          code: 1,
+          data: { enabled: config.enabled, cancelled: true },
+          text: 'Nada foi ativado e nada saiu da máquina.',
+        };
+      }
+      choice = selected;
+    } else {
+      const lines = [];
+      if (found.length > 0) {
+        lines.push('Achei nesta máquina:');
+        for (const [i, c] of found.entries()) lines.push(`  ${i + 1}  ${c.label}`);
+        lines.push('Outras opções:');
+      } else lines.push('Nenhum agente nem chave conhecida nesta máquina. Opções:');
+      for (const [i, c] of others.entries()) lines.push(`  ${found.length + i + 1}  ${c.label}`);
+      ctx.stderr.write(`${lines.join('\n')}\n`);
+      const answer = (await ask(human, 'Qual deve gerar as respostas do "cabecao ask"? [1] ')) ?? '';
+      const index = answer.trim() === '' ? 0 : Number(answer.trim()) - 1;
+      const picked = list[index];
+      if (!Number.isInteger(index) || picked === undefined)
+        throw new UsageError(`escolha um número de 1 a ${list.length}`);
+      choice = picked;
+    }
   }
 
   let id: string;
@@ -337,10 +408,7 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
     let paidTier: boolean | undefined;
     if (preset.id === 'gemini') {
       ctx.stderr.write(`\nAtenção: ${preset.warning}\n`);
-      paidTier = yes(
-        await ask(human, 'A sua chave é de um projeto com faturamento ativo (camada paga)? [s/N] '),
-        false,
-      );
+      paidTier = await confirm(human, 'A sua chave é de um projeto com faturamento ativo (camada paga)?', false);
       if (!paidTier) {
         ctx.stderr.write(
           'Na camada gratuita, os trechos das suas notas podem ser lidos por revisores do Google e usados para melhorar os produtos dele.\n',
@@ -364,8 +432,7 @@ async function runOn(ctx: CommandContext): Promise<CommandResult> {
   }
   if (!PROVIDER_ID_RE.test(id)) throw new UsageError(`nome de provedor inválido: ${id}`);
 
-  ctx.stderr.write(`${disclosure(id, entry, config)}\n\n`);
-  if (!yes(await ask(human, 'Ativar? [s/N] '), false)) {
+  if (!(await consent(ctx, human, id, entry, config))) {
     return {
       code: 1,
       data: { enabled: config.enabled, cancelled: true },
@@ -675,7 +742,7 @@ async function runRemove(ctx: CommandContext): Promise<CommandResult> {
       hint: 'Veja os configurados com "cabecao llm status".',
     });
   }
-  if (!yes(await human.prompt(`Apagar o provedor "${id}" e a chave que o Cabeção guardou para ele? [s/N] `), false)) {
+  if (!(await confirm(human, `Apagar o provedor "${id}" e a chave que o Cabeção guardou para ele?`, false))) {
     return { code: 1, data: { removed: false }, text: 'Nada foi apagado.' };
   }
   const entry0 = config.providers[id] as ProviderEntry;
@@ -747,7 +814,7 @@ async function runPolicy(ctx: CommandContext): Promise<CommandResult> {
       };
   const policy = readLlmPolicy({ unknown: next === null ? {} : { [LLM_POLICY_KEY]: next } });
   if (policy.problem !== null) throw new UsageError(policy.problem);
-  if (!yes(await human.prompt(`Gravar a política ${show(next)} no .cabecao.json (vai para o git)? [s/N] `), false)) {
+  if (!(await confirm(human, `Gravar a política ${show(next)} no .cabecao.json (vai para o git)?`, false))) {
     return { code: 1, data: { policy: before, changed: false }, text: 'Nada mudou.' };
   }
   const updated = { ...current };

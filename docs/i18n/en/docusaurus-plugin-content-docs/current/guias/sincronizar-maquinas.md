@@ -43,7 +43,7 @@ Busca por significado: desativada ("cabecao embeddings on" ativa)
 Respostas (ask): opcional, desligado; nada sai da máquina ("cabecao llm on" ativa)
 Saúde: ok
 Próximo passo: Rode o sync para enviar as mudanças.
-Opcional (rode quando quiser):
+Opcional:
   ...
 ```
 

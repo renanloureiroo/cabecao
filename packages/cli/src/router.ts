@@ -10,7 +10,7 @@ import { upgradeHint } from './install-method.ts';
 import { didYouMean } from './suggest.ts';
 import { systemError } from './syserr.ts';
 import { fill, reflow, words, wrapLine } from './text.ts';
-import type { CliIo, CommandContext, CommandSpec, OptionSpec, OptionValue } from './types.ts';
+import type { CliIo, CommandContext, CommandSpec, ControllingTerminal, OptionSpec, OptionValue } from './types.ts';
 import { CLI_NAME, HOMEPAGE, VERSION } from './version.ts';
 
 // Este módulo roda em todo início, inclusive em `--version`. Não importe aqui nada do núcleo nem de um comando:
@@ -408,6 +408,11 @@ export async function execute(io: CliIo, commands: readonly CommandSpec[] = COMM
       promptSecret:
         actor.actor === 'human' && terminal?.promptSecret !== undefined
           ? (question) => (terminal.promptSecret as (q: string) => Promise<string | null>)(question)
+          : undefined,
+      select:
+        actor.actor === 'human' && terminal?.select !== undefined
+          ? (question, options, initial) =>
+              (terminal.select as NonNullable<ControllingTerminal['select']>)(question, options, initial)
           : undefined,
     };
     const { run } = await command.load();

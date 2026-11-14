@@ -17,6 +17,7 @@ import { readMachine, resolveBrain } from '../brain.ts';
 import { CliError } from '../errors.ts';
 import { indent, plural } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { confirm } from '../ui.ts';
 
 function fromMigrationError(error: unknown): unknown {
   if (error instanceof MigrationError) {
@@ -82,10 +83,13 @@ async function template(ctx: CommandContext, root: string, dryRun: boolean): Pro
     if (!yes && ctx.prompt !== undefined) {
       ctx.stdout.write(`${lines.join('\n')}\n`);
       lines.length = 0;
-      const answer = await ctx.prompt(
-        `Trocar o seu ${item.path} pelo modelo atual? A sua versão continua no histórico do git. [s/N] `,
+      if (ctx.select !== undefined) ctx.stderr.write('A sua versão continua no histórico do git.\n');
+      yes = await confirm(
+        ctx,
+        ctx.select !== undefined
+          ? `Trocar o seu ${item.path} pelo modelo atual?`
+          : `Trocar o seu ${item.path} pelo modelo atual? A sua versão continua no histórico do git.`,
       );
-      yes = answer !== null && /^s(im)?$/i.test(answer.trim());
     }
     if (yes) replace.push(item.path);
   }

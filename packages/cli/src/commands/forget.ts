@@ -3,6 +3,7 @@ import { resolveBrain, withBrain } from '../brain.ts';
 import { CliError, UsageError } from '../errors.ts';
 import { confirmTokenOf, EXIT_CONFIRM, stringOption } from '../memory.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { confirm } from '../ui.ts';
 
 const DEFAULT_REASON = 'esquecida pelo usuário na CLI';
 const DEFAULT_AGENT_REASON = 'arquivada por um agente pela CLI';
@@ -69,8 +70,9 @@ export async function run(ctx: CommandContext): Promise<CommandResult> {
         });
       }
       // a pergunta vai direto ao terminal controlador (nunca ao stdin)
-      const answer = (await ctx.prompt(`${preview.summary}\nArquivar? [s/N] `))?.trim().toLowerCase() ?? '';
-      if (!['s', 'sim', 'y', 'yes'].includes(answer)) return null;
+      if (ctx.select !== undefined) ctx.stderr.write(`${preview.summary}\n`);
+      const question = ctx.select !== undefined ? 'Arquivar?' : `${preview.summary}\nArquivar?`;
+      if (!(await confirm(ctx, question))) return null;
     }
     return brain.forget({ id, reason }, { userConfirmed: true });
   });

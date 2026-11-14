@@ -55,7 +55,7 @@ export function loadSqlite(): SqliteModule {
   const mod = process.getBuiltinModule('node:sqlite') as SqliteModule | undefined;
   if (mod === undefined || typeof mod.DatabaseSync !== 'function') {
     throw new Error(
-      `o Cabeção precisa do SQLite embutido do Node.js (22.16+ ou 24+); este é o ${process.version}. Atualize o Node.`,
+      `o Cabeção precisa do SQLite embutido do Node.js (22.16 ou mais novo); este é o ${process.version}. Atualize o Node.`,
     );
   }
   cached = mod;

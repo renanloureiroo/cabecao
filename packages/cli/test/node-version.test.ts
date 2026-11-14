@@ -10,8 +10,10 @@ it.each(['22.16.0', '22.23.4', 'v22.16.0', '24.0.0', '24.21.0', '25.0.0', '26.13
 
 it.each(['12.22.0', '18.20.0', '20.19.0', '22.5.0', '22.15.1', '23.0.0', '23.11.1'])('recusa Node %s', (version) => {
   const message = unsupportedNodeMessage(version);
-  expect(message).toContain('cabecao precisa de Node.js 22.16+ ou 24+');
+  expect(message).toContain('cabecao precisa de Node.js 22.16 ou mais novo');
   expect(message).toContain(`Versão atual: v${version}`);
+  // a 23 é "mais nova" e não serve: só nela a mensagem explica
+  expect(message?.includes('A linha 23 não serve')).toBe(version.startsWith('23.'));
 });
 
 it('não repete o "v" quando a versão já vem com ele', () => {

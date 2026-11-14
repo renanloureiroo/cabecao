@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { systemExec } from './exec.ts';
 import { execute } from './router.ts';
 import type { CliIo, CommandSpec, ControllingTerminal, Exec, StdinLimits } from './types.ts';
+import { outputStyle } from './ui.ts';
 
 export { VERSION } from './version.ts';
 
@@ -147,9 +148,18 @@ function watchInterrupt(): { signal: AbortSignal; dispose(): void } {
  * Pergunta direto no terminal controlador, uma linha, sem passar pelo stdin (que pode ser um pipe com o conteúdo de
  * uma nota, ou um agente). `node:readline` e `node:tty` só são carregados quando um comando pergunta algo.
  */
-function controllingTerminal(platform: NodeJS.Platform): ControllingTerminal {
+function controllingTerminal(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): ControllingTerminal {
   return {
     promptSecret: (question) => terminalSecret(platform, question),
+    // a lista com as setas precisa mover o cursor: num terminal que não sabe (`TERM=dumb`), fica a lista numerada
+    ...(env.TERM === 'dumb'
+      ? {}
+      : {
+          select: async (question, options, initial) => {
+            const { terminalSelect } = await import('./term-select.ts');
+            return terminalSelect(terminalPaths(platform), env, question, options, initial);
+          },
+        }),
     async prompt(question) {
       const { input: inPath, output: outPath } = terminalPaths(platform);
       const [{ createInterface }, tty] = await Promise.all([import('node:readline/promises'), import('node:tty')]);
@@ -207,6 +217,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     stdout: process.stdout,
     stderr: process.stderr,
     columns: process.stdout.isTTY === true ? process.stdout.columns : undefined,
+    style: outputStyle({ stdout: process.stdout.isTTY === true, stderr: process.stderr.isTTY === true }, process.env),
     platform: process.platform,
     homedir: safeHomedir(),
     execPath: process.execPath,
@@ -215,6 +226,8 @@ export async function main(argv: readonly string[]): Promise<void> {
     readStdin: processStdin,
     exit: flushAndExit,
     watchInterrupt,
-    ...(hasControllingTerminal(process.platform) ? { terminal: controllingTerminal(process.platform) } : {}),
+    ...(hasControllingTerminal(process.platform)
+      ? { terminal: controllingTerminal(process.platform, process.env) }
+      : {}),
   });
 }

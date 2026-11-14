@@ -36,7 +36,7 @@ Só três coisas, cerca de 490 kB:
 | `icon.png` | O ícone |
 | `server/*.mjs` | O mesmo programa publicado no npm, sem dependências |
 
-O servidor roda com o Node.js que o Claude Desktop traz. O Cabeção precisa do Node.js 22.16+ ou 24+: num Node mais antigo, o servidor não sobe e a mensagem diz isso. O git do sistema continua necessário para o sync.
+O servidor roda com o Node.js que o Claude Desktop traz. O Cabeção precisa do Node.js 22.16 ou mais novo: num Node mais antigo, o servidor não sobe e a mensagem diz isso. O git do sistema continua necessário para o sync.
 
 ## Atualizar
 

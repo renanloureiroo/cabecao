@@ -25,6 +25,7 @@ import { CliError, UsageError } from '../errors.ts';
 import { didYouMean } from '../suggest.ts';
 import { formatBytes } from '../text.ts';
 import type { CommandContext, CommandResult } from '../types.ts';
+import { confirm } from '../ui.ts';
 import { RUNTIME_TEXT } from './status.ts';
 
 const SUBCOMMANDS = ['on', 'off', 'status', 'switch'] as const;
@@ -114,6 +115,20 @@ async function chooseModel(ctx: CommandContext, requested: string | undefined): 
       hint: `${catalogTable()}\n\nRode "cabecao embeddings on <modelo>", por exemplo "cabecao embeddings on multilingual-e5-small".`,
     });
   }
+  if (ctx.select !== undefined) {
+    // a tabela completa (acerto, paráfrases, licença) fica em "cabecao embeddings on --help" e no guia
+    const picked = await ctx.select(
+      'Qual modelo para a busca por significado?',
+      MODEL_CATALOG.map((model) => ({
+        label: model.name,
+        hint: `${downloadMb(model)} MB · ${model.indicatedFor}`,
+      })),
+    );
+    const model = picked === null ? undefined : MODEL_CATALOG[picked];
+    if (model === undefined)
+      throw new CliError('nenhum modelo escolhido; nada foi alterado', { code: 'model_required' });
+    return model;
+  }
   ctx.stderr.write(`${catalogTable()}\n\n`);
   for (let tries = 0; tries < 3; tries++) {
     const answer = (await ask(ctx, `Qual modelo? (1-${MODEL_CATALOG.length} ou o nome): `))?.trim() ?? null;
@@ -140,9 +155,12 @@ async function confirmLicense(ctx: CommandContext, model: CatalogModel): Promise
         .join(', ')}).`,
     });
   }
-  const answer = await ask(ctx, `${warning}\nContinuar com ele? [s/N] `);
-  if (!/^s(im)?$/i.test(answer?.trim() ?? ''))
-    throw new CliError('cancelado; nada foi alterado', { code: 'cancelled' });
+  if (ctx.select !== undefined) ctx.stderr.write(`${warning}\n`);
+  const accepted = await confirm(
+    ctx,
+    ctx.select !== undefined ? 'Continuar com ele?' : `${warning}\nContinuar com ele?`,
+  );
+  if (!accepted) throw new CliError('cancelado; nada foi alterado', { code: 'cancelled' });
 }
 
 function stringOption(ctx: CommandContext, name: string): string | undefined {
