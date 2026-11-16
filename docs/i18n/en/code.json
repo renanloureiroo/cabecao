@@ -564,5 +564,83 @@
   "theme.tags.tagsPageTitle": {
     "message": "Tags",
     "description": "The title of the tag list page"
+  },
+  "consent.banner.title": {
+    "message": "analytics"
+  },
+  "consent.banner.body": {
+    "message": "May I measure visits with Google Analytics (cookies, no ads) to learn which pages help? {link}."
+  },
+  "consent.banner.link": {
+    "message": "See what is collected"
+  },
+  "consent.banner.deny": {
+    "message": "Decline"
+  },
+  "consent.banner.accept": {
+    "message": "Accept"
+  },
+  "privacy.choice.disabled": {
+    "message": "This build of the site has no analytics: nothing is measured."
+  },
+  "privacy.choice.granted": {
+    "message": "You accepted measurement."
+  },
+  "privacy.choice.denied": {
+    "message": "You declined measurement."
+  },
+  "privacy.choice.none": {
+    "message": "You have not chosen yet; for now nothing is measured."
+  },
+  "privacy.choice.deny": {
+    "message": "Decline"
+  },
+  "privacy.choice.accept": {
+    "message": "Accept"
+  },
+  "privacy.title": {
+    "message": "Site privacy"
+  },
+  "privacy.description": {
+    "message": "What the Cabeção documentation site measures with Google Analytics, and how to change your choice."
+  },
+  "privacy.intro": {
+    "message": "This page is only about this documentation site. With your permission, it uses Google Analytics 4 to learn which pages are read, what people search for and where the documentation falls short. Without permission, Google's script is not even downloaded."
+  },
+  "privacy.collected.title": {
+    "message": "What is measured"
+  },
+  "privacy.collected.pages": {
+    "message": "The pages you visit, where you came from, time on the page and whether you reached its end."
+  },
+  "privacy.collected.context": {
+    "message": "Approximate country and city, language, browser, operating system and device type, and the theme (light or dark)."
+  },
+  "privacy.collected.actions": {
+    "message": "What you do in the documentation: search terms, commands and code blocks copied, tabs chosen, external links opened and addresses that returned 404."
+  },
+  "privacy.not.title": {
+    "message": "What is not done"
+  },
+  "privacy.not.ads": {
+    "message": "No ads, remarketing or Google Signals: advertising signals are always off."
+  },
+  "privacy.not.ip": {
+    "message": "GA4 does not store your IP address, and the site sends no name, email or any data that identifies you."
+  },
+  "privacy.not.cli": {
+    "message": "The cabecao program sends no telemetry at all; this applies to the site only."
+  },
+  "privacy.choice.title": {
+    "message": "Your choice"
+  },
+  "privacy.choice.body": {
+    "message": "Your choice is stored only in your browser, for one year. If you decline after accepting, measurement stops and this site's Google Analytics cookies are deleted."
+  },
+  "privacy.more": {
+    "message": "For your brain's data and what the program does with it, see {link}."
+  },
+  "privacy.more.link": {
+    "message": "Security and privacy"
   }
 }
