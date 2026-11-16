@@ -1,5 +1,6 @@
 // O comando de instalação num bloco de terminal com botão de copiar.
 import { translate } from '@docusaurus/Translate';
+import { track } from '@site/src/analytics/gtag';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import styles from './CopyCommand.module.css';
 import Icon from './Icon';
@@ -12,6 +13,7 @@ export default function CopyCommand({ command }: { readonly command: string }): 
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(command);
+      track('copy_command', { command });
       setCopied(true);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), 2000);

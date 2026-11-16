@@ -39,6 +39,9 @@ jobs:
       - run: pnpm install --frozen-lockfile --filter cabecao-docs
       - name: build (com verificação de links internos)
         run: pnpm docs:build
+        env:
+          # ID do Google Analytics 4 (Settings > Secrets and variables > Actions > Variables). Vazio: sem analytics.
+          GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:

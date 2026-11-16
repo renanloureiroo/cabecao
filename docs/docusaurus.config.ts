@@ -6,6 +6,13 @@ import type { PrismTheme } from 'prism-react-renderer';
 const REPO = 'https://github.com/renanloureiroo/cabecao';
 const BASE = '/cabecao/';
 
+// Google Analytics 4: o ID vem do build (variável GA_MEASUREMENT_ID; no CI, a variável do repositório).
+// Sem ele, o site sai sem analytics e sem banner. O script só carrega depois do consentimento (src/analytics).
+const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID?.trim() ?? '';
+if (GA_MEASUREMENT_ID && !/^G-[A-Z0-9]+$/.test(GA_MEASUREMENT_ID)) {
+  throw new Error(`GA_MEASUREMENT_ID inválido: ${GA_MEASUREMENT_ID} (esperado algo como G-XXXXXXXXXX)`);
+}
+
 // Bloco de código sempre escuro, com as quatro cores code.* do design system (tokens.css).
 const codeTheme: PrismTheme = {
   plain: { color: 'var(--code-text)', backgroundColor: 'var(--code-bg)' },
@@ -45,6 +52,12 @@ const config: Config = {
   trailingSlash: true,
   organizationName: 'renanloureiroo',
   projectName: 'cabecao',
+
+  customFields: {
+    gaMeasurementId: GA_MEASUREMENT_ID,
+    gaDebug: process.env.NODE_ENV !== 'production',
+  },
+  clientModules: ['./src/analytics/gtag.ts'],
 
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -165,6 +178,7 @@ const config: Config = {
             { label: 'GitHub', href: REPO },
             { label: 'npm', href: 'https://www.npmjs.com/package/cabecao' },
             { label: 'Issues', href: `${REPO}/issues` },
+            { label: 'Privacidade do site', to: '/privacidade/' },
           ],
         },
       ],
